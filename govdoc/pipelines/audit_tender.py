@@ -353,6 +353,43 @@ async def _run_single_point(
     return workspace, result
 
 
+def _persist_point_result(
+    point_run: AuditPointRun,
+    result: Any,
+    workspace: Any,
+    checkpoint: GovCheckpoint,
+    manager: Any,
+) -> None:
+    """把 PES result 落到 point_run 字段。
+
+    - result.status == "completed": 加载 payload、匹配 finding、设 status/completed_at/archive
+    - result.status != "completed": 设 failed/error/failed_archive
+    - result 非 None: 写 usage_json
+
+    不调用 session.commit/add；异常由调用方接管。
+    """
+    if result.status == "completed":
+        payload = load_result_payload(result.final_output_path, result.final_output)
+        findings = payload.get("findings", [])
+        finding_data = _match_finding_by_checkpoint_id(findings, checkpoint.id)
+        if finding_data is not None:
+            finding = GovFinding.model_validate(finding_data)
+            point_run.finding_json = finding.model_dump_json()
+        elif findings:
+            finding = GovFinding.model_validate(findings[0])
+            point_run.finding_json = finding.model_dump_json()
+        point_run.status = "completed"
+        point_run.completed_at = datetime.utcnow()
+        point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
+    else:
+        point_run.status = "failed"
+        point_run.error = result.error
+        point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
+
+    if result is not None:
+        point_run.usage_json = dump_phase_usage(result.phase_results)
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -422,26 +459,7 @@ async def run_audit(
                     replay_dir=replay_dir,
                 )
 
-                if result.status == "completed":
-                    payload = load_result_payload(result.final_output_path, result.final_output)
-                    findings = payload.get("findings", [])
-                    finding_data = _match_finding_by_checkpoint_id(findings, checkpoint.id)
-                    if finding_data is not None:
-                        finding = GovFinding.model_validate(finding_data)
-                        point_run.finding_json = finding.model_dump_json()
-                    elif findings:
-                        finding = GovFinding.model_validate(findings[0])
-                        point_run.finding_json = finding.model_dump_json()
-                    point_run.status = "completed"
-                    point_run.completed_at = datetime.utcnow()
-                    point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
-                else:
-                    point_run.status = "failed"
-                    point_run.error = result.error
-                    point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
-
-                if result is not None:
-                    point_run.usage_json = dump_phase_usage(result.phase_results)
+                _persist_point_result(point_run, result, workspace, checkpoint, manager)
 
             except Exception as exc:
                 point_run.status = "failed"
