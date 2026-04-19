@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from govdoc.pipelines.audit_tender import (
+    _cleanup_tender_collection,
     _index_tender_doc,
     _persist_point_result,
     _resolve_point_runs,
@@ -283,3 +284,45 @@ def test_persist_point_result_usage_json_set():
 
     # dump_phase_usage({}) 返回字符串 "{}"（证实"result 非 None 时无条件调用"的副作用路径）
     assert point_run.usage_json == "{}"
+
+
+# --- Task 7: _cleanup_tender_collection ----------------------------------
+
+
+def test_cleanup_tender_collection_replay_mode_noop():
+    """replay=True 时不调 get_qmd，直接返回。"""
+    with patch("govdoc.pipelines.audit_tender.get_qmd") as mock_get_qmd:
+        _cleanup_tender_collection("run_abc_tender", replay=True)
+    mock_get_qmd.assert_not_called()
+
+
+def test_cleanup_tender_collection_none_id_noop():
+    """collection_id=None 时直接返回，不调 get_qmd。"""
+    with patch("govdoc.pipelines.audit_tender.get_qmd") as mock_get_qmd:
+        _cleanup_tender_collection(None, replay=False)
+    mock_get_qmd.assert_not_called()
+
+
+def test_cleanup_tender_collection_empty_id_noop():
+    """collection_id='' 时直接返回，不调 get_qmd。"""
+    with patch("govdoc.pipelines.audit_tender.get_qmd") as mock_get_qmd:
+        _cleanup_tender_collection("", replay=False)
+    mock_get_qmd.assert_not_called()
+
+
+def test_cleanup_tender_collection_production_mode_calls_delete():
+    """非 replay + 有效 id → 调 get_qmd().delete_collection。"""
+    mock_client = MagicMock()
+    with patch("govdoc.pipelines.audit_tender.get_qmd", return_value=mock_client):
+        _cleanup_tender_collection("run_abc_tender", replay=False)
+    mock_client.delete_collection.assert_called_once_with("run_abc_tender")
+
+
+def test_cleanup_tender_collection_swallows_exceptions():
+    """delete_collection 抛异常时本函数静默吞掉，不向上传播。"""
+    mock_client = MagicMock()
+    mock_client.delete_collection.side_effect = RuntimeError("qmd down")
+    with patch("govdoc.pipelines.audit_tender.get_qmd", return_value=mock_client):
+        # 不应抛异常
+        _cleanup_tender_collection("run_abc_tender", replay=False)
+    mock_client.delete_collection.assert_called_once_with("run_abc_tender")
