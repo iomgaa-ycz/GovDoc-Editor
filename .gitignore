@@ -33,6 +33,10 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
+# 前端测试产物
+frontend/coverage/
+frontend/.vitest/
+
 # GitNexus 中间产物（可由 `npx gitnexus analyze` 重建）
 graphify-out/cache/
 graphify-out/converted/
