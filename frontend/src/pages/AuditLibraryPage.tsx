@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardHeader,
+  DropdownMenu,
   EmptyState,
   Field,
   FileDropzone,
@@ -29,12 +30,19 @@ export function AuditLibraryPage() {
     uploadRuleAndExtract,
     updateCheckpoint,
     deleteCheckpoint,
+    importCheckpointFile,
   } = useWorkbench();
 
-  const [mode, setMode] = useState<"list" | "upload">("list");
+  const [mode, setMode] = useState<"list" | "upload" | "import">("list");
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Import state
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported_count: number; skipped_count: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Edit modal
   const [editingCheckpoint, setEditingCheckpoint] = useState<CheckpointItem | null>(null);
@@ -61,6 +69,24 @@ export function AuditLibraryPage() {
       await uploadRuleAndExtract(uploadTitle, uploadFile);
     } finally {
       setUploading(false);
+    }
+  }
+
+  // ── Import flow ──
+
+  async function handleImport() {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const result = await importCheckpointFile(importFile);
+      setImportResult(result);
+      setImportFile(null);
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : "导入失败");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -99,9 +125,17 @@ export function AuditLibraryPage() {
         description="上传法规文件提取审核点，或查看和管理已有审核点。"
         actions={
           mode === "list" ? (
-            <Button icon={Upload} onClick={() => setMode("upload")}>上传法规提取</Button>
+            <DropdownMenu
+              trigger={<Button icon={Upload}>上传 ▾</Button>}
+              items={[
+                { label: "AI 提取", onClick: () => setMode("upload") },
+                { label: "导入审查点表格", onClick: () => setMode("import") },
+              ]}
+            />
           ) : (
-            <Button tone="secondary" onClick={() => setMode("list")}>返回列表</Button>
+            <Button tone="secondary" onClick={() => { setMode("list"); setImportResult(null); setImportError(null); }}>
+              返回列表
+            </Button>
           )
         }
       />
@@ -110,7 +144,7 @@ export function AuditLibraryPage() {
         <InlineNotice tone="warning" message="后端 API 未连通，部分功能不可用。" />
       )}
 
-      {mode === "list" ? (
+      {mode === "list" && (
         <div className="stack-gap">
           {/* Overview */}
           <div className="library-overview-grid">
@@ -132,7 +166,7 @@ export function AuditLibraryPage() {
           {parsed.length === 0 ? (
             <EmptyState
               title="暂无审核点"
-              description="请点击「上传法规提取」开始创建审核点。"
+              description="请点击「上传」开始创建审核点。"
             />
           ) : (
             <div className="point-preview-list">
@@ -154,7 +188,9 @@ export function AuditLibraryPage() {
             </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {mode === "upload" && (
         /* Upload mode */
         <div className="stack-gap">
           <Card>
@@ -213,6 +249,58 @@ export function AuditLibraryPage() {
                   onClick={handleUpload}
                 >
                   开始抽取
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {mode === "import" && (
+        <div className="stack-gap">
+          <Card>
+            <CardHeader title="导入审查点表格" description="上传已整理的审查点表格（.xls / .xlsx / .csv），系统将自动解析并生成草稿审核点。" />
+            <div className="modal-form">
+              <Field label="审查点文件">
+                {importFile ? (
+                  <div className="file-chip-list">
+                    <div className="file-chip">
+                      <div>
+                        <strong>{importFile.name}</strong>
+                        <span>{(importFile.size / 1024).toFixed(1)} KB</span>
+                      </div>
+                      <button className="icon-button" type="button" onClick={() => setImportFile(null)}>
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <FileDropzone
+                    title="选择审查点表格"
+                    subtitle="支持 .xls, .xlsx, .csv"
+                    accept=".xls,.xlsx,.csv"
+                    onSelect={(files) => setImportFile(files[0] ?? null)}
+                  />
+                )}
+              </Field>
+              {importResult && (
+                <InlineNotice
+                  tone="success"
+                  message={`成功导入 ${importResult.imported_count} 条审查点${importResult.skipped_count > 0 ? `，跳过 ${importResult.skipped_count} 条` : ""}`}
+                />
+              )}
+              {importError && (
+                <InlineNotice tone="warning" message={importError} />
+              )}
+              <div className="footer-actions">
+                <Button
+                  tone="primary"
+                  icon={Plus}
+                  busy={importing}
+                  disabled={!importFile || importing}
+                  onClick={handleImport}
+                >
+                  开始导入
                 </Button>
               </div>
             </div>
