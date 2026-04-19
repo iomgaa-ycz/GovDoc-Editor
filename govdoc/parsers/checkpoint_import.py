@@ -151,11 +151,7 @@ def _parse_legal_basis(text: str) -> list[LegalBasis]:
     if not text.strip():
         return []
     parts = _LEGAL_SPLIT_RE.split(text.strip())
-    return [
-        LegalBasis(law_name=p.strip(), article="", quote="")
-        for p in parts
-        if p.strip()
-    ]
+    return [LegalBasis(law_name=p.strip(), article="", quote="") for p in parts if p.strip()]
 
 
 def _rows_to_checkpoints(
