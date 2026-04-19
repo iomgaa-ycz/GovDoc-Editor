@@ -5,7 +5,12 @@ from contextlib import contextmanager
 
 from sqlmodel import Session
 
+from govdoc.config import GovDocConfig, load_config
 from govdoc.db.session import get_engine
+
+
+def get_config() -> GovDocConfig:
+    return load_config()
 
 
 @contextmanager
