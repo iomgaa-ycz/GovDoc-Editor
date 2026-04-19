@@ -79,9 +79,10 @@ def test_resolve_point_runs_no_filter_skips_completed():
     ]
     session = _patched_session(prs)
 
-    result = _resolve_point_runs(session, audit_run, None)
+    total, to_run = _resolve_point_runs(session, audit_run, None)
 
-    assert [pr.id for pr in result] == ["pr_0", "pr_1"]
+    assert total == 3
+    assert [pr.id for pr in to_run] == ["pr_0", "pr_1"]
 
 
 def test_resolve_point_runs_with_whitelist_intersects_with_non_completed():
@@ -94,11 +95,12 @@ def test_resolve_point_runs_with_whitelist_intersects_with_non_completed():
     ]
     session = _patched_session(prs)
 
-    result = _resolve_point_runs(session, audit_run, ["pr_0", "pr_2"])
+    total, to_run = _resolve_point_runs(session, audit_run, ["pr_0", "pr_2"])
 
     # pr_0 在白名单且非 completed → 保留
     # pr_2 在白名单但 completed → 跳过
-    assert [pr.id for pr in result] == ["pr_0"]
+    assert total == 3
+    assert [pr.id for pr in to_run] == ["pr_0"]
 
 
 def test_resolve_point_runs_empty_whitelist_returns_empty():
@@ -109,6 +111,36 @@ def test_resolve_point_runs_empty_whitelist_returns_empty():
     ]
     session = _patched_session(prs)
 
-    result = _resolve_point_runs(session, audit_run, [])
+    total, to_run = _resolve_point_runs(session, audit_run, [])
 
-    assert result == []
+    assert total == 1
+    assert to_run == []
+
+
+def test_resolve_point_runs_all_completed_returns_empty():
+    """所有 point_run 都 completed 时，to_run 为空但 total 仍是原始总数。"""
+    audit_run = MagicMock(id="ar_done")
+    prs = [
+        _make_point_run("pr_0", "ar_done", "completed"),
+        _make_point_run("pr_1", "ar_done", "completed"),
+    ]
+    session = _patched_session(prs)
+
+    total, to_run = _resolve_point_runs(session, audit_run, None)
+
+    assert total == 2
+    assert to_run == []
+
+
+def test_resolve_point_runs_whitelist_with_unknown_ids_silently_skips():
+    """白名单含不存在的 id 时静默跳过，不报错。"""
+    audit_run = MagicMock(id="ar_ghost")
+    prs = [
+        _make_point_run("pr_real", "ar_ghost", "pending"),
+    ]
+    session = _patched_session(prs)
+
+    total, to_run = _resolve_point_runs(session, audit_run, ["pr_real", "pr_does_not_exist"])
+
+    assert total == 1
+    assert [pr.id for pr in to_run] == ["pr_real"]
