@@ -201,6 +201,33 @@ def _ensure_tender_collection(
     return collection_name
 
 
+def _index_tender_doc(
+    audit_run: AuditRun,
+    tender_doc: TenderDoc,
+    *,
+    replay: bool,
+) -> str | None:
+    """为本次 audit run 准备 qmd tender collection。
+
+    - replay 模式：返回占位名 f"run_{audit_run.id}_tender"，不触发 qmd
+    - 非 replay 模式：调用 _ensure_tender_collection；失败时返回 None（允许降级）
+
+    Args:
+        audit_run: 当前 audit run 实例（需要 audit_run.id）
+        tender_doc: 招标文书（交给 _ensure_tender_collection）
+        replay: 是否 replay 模式
+
+    Returns:
+        tender collection 名，或 None（真索引失败时）
+    """
+    if replay:
+        return f"run_{audit_run.id}_tender"
+    try:
+        return _ensure_tender_collection(audit_run.id, tender_doc)
+    except Exception:
+        return None
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -239,14 +266,7 @@ async def run_audit(
     cfg = get_config()
 
     # 索引招标文书到 qmd 临时 collection（非 replay 模式下才做）
-    tender_collection: str | None = None
-    if replay_dir is None:
-        try:
-            tender_collection = _ensure_tender_collection(audit_run.id, tender_doc)
-        except Exception:
-            tender_collection = None
-    else:
-        tender_collection = f"run_{audit_run.id}_tender"
+    tender_collection = _index_tender_doc(audit_run, tender_doc, replay=replay_dir is not None)
 
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace
