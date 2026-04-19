@@ -131,6 +131,22 @@ export function deleteCheckpoint(id: string): Promise<void> {
   return request(`/api/v1/checkpoints/${id}`, { method: "DELETE" });
 }
 
+export function importCheckpoints(
+  file: File,
+): Promise<{
+  imported_count: number;
+  skipped_count: number;
+  skipped_reasons: string[];
+  drafts: Array<{ id: string; status: string; payload_json: string }>;
+}> {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/api/v1/checkpoints/import", {
+    method: "POST",
+    body: form,
+  });
+}
+
 /* ── Audit ── */
 
 export function listAuditRuns(projectId?: string): Promise<AuditRun[]> {

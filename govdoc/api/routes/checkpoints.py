@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response
+import tempfile
+from pathlib import Path
+
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
@@ -44,6 +47,52 @@ async def list_checkpoints():
         payload.extend(_serialize_draft(draft) for draft in drafts)
         payload.sort(key=lambda item: (item["kind"] or "", item["id"] or ""))
         return payload
+
+
+_ALLOWED_EXTENSIONS = {".xls", ".xlsx", ".csv"}
+
+
+@router.post("/import")
+async def import_checkpoints(file: UploadFile = File(...)):
+    """上传审查点表格（xls/xlsx/csv），批量生成 CheckpointDraft。"""
+    filename = file.filename or ""
+    suffix = Path(filename).suffix.lower()
+    if suffix not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件格式: {suffix}，仅支持 .xls / .xlsx / .csv",
+        )
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        from govdoc.parsers.checkpoint_import import parse_checkpoint_file
+
+        checkpoints, skipped_reasons = parse_checkpoint_file(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    drafts: list[dict[str, str | None]] = []
+    with get_db_session() as session:
+        for cp in checkpoints:
+            draft = CheckpointDraft(
+                payload_json=cp.model_dump_json(),
+                status="draft",
+            )
+            session.add(draft)
+            session.flush()
+            drafts.append(_serialize_draft(draft))
+        session.commit()
+
+    return {
+        "imported_count": len(checkpoints),
+        "skipped_count": len(skipped_reasons),
+        "skipped_reasons": skipped_reasons,
+        "drafts": drafts,
+    }
 
 
 @router.put("/{checkpoint_id}")

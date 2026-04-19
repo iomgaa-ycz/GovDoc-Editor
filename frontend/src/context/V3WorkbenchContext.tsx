@@ -95,6 +95,9 @@ export interface WorkbenchContextValue {
   saveWorkpaper: () => Promise<void>;
   finalizeWorkpaper: (auditRunId: string) => Promise<void>;
 
+  // Checkpoint import
+  importCheckpointFile: (file: File) => Promise<{ imported_count: number; skipped_count: number }>;
+
   // Checkpoint CRUD
   updateCheckpoint: (id: string, payload: GovCheckpointPayload) => Promise<void>;
   deleteCheckpoint: (id: string) => Promise<void>;
@@ -473,6 +476,12 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     await refreshAll();
   }
 
+  async function handleImportCheckpointFile(file: File) {
+    const result = await api.importCheckpoints(file);
+    await refreshAll();
+    return { imported_count: result.imported_count, skipped_count: result.skipped_count };
+  }
+
   // ── Context value ──
 
   const value: WorkbenchContextValue = {
@@ -516,6 +525,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setWorkpaperHtml: handleSetWorkpaperHtml,
     saveWorkpaper,
     finalizeWorkpaper: handleFinalizeWorkpaper,
+    importCheckpointFile: handleImportCheckpointFile,
     updateCheckpoint: handleUpdateCheckpoint,
     deleteCheckpoint: handleDeleteCheckpoint,
     refreshAll,
