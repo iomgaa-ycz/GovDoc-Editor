@@ -1,0 +1,36 @@
+{
+  "checkpoint": {
+    "id": "cp_vendor_scope",
+    "category": "不合理条件限制或排斥供应商",
+    "title": "不得限定本地业绩",
+    "description": "审查资格条件是否将类似业绩限定为本市、本区或特定行政区域。",
+    "legal_basis": [
+      {
+        "law_name": "中华人民共和国政府采购法实施条例",
+        "article": "第二十条",
+        "quote": "采购人或者采购代理机构不得以不合理的条件对供应商实行差别待遇或者歧视待遇。"
+      }
+    ],
+    "severity": "major",
+    "retrieval_hint": "检索资格要求中的“本市”“本地”“行政区域”“业绩”"
+  },
+  "verdict": {
+    "verdict": "不合规",
+    "rationale": "资格要求直接限定为本市类似业绩，构成地域性限制。",
+    "evidence_quotes": [
+      "供应商须提供本市近三年类似项目业绩不少于 2 个"
+    ],
+    "suggestion": "删除“本市”限定，改为与履约能力相关的通用业绩要求。"
+  },
+  "evidence_refs": [
+    {
+      "document_id": "tender_small",
+      "chunk_index": 0,
+      "char_start": 8,
+      "char_end": 34
+    }
+  ],
+  "case_refs": [
+    "case-region-restriction-001"
+  ]
+}
