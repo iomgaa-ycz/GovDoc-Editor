@@ -7,6 +7,7 @@
 注意：本测试只在 replay 模式下运行（确定性），不吃真 LLM。
 实现参考 tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay 的 inline setup。
 """
+
 from __future__ import annotations
 
 import asyncio
