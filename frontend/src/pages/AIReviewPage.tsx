@@ -4,13 +4,7 @@ import { useWorkbench } from "../context/V3WorkbenchContext";
 import { useProjectWorkflow } from "../hooks/useProjectWorkflow";
 import { useAuditRun } from "../hooks/useAuditRun";
 import { parseFindingJson } from "../adapters/backendToUi";
-import {
-  Card,
-  CardHeader,
-  EmptyState,
-  InlineNotice,
-  PageHero,
-} from "../components/Ui";
+import { Card, CardHeader, EmptyState, InlineNotice, PageHero } from "../components/Ui";
 import { PointInsight } from "../components/PointInsight";
 import { Modal } from "../components/Modal";
 import { TenderUploadPanel } from "../components/TenderUploadPanel";
@@ -31,27 +25,11 @@ export function AIReviewPage() {
     retryPointRun,
   } = useWorkbench();
 
-  // Task setup state (extracted to useProjectWorkflow)
   const wf = useProjectWorkflow();
-
-  // Audit-run start state (extracted to useAuditRun)
   const auditRun = useAuditRun();
-
-  // Point detail modal
   const [detailPointRunId, setDetailPointRunId] = useState<string | null>(null);
 
   const tenderDoc = activeProject ? tenderDocs[activeProject.id] : undefined;
-
-  // ── Find checkpoint payload for a point run ──
-
-  function getCheckpointForPointRun(prId: string) {
-    const pr = auditProgress?.point_runs.find((p) => p.id === prId);
-    if (!pr) return null;
-    const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-    return cp?.parsed ?? null;
-  }
-
-  // ── Render ──
 
   return (
     <>
@@ -61,12 +39,9 @@ export function AIReviewPage() {
         description="选择项目与审核点，启动 AI 批量审查。"
       />
 
-      {!apiConnected && (
-        <InlineNotice tone="warning" message="后端 API 未连通。" />
-      )}
+      {!apiConnected && <InlineNotice tone="warning" message="后端 API 未连通。" />}
 
       <div className="triple-layout">
-        {/* Left: Task setup */}
         <div className="left-column">
           <Card>
             <CardHeader title="任务设置" />
@@ -109,7 +84,6 @@ export function AIReviewPage() {
         />
       </div>
 
-      {/* Point detail modal */}
       <Modal
         open={detailPointRunId != null}
         title="审核点详情"
@@ -118,10 +92,9 @@ export function AIReviewPage() {
       >
         {detailPointRunId && (() => {
           const pr = auditProgress?.point_runs.find((p) => p.id === detailPointRunId);
-          const cp = getCheckpointForPointRun(detailPointRunId);
-          const finding = parseFindingJson(pr?.finding_json ?? null);
+          const cp = pr ? finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id)?.parsed ?? null : null;
           if (!cp || !pr) return <EmptyState title="无法加载" description="找不到该审核点的数据。" />;
-          return <PointInsight checkpoint={cp} finding={finding} pointStatus={pr.status} />;
+          return <PointInsight checkpoint={cp} finding={parseFindingJson(pr.finding_json ?? null)} pointStatus={pr.status} />;
         })()}
       </Modal>
     </>
