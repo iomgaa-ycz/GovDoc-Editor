@@ -422,6 +422,69 @@ def _cleanup_tender_collection(collection_id: str | None, *, replay: bool) -> No
         )
 
 
+def _assemble_workpaper_draft(
+    audit_run: AuditRun,
+    session: Session,
+    tender_doc: TenderDoc,
+    template_path: str | Path | None,
+) -> None:
+    """按 completed point_runs 汇总 findings，生成 WorkpaperDraft，更新 audit_run.status。
+
+    Status 分派规则（保真原 run_audit 行为）：
+    - 所有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
+    - 部分 completed 有 failed  → ``partial_ready``（不生成 WorkpaperDraft）
+    - 全部 failed 或无 completed → ``waiting_retry``（不生成 WorkpaperDraft）
+
+    **不**调 ``session.commit``；调用方负责 DB 提交（与 ``_persist_point_result`` 一致）。
+
+    Args:
+        audit_run: 当前 audit run 实例（本函数会直接修改其 ``status`` 字段）。
+        session: SQLModel session（用于查 point_runs / WorkpaperDraft 版本号）。
+        tender_doc: 招标文书（提供 ``storage_path`` 给生成的 Workpaper）。
+        template_path: docxtpl 模板路径（透传给 ``render_workpaper_docx``）。
+
+    Returns:
+        None
+    """
+    all_runs = session.exec(
+        select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
+    ).all()
+    completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
+    failed_runs = [pr for pr in all_runs if pr.status == "failed"]
+
+    if not failed_runs and completed_runs:
+        findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
+        workpaper = Workpaper(
+            project_id=audit_run.project_id,
+            tender_doc_path=tender_doc.storage_path,
+            findings=findings,
+            summary=generate_summary(findings),
+        )
+        current_versions = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        next_version = max((d.version for d in current_versions), default=0) + 1
+        draft_path = render_workpaper_docx(
+            workpaper,
+            audit_run.id,
+            template_path=template_path,
+            version=next_version,
+        )
+        session.add(
+            WorkpaperDraft(
+                audit_run_id=audit_run.id,
+                workpaper_json=workpaper.model_dump_json(),
+                docx_path=str(draft_path),
+                version=next_version,
+            )
+        )
+        audit_run.status = "draft_ready"
+    elif completed_runs:
+        audit_run.status = "partial_ready"
+    else:
+        audit_run.status = "waiting_retry"
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -513,44 +576,7 @@ async def run_audit(
             session.add(audit_run)
             session.commit()
 
-        # 汇总所有 point runs
-        all_runs = session.exec(
-            select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
-        ).all()
-        completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
-        failed_runs = [pr for pr in all_runs if pr.status == "failed"]
-
-        if not failed_runs and completed_runs:
-            findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
-            workpaper = Workpaper(
-                project_id=audit_run.project_id,
-                tender_doc_path=tender_doc.storage_path,
-                findings=findings,
-                summary=generate_summary(findings),
-            )
-            current_versions = session.exec(
-                select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
-            ).all()
-            next_version = max((d.version for d in current_versions), default=0) + 1
-            draft_path = render_workpaper_docx(
-                workpaper,
-                audit_run.id,
-                template_path=template_path,
-                version=next_version,
-            )
-            session.add(
-                WorkpaperDraft(
-                    audit_run_id=audit_run.id,
-                    workpaper_json=workpaper.model_dump_json(),
-                    docx_path=str(draft_path),
-                    version=next_version,
-                )
-            )
-            audit_run.status = "draft_ready"
-        elif completed_runs:
-            audit_run.status = "partial_ready"
-        else:
-            audit_run.status = "waiting_retry"
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
 
         session.add(audit_run)
         session.commit()
