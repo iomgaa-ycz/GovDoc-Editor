@@ -61,3 +61,12 @@ class AuditRunProgressResponse(GovDocModel):
 class GenericMessageResponse(GovDocModel):
     message: str
     detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportCheckpointsResponse(GovDocModel):
+    """审查点表格导入响应。"""
+
+    imported_count: int
+    skipped_count: int
+    skipped_reasons: list[str] = Field(default_factory=list)
+    drafts: list[dict[str, str | None]] = Field(default_factory=list)
