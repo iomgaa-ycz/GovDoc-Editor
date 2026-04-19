@@ -17,13 +17,33 @@
 
 ## 子 Plan 清单
 
-| 波次 | 子项目 | Plan 文件 | 预估任务数 | 依赖 |
-|---|---|---|---|---|
-| 1 | P0 run_audit 拆分 | `2026-04-19-p0-run-audit-split.md` | ~12 | 仅依赖 umbrella 分支就位 |
-| 1 | P1b output_utils.py 混合重构 | `2026-04-19-p1b-output-utils-json5.md` | ~10 | 同上 |
-| 1 | P1c v3.ts 契约测试 + 前端测试基建 | `2026-04-19-p1c-v3-contract-tests.md` | ~9 | 同上 |
-| 2 | P1a AIReviewPage 拆分 | `2026-04-19-p1a-aireview-split.md` | ~11 | P1c 已合入 umbrella |
-| 3 | P2 孤立节点审查 | `2026-04-19-p2-isolated-nodes-audit.md` | ~6 | P0/P1a/P1b/P1c 已合入 umbrella |
+| 波次 | 子项目 | Plan 文件 | 预估任务数 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| 1 | P0 run_audit 拆分 | `2026-04-19-p0-run-audit-split.md` | ~12 | 仅依赖 umbrella 分支就位 | ✅ 已合入 umbrella（814fad2）|
+| 1 | P1b output_utils.py 混合重构 | `2026-04-19-p1b-output-utils-json5.md` | ~10 | 同上 | ⏳ 待做 |
+| 1 | P1c v3.ts 契约测试 + 前端测试基建 | `2026-04-19-p1c-v3-contract-tests.md` | ~9 | 同上 | ⏳ 待做 |
+| 2 | P1a AIReviewPage 拆分 | `2026-04-19-p1a-aireview-split.md` | ~11 | P1c 已合入 umbrella | ⏳ 待做 |
+| 3 | P2 孤立节点审查 | `2026-04-19-p2-isolated-nodes-audit.md` | ~6 | P0/P1a/P1b/P1c 已合入 umbrella | ⏳ 待做 |
+
+## 新会话续接须知（Resume Context）
+
+**当前 P0 已合入 umbrella**：
+- 分支 `feat/tech-debt-cleanup` HEAD 在 `814fad2`（P0 14 commits + 2 revert 演练 commits）
+- 领先 master 17 commits
+- 36 tests passing（unit + contract + golden）· ruff clean · golden 零 diff 贯穿全程
+- 6 个 helper 已抽出：`_index_tender_doc` / `_resolve_point_runs` / `_run_single_point` / `_persist_point_result` / `_cleanup_tender_collection` / `_assemble_workpaper_draft`
+- `run_audit` 从 214 行 → 109 行代码 + 22 行 docstring
+
+**真实 LLM 链路已验证**：
+- `.env` 含 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `SCRIVAI_DEFAULT_MODEL=glm-5.1` / `SCRIVAI_DEFAULT_PROVIDER=glm` / `NO_PROXY=110.42.53.85`
+- 私有网关 `http://110.42.53.85:11098` HTTP 200 响应（glm-5.1 可访问）
+- P1b 所需的"10 份真 LLM 输出样本"已在 `tests/fixtures/mock_agent_trajectories/` 落盘
+
+**下一步**（新会话从这里开始）：
+1. 切回 umbrella：`git checkout feat/tech-debt-cleanup`
+2. 从 `814fad2` 切 P1b 子分支：`git checkout -b feat/p1b-output-utils-json5`
+3. 按 `2026-04-19-p1b-output-utils-json5.md` 执行 P1b
+4. P1c 可并行（独立子分支）
 
 ---
 
