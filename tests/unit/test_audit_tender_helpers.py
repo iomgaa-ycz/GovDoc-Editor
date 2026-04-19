@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 from govdoc.pipelines.audit_tender import _index_tender_doc, _resolve_point_runs
@@ -144,3 +145,19 @@ def test_resolve_point_runs_whitelist_with_unknown_ids_silently_skips():
 
     assert total == 1
     assert [pr.id for pr in to_run] == ["pr_real"]
+
+
+def test_run_single_point_is_async_and_has_expected_signature():
+    """smoke: 确认 helper 存在、是 async、参数签名正确。
+
+    详细行为由 tests/contract/test_pipeline_b_with_mocks.py + test_audit_golden.py 覆盖。
+    """
+    from govdoc.pipelines.audit_tender import _run_single_point
+
+    assert inspect.iscoroutinefunction(_run_single_point)
+    sig = inspect.signature(_run_single_point)
+    assert list(sig.parameters.keys()) == [
+        "point_run", "checkpoint", "tender_doc",
+        "audit_run", "tender_collection", "manager", "store", "cfg",
+        "repo_root", "replay_dir",
+    ]
