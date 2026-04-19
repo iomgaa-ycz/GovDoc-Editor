@@ -419,8 +419,8 @@ grep -rn "output_utils" govdoc/ tests/ --include="*.py"
 
 - [ ] **Step 3: 跑集成测试**
 
-Run: `conda run -n govdoc-auditor-v3 python -m pytest tests/integration/ -v`
-Expected: 全绿（特别是 `test_pipeline_b_with_mock_pes_replay`）
+Run: `conda run -n govdoc-auditor-v3 python -m pytest tests/ -v`
+Expected: 全绿（特别是 `tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay`）
 
 - [ ] **Step 4: 跑完整测试套件**
 

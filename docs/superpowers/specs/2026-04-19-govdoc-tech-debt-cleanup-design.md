@@ -69,7 +69,7 @@ master
   - `_persist_point_result(point_run, pes_run)` — DB 写入 + Finding JSON 落盘
   - `_cleanup_tender_collection(collection_id)` — 资源清理
 - **护栏**：
-  - (B) 扩充 `tests/integration/test_pipeline_b_with_mock_pes_replay`，断言 6 类终态（`AuditRun.status`、`AuditPointRun.status`、`GovFinding` 内容、`WorkpaperDraft` 存在、trajectory 落盘、tender collection 清理）
+  - (B) 扩充 `tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay`，断言 6 类终态（`AuditRun.status`、`AuditPointRun.status`、`GovFinding` 内容、`WorkpaperDraft` 存在、trajectory 落盘、tender collection 清理）
   - (A) 合入前跑一次 golden：采集 `audit_case_01` fixture 的 DB hash + 文件树 hash（排除时间戳字段），拆分后必须字节一致
 - **风险**：高。管道 B 核心；`_ensure_tender_collection` 和 `_delete_trajectory_run` 的异常语义必须保真。
 

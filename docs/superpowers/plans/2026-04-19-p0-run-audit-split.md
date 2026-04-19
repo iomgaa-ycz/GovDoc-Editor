@@ -93,78 +93,72 @@ Expected: `feat/p0-run-audit-split`
 ## Task 1: 扩充集成测试终态断言（护栏 B）
 
 **Files:**
-- Modify: `tests/integration/test_pipeline_b_with_mock_pes_replay.py`
+- Modify: `tests/contract/test_pipeline_b_with_mocks.py`
 
 - [ ] **Step 1: 读当前测试结构**
 
-Run: `cat tests/integration/test_pipeline_b_with_mock_pes_replay.py | head -80`
+Run: `cat tests/contract/test_pipeline_b_with_mocks.py | head -80`
 Expected: 看到既有的 `test_pipeline_b_with_mock_pes_replay` 函数
 
 - [ ] **Step 2: 在 `test_pipeline_b_with_mock_pes_replay` 最后添加 6 类终态断言**
 
-在现有 assertion 后追加（保留原有断言不变）：
+现有测试末尾已有 L135-144 的基础断言（`result.status == "draft_ready"`、`drafts`、`point_runs` 等）。在那些断言之后追加（保留原有不变，变量 `result` / `drafts` / `point_runs` 已在上文捕获）：
 
 ```python
-# === Guardrail assertions for P0 run_audit refactor ===
-# I1: behavior-preservation checks. Any helper extraction must preserve these.
+    # === Guardrail assertions for P0 run_audit refactor ===
+    # I1: behavior-preservation checks. Any helper extraction must preserve these.
 
-# 1. AuditRun 最终 status
-assert audit_run_after.status in {"draft_ready", "partial_ready", "waiting_retry", "failed"}, \
-    f"unexpected audit_run.status: {audit_run_after.status}"
+    # 1. AuditRun 最终 status 在合法集合内
+    assert result.status in {"draft_ready", "partial_ready", "waiting_retry", "failed"}, \
+        f"unexpected audit_run.status: {result.status}"
 
-# 2. AuditPointRun 终态分布（每个点 status 非 None）
-point_runs_after = session.exec(
-    select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_after.id)
-).all()
-assert len(point_runs_after) > 0, "no point_runs after audit"
-for pr in point_runs_after:
-    assert pr.status in {"completed", "failed", "pending", "running"}, \
-        f"unexpected point_run.status: {pr.status}"
+    # 2. 每个 point_run 的 status 都在合法集合内
+    for pr in point_runs:
+        assert pr.status in {"completed", "failed", "pending", "running"}, \
+            f"unexpected point_run.status: {pr.status}"
 
-# 3. 每个 completed 的 point_run 必须有 finding_json
-for pr in point_runs_after:
-    if pr.status == "completed":
-        assert pr.finding_json is not None and pr.finding_json.strip() != "", \
-            f"completed point_run {pr.id} has no finding_json"
-        finding = GovFinding.model_validate_json(pr.finding_json)
-        assert finding.verdict in {"合规", "不合规", "存疑"}
+    # 3. 每个 completed point_run 的 finding_json 可解析为 GovFinding，且 verdict 合法
+    for pr in point_runs:
+        if pr.status == "completed":
+            assert pr.finding_json and pr.finding_json.strip(), \
+                f"completed point_run {pr.id} has empty finding_json"
+            finding = GovFinding.model_validate_json(pr.finding_json)
+            assert finding.verdict in {"合规", "不合规", "存疑"}
 
-# 4. draft_ready 时必须存在 WorkpaperDraft
-if audit_run_after.status == "draft_ready":
-    drafts = session.exec(
-        select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run_after.id)
-    ).all()
-    assert len(drafts) >= 1, "draft_ready but no WorkpaperDraft exists"
-    assert all(d.docx_path for d in drafts), "WorkpaperDraft.docx_path empty"
+    # 4. draft_ready 时 WorkpaperDraft 的 docx 文件必须实际存在
+    if result.status == "draft_ready":
+        assert len(drafts) >= 1, "draft_ready but no WorkpaperDraft"
+        for d in drafts:
+            assert d.docx_path and Path(d.docx_path).is_file(), \
+                f"WorkpaperDraft.docx_path 文件不存在: {d.docx_path}"
 
-# 5. trajectory 落盘：每个 point_run 应有对应的 trajectory run 记录
-# (仅 replay 模式下 store 可能为空；此处只断言：如果 store 存在则有记录)
-if trajectory_store is not None:
-    for pr in point_runs_after:
-        if pr.status in {"completed", "failed"}:
-            # 若 store 支持查询，断言至少有该 run_id 的记录
-            pass  # TODO: 按 trajectory_store 的实际 API 做一次 list/get
+    # 5. trajectory 落盘：completed/failed 的 point_run 应在 store 里有记录
+    # FakeTrajectoryStore 的接口见 scrivai；若无 list/get 方法可省略本条。
+    # 原断言（既有的 pr.workspace_archive_path is not None）已覆盖等价信息。
 
-# 6. tender_collection 清理（非 replay 模式下）：audit_run 结束后临时 collection 不应残留
-# (replay 模式本来就是占位名，不检查)
+    # 6. tender_collection 清理：replay 模式下 tender_doc.qmd_collection 是占位名，不检查真 qmd
+    # 非 replay 模式由 _cleanup_tender_collection 保证；P0 拆分后该 helper 单测覆盖
 ```
 
-⚠️ **第 5 条目前是占位**：需要按实际 `trajectory_store` 的 API（见 `scrivai`）补断言。执行时先读 `govdoc/runtime.py::get_trajectory_store` 确认其 API 后补全。
+⚠️ **说明**：
+- 断言 5 在 replay 模式下意义不大（`FakeTrajectoryStore` 是内存假对象），原第 144 行 `pr.workspace_archive_path is not None` 已提供等价保证，本条留注释不强断言
+- 断言 6 的语义由拆分出的 helper 单测 (`test_cleanup_tender_collection`) 保证，这里不重复
 
 - [ ] **Step 3: 确保必要的 import 齐全**
 
-文件顶部需要 import:
+文件顶部追加（如缺）：
 ```python
-from sqlmodel import select
-from govdoc.db.models import AuditPointRun, WorkpaperDraft
-from govdoc.schemas import GovFinding
+from pathlib import Path  # 可能已有
+from govdoc.schemas import GovFinding  # 可能已有（见 schemas/__init__.py）
 ```
+
+其他用到的 `AuditPointRun` / `WorkpaperDraft` / `select` 在现有测试中已有 import。
 
 - [ ] **Step 4: 运行测试，确认新断言在当前代码上通过**
 
 Run:
 ```bash
-conda run -n govdoc-auditor-v3 python -m pytest tests/integration/test_pipeline_b_with_mock_pes_replay.py -v
+conda run -n govdoc-auditor-v3 python -m pytest tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay -v
 ```
 
 Expected: 全绿（因为当前代码行为本就满足这些断言）
@@ -172,7 +166,7 @@ Expected: 全绿（因为当前代码行为本就满足这些断言）
 - [ ] **Step 5: 提交护栏测试**
 
 ```bash
-git add tests/integration/test_pipeline_b_with_mock_pes_replay.py
+git add tests/contract/test_pipeline_b_with_mocks.py
 git commit -m "test: 扩充管道 B 集成测试终态断言作为 P0 拆分护栏"
 ```
 
@@ -181,20 +175,20 @@ git commit -m "test: 扩充管道 B 集成测试终态断言作为 P0 拆分护�
 ## Task 2: 编写 golden 采集脚本（护栏 A）
 
 **Files:**
-- Create: `tests/integration/golden/__init__.py`（空）
-- Create: `tests/integration/golden/capture.py`
-- Create: `tests/integration/test_audit_golden.py`
+- Create: `tests/contract/golden/__init__.py`（空）
+- Create: `tests/contract/golden/capture.py`
+- Create: `tests/contract/test_audit_golden.py`
 
 - [ ] **Step 1: 创建 golden 目录和 `__init__.py`**
 
 ```bash
-mkdir -p tests/integration/golden
-touch tests/integration/golden/__init__.py
+mkdir -p tests/contract/golden
+touch tests/contract/golden/__init__.py
 ```
 
 - [ ] **Step 2: 写 `capture.py` — 采集 audit_case_01 的 DB + 文件树 hash**
 
-Create `tests/integration/golden/capture.py`:
+Create `tests/contract/golden/capture.py`:
 
 ```python
 """P0 拆分 golden 采集：对 audit_case_01 fixture 采集 DB 字段快照 + 文件树 hash。
@@ -283,56 +277,111 @@ def load_golden(path: Path) -> AuditGolden:
 
 - [ ] **Step 3: 写 `test_audit_golden.py` — 拆分前后对比测试**
 
-Create `tests/integration/test_audit_golden.py`:
+Create `tests/contract/test_audit_golden.py`。**复用已有 `test_pipeline_b_with_mock_pes_replay` 的 inline setup 模式**（monkeypatch + tmp_path + 手工 seed 而非 pytest fixtures）：
 
 ```python
 """P0 拆分的 golden 对比测试。
 
 流程：
-1. 首次跑：采集当前行为的 golden 到 tests/integration/golden/audit_case_01.json
+1. 首次跑：采集当前行为的 golden 到 tests/contract/golden/audit_case_01.json（skip）
 2. 拆分后跑：与 golden 对比，要求 diff 为 0
 
 注意：本测试只在 replay 模式下运行（确定性），不吃真 LLM。
+实现参考 tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay 的 inline setup。
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import asdict
 from pathlib import Path
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel, create_engine
 
+from govdoc.db.models import (
+    AuditPointRun,
+    AuditRun,
+    CheckpointFinal,
+    Project,
+    TenderDoc,
+)
+from scrivai import FakeTrajectoryStore, TempWorkspaceManager
 from govdoc.pipelines.audit_tender import run_audit
-from tests.integration.golden.capture import AuditGolden, capture, load_golden, write_golden
+from tests.contract.golden.capture import capture, load_golden, write_golden
+from tests.contract.test_pipeline_b_with_mocks import _write_test_config
 
 
 GOLDEN_PATH = Path(__file__).parent / "golden" / "audit_case_01.json"
 
 
-@pytest.mark.asyncio
-async def test_audit_case_01_golden_match(
-    # 复用既有 fixture（见 test_pipeline_b_with_mock_pes_replay.py）
-    seeded_audit_run,  # 必须在 conftest.py 或本文件内定义/复用
-    test_session: Session,
-    replay_dir: str,
-):
-    """跑 audit_case_01，采集结果，和 golden 对比。首次跑自动生成 golden。"""
-    audit_run_after = await run_audit(
-        audit_run_id=seeded_audit_run.id,
-        session=test_session,
-        replay_dir=replay_dir,
-    )
+def test_audit_case_01_golden_match(monkeypatch, tmp_path):
+    """跑 audit_case_01，采集结果，和 golden 对比。首次跑自动生成 golden（skip）。"""
+    repo_root = Path(__file__).resolve().parents[2]
+    fixtures_root = repo_root / "tests" / "fixtures"
+    monkeypatch.setenv("GOVDOC_FIXTURES", str(fixtures_root))
+    monkeypatch.setenv("GOVDOC_CONFIG_PATH", str(_write_test_config(tmp_path)))
 
-    actual = capture(test_session, audit_run_after.id)
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    checkpoints_payload = json.loads(
+        (fixtures_root / "checkpoints_golden.json").read_text(encoding="utf-8")
+    )["checkpoints"]
+
+    with Session(engine) as session:
+        project = Project(name="golden 测试项目", created_by="tester")
+        session.add(project); session.commit(); session.refresh(project)
+
+        tender_doc = TenderDoc(
+            project_id=project.id,
+            filename="tender_small.docx",
+            storage_path="tests/fixtures/tender_small.docx",
+            markdown_path=str(fixtures_root / "tender_small.md"),
+            qmd_collection="test-tender-collection",
+        )
+        session.add(tender_doc); session.commit(); session.refresh(tender_doc)
+
+        final_ids: list[str] = []
+        for payload in checkpoints_payload:
+            cf = CheckpointFinal(
+                payload_json=json.dumps(payload, ensure_ascii=False),
+                approved_by="tester",
+            )
+            session.add(cf); session.commit(); session.refresh(cf)
+            final_ids.append(cf.id)
+
+        audit_run = AuditRun(
+            project_id=project.id,
+            tender_doc_id=tender_doc.id,
+            checkpoint_final_ids=json.dumps(final_ids, ensure_ascii=False),
+            total_count=len(final_ids),
+        )
+        session.add(audit_run); session.commit(); session.refresh(audit_run)
+
+        for cp_id in final_ids:
+            session.add(AuditPointRun(audit_run_id=audit_run.id, checkpoint_final_id=cp_id))
+        session.commit()
+
+        result = asyncio.run(
+            run_audit(
+                audit_run.id,
+                session,
+                workspace_manager=TempWorkspaceManager(tmp_path / "workspaces"),
+                trajectory_store=FakeTrajectoryStore(),
+                replay_dir=fixtures_root / "mock_agent_trajectories" / "audit_case_01",
+                project_root=repo_root,
+                template_path=fixtures_root / "workpaper_template.docx",
+            )
+        )
+
+        actual = capture(session, result.id)
 
     if not GOLDEN_PATH.exists():
         write_golden(actual, GOLDEN_PATH)
         pytest.skip(f"golden 首次生成于 {GOLDEN_PATH}，下次跑开始对比")
 
     expected = load_golden(GOLDEN_PATH)
-
-    # 逐字段对比，不直接比 hash（方便 diff 定位）
     actual_dict = asdict(actual)
     expected_dict = asdict(expected)
 
@@ -343,22 +392,26 @@ async def test_audit_case_01_golden_match(
     )
 ```
 
-⚠️ `seeded_audit_run`、`test_session`、`replay_dir` 等 fixture 需要复用 `tests/integration/test_pipeline_b_with_mock_pes_replay.py` 里已有的；**执行时**若这些 fixture 未提升到 `conftest.py`，先做提升（同一 commit 内）。
+⚠️ **依赖确认**：
+- `FakeTrajectoryStore` / `TempWorkspaceManager` 来自 `scrivai`（external，已在 `test_pipeline_a/b_with_mocks.py` 用过）
+- `_write_test_config` 是 `tests/contract/test_pipeline_b_with_mocks.py` L19 的模块级函数，可直接 import
+
+执行时若 `_write_test_config` 前缀下划线引发 lint 警告，可用 `from tests.contract.test_pipeline_b_with_mocks import _write_test_config  # noqa: F401`。
 
 - [ ] **Step 4: 首次跑生成 golden baseline**
 
 Run:
 ```bash
-conda run -n govdoc-auditor-v3 python -m pytest tests/integration/test_audit_golden.py -v
+conda run -n govdoc-auditor-v3 python -m pytest tests/contract/test_audit_golden.py -v
 ```
 
-Expected: 首次 skip + 生成 `tests/integration/golden/audit_case_01.json`
+Expected: 首次 skip + 生成 `tests/contract/golden/audit_case_01.json`
 
 - [ ] **Step 5: 再跑一次，应该对比成功**
 
 Run:
 ```bash
-conda run -n govdoc-auditor-v3 python -m pytest tests/integration/test_audit_golden.py -v
+conda run -n govdoc-auditor-v3 python -m pytest tests/contract/test_audit_golden.py -v
 ```
 
 Expected: PASS
@@ -366,7 +419,7 @@ Expected: PASS
 - [ ] **Step 6: 提交 golden 基建**
 
 ```bash
-git add tests/integration/golden/ tests/integration/test_audit_golden.py
+git add tests/contract/golden/ tests/contract/test_audit_golden.py
 git commit -m "test: 添加 P0 golden 采集与对比脚本（护栏 A）"
 ```
 
@@ -487,7 +540,7 @@ Expected: PASS
 
 Run:
 ```bash
-conda run -n govdoc-auditor-v3 python -m pytest tests/integration/test_pipeline_b_with_mock_pes_replay.py tests/integration/test_audit_golden.py -v
+conda run -n govdoc-auditor-v3 python -m pytest tests/contract/test_pipeline_b_with_mocks.py::test_pipeline_b_with_mock_pes_replay tests/contract/test_audit_golden.py -v
 ```
 
 Expected: 全绿（golden 对比通过）
@@ -640,7 +693,7 @@ Expected: PASS
 
 - [ ] **Step 6: 跑集成测试**
 
-Run: `conda run -n govdoc-auditor-v3 python -m pytest tests/integration/ -v`
+Run: `conda run -n govdoc-auditor-v3 python -m pytest tests/ -v`
 Expected: 全绿（golden 对比通过）
 
 - [ ] **Step 7: 提交**
@@ -879,9 +932,9 @@ P0 · 把 run_audit（214 行单函数）拆成薄编排层 + 5 个 helper。
 
 ## 变更文件
 - `govdoc/pipelines/audit_tender.py` — run_audit 重构
-- `tests/integration/test_pipeline_b_with_mock_pes_replay.py` — 扩断言
-- `tests/integration/test_audit_golden.py` — 新增 golden 对比
-- `tests/integration/golden/capture.py` — 采集脚本
+- `tests/contract/test_pipeline_b_with_mocks.py` — 扩断言
+- `tests/contract/test_audit_golden.py` — 新增 golden 对比
+- `tests/contract/golden/capture.py` — 采集脚本
 - `tests/unit/test_audit_tender_helpers.py` — helper 单测
 
 ## DoD
