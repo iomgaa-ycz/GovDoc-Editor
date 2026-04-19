@@ -103,7 +103,8 @@ export interface WorkbenchContextValue {
   refreshAll: () => Promise<void>;
 }
 
-const WorkbenchContext = createContext<WorkbenchContextValue | null>(null);
+// 导出以便测试用 MockWorkbenchProvider 直接注入；生产代码仍应通过 useWorkbench() 消费。
+export const WorkbenchContext = createContext<WorkbenchContextValue | null>(null);
 
 export function useWorkbench(): WorkbenchContextValue {
   const ctx = useContext(WorkbenchContext);
