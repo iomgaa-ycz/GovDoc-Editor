@@ -88,7 +88,7 @@ describe("AIReviewPage · 行为护栏", () => {
   // 1. 首次渲染：三个面板都在屏
   it("首次渲染显示上传区、审核点选择区、进度区", () => {
     server.use(
-      http.get("*/api/v3/checkpoints", () => HttpResponse.json({ items: [] }))
+      http.get("*/api/v1/checkpoints", () => HttpResponse.json([]))
     );
     renderPage();
     expect(screen.getByText(/上传招标文书|Tender Upload/i)).toBeInTheDocument();
@@ -100,11 +100,11 @@ describe("AIReviewPage · 行为护栏", () => {
   it("点击创建项目按钮会发起 POST /projects 请求", async () => {
     let captured: unknown = null;
     server.use(
-      http.post("*/api/v3/projects", async ({ request }) => {
+      http.post("*/api/v1/projects", async ({ request }) => {
         captured = await request.json();
         return HttpResponse.json({ id: "p_new", name: "测试项目" });
       }),
-      http.get("*/api/v3/checkpoints", () => HttpResponse.json({ items: [] }))
+      http.get("*/api/v1/checkpoints", () => HttpResponse.json([]))
     );
     renderPage();
     await userEvent.type(screen.getByLabelText(/项目名称/i), "测试项目");
@@ -113,15 +113,14 @@ describe("AIReviewPage · 行为护栏", () => {
   });
 
   // 3. 勾选审核点会更新内部状态（通过 disabled 按钮变化观察）
+  //    注意：v3.ts::listCheckpoints() 返回 CheckpointItem[]（数组，非 {items}），参见 types/ui.ts
   it("勾选审核点后启动审计按钮可点", async () => {
     server.use(
-      http.get("*/api/v3/checkpoints", () =>
-        HttpResponse.json({
-          items: [
-            { id: "cp1", title: "采购范围" },
-            { id: "cp2", title: "供应商资格" },
-          ],
-        })
+      http.get("*/api/v1/checkpoints", () =>
+        HttpResponse.json([
+          { id: "cp1", payload_json: '{"title":"采购范围"}' },
+          { id: "cp2", payload_json: '{"title":"供应商资格"}' },
+        ])
       )
     );
     renderPage();
@@ -133,16 +132,16 @@ describe("AIReviewPage · 行为护栏", () => {
     expect(startBtn).not.toBeDisabled();
   });
 
-  // 4. 启动审计：POST /audit-runs 被调用
-  it("启动审计发起 POST /audit-runs", async () => {
+  // 4. 启动审计：POST /api/v1/audit/runs 被调用
+  it("启动审计发起 POST /api/v1/audit/runs", async () => {
     let captured: unknown = null;
     server.use(
-      http.get("*/api/v3/checkpoints", () =>
-        HttpResponse.json({ items: [{ id: "cp1", title: "采购范围" }] })
+      http.get("*/api/v1/checkpoints", () =>
+        HttpResponse.json([{ id: "cp1", payload_json: '{"title":"采购范围"}' }])
       ),
-      http.post("*/api/v3/audit-runs", async ({ request }) => {
+      http.post("*/api/v1/audit/runs", async ({ request }) => {
         captured = await request.json();
-        return HttpResponse.json({ id: "ar_new", status: "pending" });
+        return HttpResponse.json({ audit_run_id: "ar_new", total_count: 1, status: "pending" });
       })
     );
     renderPage();
@@ -155,11 +154,11 @@ describe("AIReviewPage · 行为护栏", () => {
   it("审计进行中显示 progress.processed / total", async () => {
     let hitCount = 0;
     server.use(
-      http.get("*/api/v3/audit-runs/:id/progress", () => {
+      http.get("*/api/v1/audit/runs/:id/progress", () => {
         hitCount++;
         return HttpResponse.json({ processed: 2, total: 5, status: "running" });
       }),
-      http.get("*/api/v3/checkpoints", () => HttpResponse.json({ items: [] }))
+      http.get("*/api/v1/checkpoints", () => HttpResponse.json({ items: [] }))
     );
     renderPage();
     // 具体触发进度轮询的交互按实际 AIReviewPage 逻辑调整
@@ -219,7 +218,7 @@ export interface ProjectWorkflow {
   isCreating: boolean;
   isUploading: boolean;
   error: string | null;
-  createProject: (name: string) => Promise<void>;
+  createProject: (name: string, createdBy: string) => Promise<void>;
   uploadTender: (file: File) => Promise<void>;
 }
 
@@ -230,11 +229,11 @@ export function useProjectWorkflow(): ProjectWorkflow {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const createProjectFn = useCallback(async (name: string) => {
+  const createProjectFn = useCallback(async (name: string, createdBy: string) => {
     setIsCreating(true);
     setError(null);
     try {
-      const result = await createProject({ name });
+      const result = await createProject(name, createdBy);
       setProjectId(result.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -346,8 +345,8 @@ export function useAuditRun(): AuditRunState {
   ) => {
     setError(null);
     try {
-      const run = await createAuditRun({ projectId, tenderDocId, checkpointIds });
-      setAuditRunId(run.id);
+      const run = await createAuditRun(projectId, tenderDocId, checkpointIds);
+      setAuditRunId(run.audit_run_id);
       setStatus(run.status);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -162,7 +162,7 @@ import { http, HttpResponse } from "msw";
  */
 export const handlers = [
   // 默认 healthcheck 返回 200（未来 P1a 可能需要）
-  http.get("*/api/v3/health", () => HttpResponse.json({ ok: true })),
+  http.get("*/healthz", () => HttpResponse.json({ status: "ok" })),
 ];
 ```
 
@@ -184,134 +184,172 @@ git commit -m "test: 添加 MSW server + 基础 handlers"
 
 Run: `cat frontend/src/api/v3.ts | head -60`
 
-执行时根据实际函数签名调整下面的测试。假设 `request()` 签名为：
+**实际签名（已核实）**：
 ```typescript
-async function request<T>(
-  path: string,
-  opts?: { method?: string; body?: unknown; query?: Record<string, string> }
-): Promise<T>
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = resolveBaseUrl();                          // 从 import.meta.env.VITE_GOVDOC_API_BASE_URL 读取，默认 ""
+  const res = await fetch(`${base}${path}`, init);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`API ${res.status}: ${body || res.statusText}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
 ```
+
+要点：
+- `init` 是原生 `RequestInit`（不是自定义 options）
+- 没有内置 query string 支持——调用方自己拼 `?key=value`
+- 错误响应抛 `Error("API {status}: {body}")`
+- 204 返回 undefined
+- 其他 2xx 返回 `res.json()` 结果
+- API 路径**是 `/api/v1/*`**，不是 v3（v3 只是文件名）
 
 - [ ] **Step 2: 创建 `frontend/tests/api/v3.test.ts`**
 
+因为 `resolveBaseUrl()` 读 `import.meta.env.VITE_GOVDOC_API_BASE_URL`，在 vitest 下该变量默认空串，fetch 会用**相对路径**。MSW 用通配符 `*` 匹配任意 origin（jsdom 默认 `http://localhost/`）。
+
 ```typescript
 import { describe, it, expect } from "vitest";
-import { http, HttpResponse, delay } from "msw";
+import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 
-// 按实际 v3.ts 导出调整
-import { request, createProject, getAuditRunProgress } from "@/api/v3";
+import {
+  request,
+  createProject,
+  getAuditRunProgress,
+  listProjects,
+} from "@/api/v3";
 
 
 describe("v3.ts :: request() contract", () => {
-  // 1. URL 拼接正确
-  it("正确拼接 baseURL + path", async () => {
+  // 1. baseURL 为空时使用相对路径，fetch 基于 document origin
+  it("相对路径请求成功（baseURL 空时）", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/projects", () =>
-        HttpResponse.json({ items: [] })
-      )
+      http.get("*/api/v1/projects", () => HttpResponse.json([]))
     );
-    const result = await request<{ items: unknown[] }>("/projects");
-    expect(result).toEqual({ items: [] });
+    const result = await request<unknown[]>("/api/v1/projects");
+    expect(result).toEqual([]);
   });
 
-  // 2. Query string 序列化正确
-  it("query 参数序列化到 URL search", async () => {
-    let capturedUrl = "";
-    server.use(
-      http.get("http://localhost:8000/api/v3/projects", ({ request }) => {
-        capturedUrl = request.url;
-        return HttpResponse.json({ items: [] });
-      })
-    );
-    await request("/projects", { query: { status: "active", page: "2" } });
-    expect(capturedUrl).toContain("status=active");
-    expect(capturedUrl).toContain("page=2");
-  });
-
-  // 3. JSON body 正确序列化
-  it("POST 时 body 序列化为 JSON", async () => {
+  // 2. RequestInit 的 method 与 headers 透传
+  it("POST 请求 method/headers/body 被透传", async () => {
     let capturedBody: unknown = null;
+    let capturedContentType: string | null = null;
     server.use(
-      http.post("http://localhost:8000/api/v3/projects", async ({ request }) => {
-        capturedBody = await request.json();
-        return HttpResponse.json({ id: "p_new" });
+      http.post("*/api/v1/projects", async ({ request: req }) => {
+        capturedContentType = req.headers.get("content-type");
+        capturedBody = await req.json();
+        return HttpResponse.json({ id: "p_new", name: "x", created_by: "t" });
       })
     );
-    await request("/projects", { method: "POST", body: { name: "x" } });
+    await request("/api/v1/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "x" }),
+    });
+    expect(capturedContentType).toBe("application/json");
     expect(capturedBody).toEqual({ name: "x" });
   });
 
-  // 4. 成功响应解析为 JSON
-  it("成功响应解析为 JSON", async () => {
+  // 3. 成功响应解析为 JSON
+  it("200 响应 res.json() 被返回", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/projects/p1", () =>
-        HttpResponse.json({ id: "p1", name: "项目一" })
+      http.get("*/api/v1/projects/p1", () =>
+        HttpResponse.json({ id: "p1", name: "项目一", created_by: "t" })
       )
     );
-    const result = await request<{ id: string; name: string }>("/projects/p1");
+    const result = await request<{ id: string; name: string }>("/api/v1/projects/p1");
     expect(result.id).toBe("p1");
     expect(result.name).toBe("项目一");
   });
 
-  // 5. 401 错误抛出
-  it("401 响应抛出可识别错误", async () => {
+  // 4. 401 抛 Error 且消息含 status 与 body
+  it("401 响应抛出 Error('API 401: ...')", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/projects/p1", () =>
-        HttpResponse.json({ detail: "unauthorized" }, { status: 401 })
+      http.get("*/api/v1/projects/p1", () =>
+        new HttpResponse("unauthorized", { status: 401 })
       )
     );
-    await expect(request("/projects/p1")).rejects.toThrow();
+    await expect(request("/api/v1/projects/p1")).rejects.toThrow(/API 401/);
   });
 
-  // 6. 500 错误抛出
-  it("500 响应抛出可识别错误", async () => {
+  // 5. 500 抛 Error
+  it("500 响应抛出 Error('API 500: ...')", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/projects/p1", () =>
-        HttpResponse.json({ detail: "server error" }, { status: 500 })
+      http.get("*/api/v1/projects/p1", () =>
+        new HttpResponse("server err", { status: 500 })
       )
     );
-    await expect(request("/projects/p1")).rejects.toThrow();
+    await expect(request("/api/v1/projects/p1")).rejects.toThrow(/API 500/);
   });
 
-  // 7. 网络失败抛出
-  it("网络错误（fetch reject）时抛出", async () => {
+  // 6. 错误响应 body 为空时 fallback 到 statusText
+  it("错误响应空 body 时使用 res.statusText", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/projects/p1", () => HttpResponse.error())
+      http.get("*/api/v1/projects/p1", () =>
+        new HttpResponse("", { status: 502, statusText: "Bad Gateway" })
+      )
     );
-    await expect(request("/projects/p1")).rejects.toThrow();
+    await expect(request("/api/v1/projects/p1")).rejects.toThrow(/Bad Gateway/);
   });
 
-  // 8. 空响应体处理（如 204 No Content）
-  it("204 空响应不抛 JSON parse 错误", async () => {
+  // 7. fetch reject（网络错误）原样抛出
+  it("网络错误（fetch reject）原样抛出", async () => {
     server.use(
-      http.delete("http://localhost:8000/api/v3/projects/p1", () =>
+      http.get("*/api/v1/projects/p1", () => HttpResponse.error())
+    );
+    await expect(request("/api/v1/projects/p1")).rejects.toThrow();
+  });
+
+  // 8. 204 No Content 返回 undefined
+  it("204 响应返回 undefined", async () => {
+    server.use(
+      http.delete("*/api/v1/checkpoints/c1", () =>
         new HttpResponse(null, { status: 204 })
       )
     );
-    // 具体断言依赖 request() 的实际设计（是否返回 null / undefined）
-    const result = await request("/projects/p1", { method: "DELETE" });
-    expect(result).toBeFalsy();
+    const result = await request("/api/v1/checkpoints/c1", { method: "DELETE" });
+    expect(result).toBeUndefined();
   });
 });
 
 
 describe("v3.ts :: 具体 API 函数的契约（抽样）", () => {
-  // 9. createProject 契约
-  it("createProject POST /projects 并返回 id", async () => {
+  // 9. createProject(name, createdBy) 发正确请求
+  it("createProject 发 POST /api/v1/projects 带 snake_case body", async () => {
+    let capturedBody: unknown = null;
     server.use(
-      http.post("http://localhost:8000/api/v3/projects", () =>
-        HttpResponse.json({ id: "p_new", name: "新项目" })
-      )
+      http.post("*/api/v1/projects", async ({ request: req }) => {
+        capturedBody = await req.json();
+        return HttpResponse.json({ id: "p_new", name: "新项目", created_by: "alice" });
+      })
     );
-    const result = await createProject({ name: "新项目" });
+    const result = await createProject("新项目", "alice");
+    expect(capturedBody).toEqual({ name: "新项目", created_by: "alice" });
     expect(result.id).toBe("p_new");
   });
 
-  // 10. getAuditRunProgress 契约
-  it("getAuditRunProgress GET /audit-runs/:id/progress", async () => {
+  // 10. listProjects 返回列表
+  it("listProjects GET /api/v1/projects", async () => {
     server.use(
-      http.get("http://localhost:8000/api/v3/audit-runs/ar1/progress", () =>
+      http.get("*/api/v1/projects", () =>
+        HttpResponse.json([
+          { id: "p1", name: "A", created_by: "t" },
+          { id: "p2", name: "B", created_by: "t" },
+        ])
+      )
+    );
+    const result = await listProjects();
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("p1");
+  });
+
+  // 11. getAuditRunProgress GET /api/v1/audit/runs/:id/progress
+  it("getAuditRunProgress GET 正确路径", async () => {
+    server.use(
+      http.get("*/api/v1/audit/runs/ar1/progress", () =>
         HttpResponse.json({ processed: 2, total: 5, status: "running" })
       )
     );
@@ -322,10 +360,9 @@ describe("v3.ts :: 具体 API 函数的契约（抽样）", () => {
 });
 ```
 
-⚠️ **执行时**：
-- `baseURL` 形式（`http://localhost:8000/api/v3` 等）按 `v3.ts` 实际配置调整
-- 若 `v3.ts` 使用环境变量决定 baseURL，在 `tests/setup.ts` 里 mock `import.meta.env`
-- 若 `createProject` / `getAuditRunProgress` 导出名不同，同步调整
+⚠️ **执行时注意**：
+- `AuditRunProgress` 类型的实际字段可能和这里写的不同，参照 `frontend/src/types/ui.ts` 的真实定义
+- 若 `listProjects` 返回对象结构不是 `Project[]` 而是 `{ items: Project[] }` 等，按实际 `types/ui.ts` 调整
 
 - [ ] **Step 3: 跑测试**
 
