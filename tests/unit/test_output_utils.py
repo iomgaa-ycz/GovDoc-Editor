@@ -68,7 +68,7 @@ def test_load_previous_phase_output_uses_relaxed_json_for_findings(tmp_path):
 # 错误模式 1：中文弯引号（\u201c / \u201d）
 def test_chinese_double_quotes_on_keys_and_values():
     """LLM 常见将键名和字符串值包成中文弯引号，需要统一为 ASCII 双引号。"""
-    raw = '{\u201cverdict\u201d: \u201c合规\u201d, \u201cscore\u201d: 95}'
+    raw = "{\u201cverdict\u201d: \u201c合规\u201d, \u201cscore\u201d: 95}"
 
     data = relaxed_json_loads(raw)
 
@@ -78,8 +78,8 @@ def test_chinese_double_quotes_on_keys_and_values():
 def test_chinese_double_quotes_in_nested_structure():
     """嵌套对象中的中文弯引号也需要修复。"""
     raw = (
-        '{\u201cresult\u201d: {\u201cverdict\u201d: \u201c不合规\u201d, '
-        '\u201cseverity\u201d: \u201chigh\u201d}}'
+        "{\u201cresult\u201d: {\u201cverdict\u201d: \u201c不合规\u201d, "
+        "\u201cseverity\u201d: \u201chigh\u201d}}"
     )
 
     data = relaxed_json_loads(raw)
@@ -90,16 +90,11 @@ def test_chinese_double_quotes_in_nested_structure():
 # 错误模式 2：字符串值内的裸引号（已在基础用例中覆盖一次，这里补一次多字段场景）
 def test_multiple_unescaped_quotes_in_values():
     """同一字符串中多处裸引号都应被修复。"""
-    raw = (
-        '{"note": "文件第3页写明"免费"，第5页又写"象征性收费"，两处矛盾。"}'
-    )
+    raw = '{"note": "文件第3页写明"免费"，第5页又写"象征性收费"，两处矛盾。"}'
 
     data = relaxed_json_loads(raw)
 
-    assert (
-        data["note"]
-        == '文件第3页写明"免费"，第5页又写"象征性收费"，两处矛盾。'
-    )
+    assert data["note"] == '文件第3页写明"免费"，第5页又写"象征性收费"，两处矛盾。'
 
 
 # 错误模式 3：尾随逗号
@@ -160,7 +155,7 @@ def test_nested_standard_json_passthrough():
 # 错误模式 6：组合错误
 def test_chinese_quotes_plus_trailing_comma():
     """中文弯引号与尾随逗号组合出现时都应被修复。"""
-    raw = '{\u201ca\u201d: \u201chello\u201d, \u201cb\u201d: 2,}'
+    raw = "{\u201ca\u201d: \u201chello\u201d, \u201cb\u201d: 2,}"
 
     data = relaxed_json_loads(raw)
 
@@ -169,11 +164,7 @@ def test_chinese_quotes_plus_trailing_comma():
 
 def test_markdown_fence_plus_chinese_quotes():
     """LLM 常把 JSON 包在 ```json``` 代码块里，且使用中文弯引号。"""
-    raw = (
-        "```json\n"
-        '{\u201cverdict\u201d: \u201c合规\u201d, \u201cscore\u201d: 100}\n'
-        "```"
-    )
+    raw = "```json\n{\u201cverdict\u201d: \u201c合规\u201d, \u201cscore\u201d: 100}\n```"
 
     data = relaxed_json_loads(raw)
 
