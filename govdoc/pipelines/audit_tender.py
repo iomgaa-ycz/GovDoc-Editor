@@ -228,6 +228,33 @@ def _index_tender_doc(
         return None
 
 
+def _resolve_point_runs(
+    session: Session,
+    audit_run: AuditRun,
+    point_run_ids: Sequence[str] | None,
+) -> list[AuditPointRun]:
+    """查找本次 audit run 下所有 point_runs，应用 point_run_ids 过滤，跳过已 completed。
+
+    Args:
+        session: SQLModel session
+        audit_run: 当前 audit run 实例
+        point_run_ids: 可选的白名单过滤；None 表示不过滤
+
+    Returns:
+        待运行的 point_runs，按 created_at/id 稳定排序
+    """
+    point_runs = session.exec(
+        select(AuditPointRun)
+        .where(AuditPointRun.audit_run_id == audit_run.id)
+        .order_by(AuditPointRun.created_at, AuditPointRun.id)
+    ).all()
+    selected = set(point_run_ids) if point_run_ids is not None else None
+    return [
+        pr for pr in point_runs
+        if (selected is None or pr.id in selected) and pr.status != "completed"
+    ]
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -247,15 +274,13 @@ async def run_audit(
     if tender_doc is None:
         raise ValueError(f"未找到 TenderDoc: {audit_run.tender_doc_id}")
 
-    point_runs = session.exec(
-        select(AuditPointRun)
-        .where(AuditPointRun.audit_run_id == audit_run.id)
-        .order_by(AuditPointRun.created_at, AuditPointRun.id)
+    # 统计所有 point_runs 总数（含已 completed），用于 total_count
+    all_point_runs = session.exec(
+        select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
     ).all()
-    selected_point_ids = set(point_run_ids) if point_run_ids is not None else None
 
     audit_run.status = "running"
-    audit_run.total_count = len(point_runs)
+    audit_run.total_count = len(all_point_runs)
     session.add(audit_run)
     session.commit()
     session.refresh(audit_run)
@@ -268,14 +293,12 @@ async def run_audit(
     # 索引招标文书到 qmd 临时 collection（非 replay 模式下才做）
     tender_collection = _index_tender_doc(audit_run, tender_doc, replay=replay_dir is not None)
 
+    # 过滤出待跑的 point_runs（跳过 completed 与白名单外）
+    point_runs_to_run = _resolve_point_runs(session, audit_run, point_run_ids)
+
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace
-        for point_run in point_runs:
-            if selected_point_ids is not None and point_run.id not in selected_point_ids:
-                continue
-            if point_run.status == "completed":
-                continue
-
+        for point_run in point_runs_to_run:
             checkpoint_row = session.get(CheckpointFinal, point_run.checkpoint_final_id)
             if checkpoint_row is None:
                 point_run.status = "failed"
