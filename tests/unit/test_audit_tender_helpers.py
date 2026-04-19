@@ -5,9 +5,14 @@
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from govdoc.pipelines.audit_tender import _index_tender_doc, _resolve_point_runs
+from govdoc.pipelines.audit_tender import (
+    _index_tender_doc,
+    _persist_point_result,
+    _resolve_point_runs,
+)
 
 
 class _FakeTenderDoc:
@@ -161,3 +166,117 @@ def test_run_single_point_is_async_and_has_expected_signature():
         "audit_run", "tender_collection", "manager", "store", "cfg",
         "repo_root", "replay_dir",
     ]
+
+
+def _make_finding_payload(checkpoint_id: str) -> dict:
+    """构造一个能被 GovFinding.model_validate 接受的最小 payload。"""
+    return {
+        "checkpoint": {
+            "id": checkpoint_id,
+            "category": "其他违法违规",
+            "title": "测试审核点",
+            "description": "desc",
+            "legal_basis": [],
+            "severity": "major",
+            "retrieval_hint": "hint",
+        },
+        "verdict": {
+            "verdict": "合规",
+            "rationale": "ok",
+            "evidence_quotes": [],
+            "suggestion": "",
+        },
+        "evidence_refs": [],
+        "case_refs": [],
+    }
+
+
+def test_persist_point_result_completed_with_matching_finding():
+    """result.status == 'completed' + finding 匹配 → point_run 完整填充。"""
+    point_run = MagicMock()
+    point_run.finding_json = None
+
+    finding_payload = _make_finding_payload("cp_test_001")
+    result = MagicMock()
+    result.status = "completed"
+    result.final_output_path = Path("/tmp/nonexistent_govdoc_test.json")  # 不存在 → fallback
+    result.final_output = {"findings": [finding_payload]}
+    result.phase_results = {}
+
+    workspace = MagicMock()
+    checkpoint = MagicMock()
+    checkpoint.id = "cp_test_001"
+    manager = MagicMock()
+    manager.archive.return_value = Path("/tmp/archive/success")
+
+    _persist_point_result(point_run, result, workspace, checkpoint, manager)
+
+    assert point_run.status == "completed"
+    assert point_run.finding_json is not None
+    assert point_run.workspace_archive_path == "/tmp/archive/success"
+    assert point_run.completed_at is not None
+    manager.archive.assert_called_once_with(workspace, success=True)
+
+
+def test_persist_point_result_completed_fallback_to_first_finding():
+    """result.status == 'completed' + finding id 不匹配但 findings 非空 → 取 findings[0]。"""
+    point_run = MagicMock()
+    point_run.finding_json = None
+
+    finding_payload = _make_finding_payload("cp_other")
+    result = MagicMock()
+    result.status = "completed"
+    result.final_output_path = Path("/tmp/nonexistent_govdoc_test.json")
+    result.final_output = {"findings": [finding_payload]}
+    result.phase_results = {}
+
+    workspace = MagicMock()
+    checkpoint = MagicMock()
+    checkpoint.id = "cp_target"  # 与 finding 的 cp_other 不匹配
+    manager = MagicMock()
+    manager.archive.return_value = Path("/tmp/archive")
+
+    _persist_point_result(point_run, result, workspace, checkpoint, manager)
+
+    assert point_run.status == "completed"
+    assert point_run.finding_json is not None  # fallback 生效
+    manager.archive.assert_called_once_with(workspace, success=True)
+
+
+def test_persist_point_result_failed():
+    """result.status != 'completed' → failed 分支。"""
+    point_run = MagicMock()
+    result = MagicMock()
+    result.status = "failed"
+    result.error = "something broke"
+    result.phase_results = {}
+
+    workspace = MagicMock()
+    checkpoint = MagicMock()
+    manager = MagicMock()
+    manager.archive.return_value = Path("/tmp/archive/failed")
+
+    _persist_point_result(point_run, result, workspace, checkpoint, manager)
+
+    assert point_run.status == "failed"
+    assert point_run.error == "something broke"
+    assert point_run.workspace_failed_path == "/tmp/archive/failed"
+    manager.archive.assert_called_once_with(workspace, success=False)
+
+
+def test_persist_point_result_usage_json_set():
+    """result 非 None → usage_json 被 dump_phase_usage 填充。"""
+    point_run = MagicMock()
+    result = MagicMock()
+    result.status = "failed"
+    result.error = "err"
+    result.phase_results = {}  # 空 dict：dump_phase_usage({}) → "{}"
+
+    workspace = MagicMock()
+    checkpoint = MagicMock()
+    manager = MagicMock()
+    manager.archive.return_value = Path("/tmp/x")
+
+    _persist_point_result(point_run, result, workspace, checkpoint, manager)
+
+    assert point_run.usage_json is not None  # 被赋值
