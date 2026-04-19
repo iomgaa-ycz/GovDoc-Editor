@@ -8,7 +8,19 @@ import inspect
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from sqlmodel import Session as SQLSession
+from sqlmodel import SQLModel, create_engine, select
+
+from govdoc.db.models import (
+    AuditPointRun,
+    AuditRun,
+    CheckpointFinal,
+    Project,
+    TenderDoc,
+    WorkpaperDraft,
+)
 from govdoc.pipelines.audit_tender import (
+    _assemble_workpaper_draft,
     _cleanup_tender_collection,
     _index_tender_doc,
     _persist_point_result,
@@ -326,3 +338,171 @@ def test_cleanup_tender_collection_swallows_exceptions():
         # 不应抛异常
         _cleanup_tender_collection("run_abc_tender", replay=False)
     mock_client.delete_collection.assert_called_once_with("run_abc_tender")
+
+
+# --- Task 8: _assemble_workpaper_draft -----------------------------------
+
+
+def _seed_audit(session: SQLSession) -> tuple[AuditRun, TenderDoc, CheckpointFinal]:
+    """为 _assemble_workpaper_draft 测试 seed 最小数据。"""
+    project = Project(name="test", created_by="tester")
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+
+    tender_doc = TenderDoc(
+        project_id=project.id,
+        filename="t.docx",
+        storage_path="/tmp/t.docx",
+        markdown_path="/tmp/t.md",
+        qmd_collection="c",
+    )
+    session.add(tender_doc)
+    session.commit()
+    session.refresh(tender_doc)
+
+    cf = CheckpointFinal(
+        payload_json=(
+            '{"id":"cp_1","category":"其他违法违规","title":"t","description":"d",'
+            '"legal_basis":[],"severity":"major","retrieval_hint":"h"}'
+        ),
+        approved_by="tester",
+    )
+    session.add(cf)
+    session.commit()
+    session.refresh(cf)
+
+    audit_run = AuditRun(
+        project_id=project.id,
+        tender_doc_id=tender_doc.id,
+        checkpoint_final_ids=f'["{cf.id}"]',
+        total_count=1,
+    )
+    session.add(audit_run)
+    session.commit()
+    session.refresh(audit_run)
+
+    return audit_run, tender_doc, cf
+
+
+def _make_finding_json(checkpoint_id: str = "cp_1", verdict: str = "合规") -> str:
+    """生成一份合法 GovFinding JSON。"""
+    import json
+
+    return json.dumps(
+        {
+            "checkpoint": {
+                "id": checkpoint_id,
+                "category": "其他违法违规",
+                "title": "t",
+                "description": "d",
+                "legal_basis": [],
+                "severity": "major",
+                "retrieval_hint": "h",
+            },
+            "verdict": {
+                "verdict": verdict,
+                "rationale": "ok",
+                "evidence_quotes": [],
+                "suggestion": "",
+            },
+            "evidence_refs": [],
+            "case_refs": [],
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_assemble_workpaper_draft_all_completed_sets_draft_ready(tmp_path, monkeypatch):
+    """所有 point_runs completed 且 finding_json 非空 → draft_ready + WorkpaperDraft 被 add。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+            status="completed",
+            finding_json=_make_finding_json(),
+        )
+        session.add(pr)
+        session.commit()
+
+        # Mock render_workpaper_docx 避免真写 docx
+        fake_path = tmp_path / "draft.docx"
+        fake_path.touch()
+        monkeypatch.setattr(
+            "govdoc.pipelines.audit_tender.render_workpaper_docx",
+            lambda *a, **kw: fake_path,
+        )
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+
+        assert audit_run.status == "draft_ready"
+        # WorkpaperDraft 未 commit 但已 add；帮 helper 提交（helper 不负责）
+        session.commit()
+        drafts = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        assert len(drafts) == 1
+        assert drafts[0].version == 1
+
+
+def test_assemble_workpaper_draft_partial_completed_sets_partial_ready():
+    """有 completed 和 failed → partial_ready，不生成 WorkpaperDraft。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        # 1 个 completed + 1 个 failed
+        pr1 = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+            status="completed",
+            finding_json=_make_finding_json(),
+        )
+        pr2 = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+            status="failed",
+            error="err",
+        )
+        session.add_all([pr1, pr2])
+        session.commit()
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+
+        assert audit_run.status == "partial_ready"
+        session.commit()
+        drafts = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        assert len(drafts) == 0
+
+
+def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
+    """无 completed 的 point_runs → waiting_retry。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        # 全 failed 或全 pending（这里用 pending）
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+            status="pending",
+        )
+        session.add(pr)
+        session.commit()
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+
+        assert audit_run.status == "waiting_retry"
+        session.commit()
+        drafts = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        assert len(drafts) == 0
