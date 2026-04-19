@@ -18,6 +18,7 @@
         alive    - 低耦合但合理，放过
         gone     - 符号已在代码中消失（被前置 P0/P1 重构删除），无动作
 """
+
 from __future__ import annotations
 
 import csv
@@ -69,14 +70,16 @@ def main(graph_path: Path, out_path: Path | None = None) -> None:
         label = n.get("label", "")
         if is_module_docstring(label):
             continue
-        suspects.append({
-            "node_id": nid,
-            "label": label,
-            "source_file": src_file,
-            "degree": degree[nid],
-            "classification": "",
-            "note": "",
-        })
+        suspects.append(
+            {
+                "node_id": nid,
+                "label": label,
+                "source_file": src_file,
+                "degree": degree[nid],
+                "classification": "",
+                "note": "",
+            }
+        )
 
     suspects.sort(key=lambda x: (x["source_file"], x["label"]))
 
