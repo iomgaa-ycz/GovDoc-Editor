@@ -18,7 +18,6 @@ dependencies = [
     "PyYAML>=6.0",
     "docxtpl>=0.16",
     "scrivai>=0.1.4",
-    "json5>=0.9.28",
 ]
 
 [project.optional-dependencies]
