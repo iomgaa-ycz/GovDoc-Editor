@@ -175,32 +175,6 @@ export function FileDropzone(props: {
   );
 }
 
-export interface FileChipData {
-  name: string;
-  detail: string;
-}
-
-export function FileChip(props: { file: FileChipData; onRemove?: () => void }) {
-  return (
-    <div className="file-chip">
-      <div>
-        <strong>{props.file.name}</strong>
-        <span>{props.file.detail}</span>
-      </div>
-      {props.onRemove ? (
-        <button
-          className="icon-button"
-          type="button"
-          onClick={props.onRemove}
-          aria-label="移除文件"
-        >
-          <Trash2 size={14} />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 export function ProgressBar(props: { value: number }) {
   return (
     <div className="progress-track">
