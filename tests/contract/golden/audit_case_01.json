@@ -1,0 +1,98 @@
+{
+  "audit_run": {
+    "error": null,
+    "processed_count": 2,
+    "status": "draft_ready",
+    "total_count": 2,
+    "total_usage_json": null
+  },
+  "findings": [
+    {
+      "case_refs": [
+        "case-local-bonus-002"
+      ],
+      "checkpoint": {
+        "category": "不合理条件限制或排斥供应商",
+        "description": "审查评分办法是否对本地服务网点、本地注册地等设置倾向性加分。",
+        "id": "cp_local_service_bonus",
+        "legal_basis": [
+          {
+            "article": "第五十五条",
+            "law_name": "政府采购货物和服务招标投标管理办法",
+            "quote": "评审因素应当细化和量化，不得违反公平竞争原则。"
+          }
+        ],
+        "retrieval_hint": "检索评分办法中的\"服务网点\"\"本地\"\"得分\"",
+        "severity": "major",
+        "title": "评分不得对本地服务网点倾向加分"
+      },
+      "evidence_refs": [
+        {
+          "char_end": 76,
+          "char_start": 52,
+          "chunk_index": 1,
+          "document_id": "tender_small"
+        }
+      ],
+      "verdict": {
+        "evidence_quotes": [
+          "投标人具有本地服务网点的得 5 分"
+        ],
+        "rationale": "评分办法仅对本地服务网点给分，属于明显倾向性加分。",
+        "suggestion": "删除与地域绑定的服务网点加分，改为响应时效等履约能力指标。",
+        "verdict": "不合规"
+      }
+    },
+    {
+      "case_refs": [
+        "case-region-restriction-001"
+      ],
+      "checkpoint": {
+        "category": "不合理条件限制或排斥供应商",
+        "description": "审查资格条件是否将类似业绩限定为本市、本区或特定行政区域。",
+        "id": "cp_vendor_scope",
+        "legal_basis": [
+          {
+            "article": "第二十条",
+            "law_name": "中华人民共和国政府采购法实施条例",
+            "quote": "采购人或者采购代理机构不得以不合理的条件对供应商实行差别待遇或者歧视待遇。"
+          }
+        ],
+        "retrieval_hint": "检索资格要求中的\"本市\"\"本地\"\"行政区域\"\"业绩\"",
+        "severity": "major",
+        "title": "不得限定本地业绩"
+      },
+      "evidence_refs": [
+        {
+          "char_end": 34,
+          "char_start": 8,
+          "chunk_index": 0,
+          "document_id": "tender_small"
+        }
+      ],
+      "verdict": {
+        "evidence_quotes": [
+          "供应商须提供本市近三年类似项目业绩不少于 2 个"
+        ],
+        "rationale": "资格要求直接限定为本市类似业绩，构成地域性限制。",
+        "suggestion": "删除\"本市\"限定，改为与履约能力相关的通用业绩要求。",
+        "verdict": "不合规"
+      }
+    }
+  ],
+  "point_runs": [
+    {
+      "error": null,
+      "status": "completed"
+    },
+    {
+      "error": null,
+      "status": "completed"
+    }
+  ],
+  "workpaper_drafts": [
+    {
+      "version": 1
+    }
+  ]
+}
