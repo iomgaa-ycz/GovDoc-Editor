@@ -214,8 +214,8 @@ def test_persist_point_result_completed_with_matching_finding():
     assert point_run.status == "completed"
     assert point_run.finding_json is not None
     assert point_run.workspace_archive_path == "/tmp/archive/success"
-    assert point_run.completed_at is not None
     manager.archive.assert_called_once_with(workspace, success=True)
+    assert point_run.completed_at is not None
 
 
 def test_persist_point_result_completed_fallback_to_first_finding():
@@ -240,6 +240,8 @@ def test_persist_point_result_completed_fallback_to_first_finding():
 
     assert point_run.status == "completed"
     assert point_run.finding_json is not None  # fallback 生效
+    # 验证确实取的是 findings[0]（checkpoint id 为 "cp_other"）
+    assert '"cp_other"' in point_run.finding_json
     manager.archive.assert_called_once_with(workspace, success=True)
 
 
@@ -279,4 +281,5 @@ def test_persist_point_result_usage_json_set():
 
     _persist_point_result(point_run, result, workspace, checkpoint, manager)
 
-    assert point_run.usage_json is not None  # 被赋值
+    # dump_phase_usage({}) 返回字符串 "{}"（证实"result 非 None 时无条件调用"的副作用路径）
+    assert point_run.usage_json == "{}"
