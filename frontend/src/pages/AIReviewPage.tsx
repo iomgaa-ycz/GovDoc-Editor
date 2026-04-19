@@ -11,18 +11,16 @@ import {
   CardHeader,
   EmptyState,
   Field,
-  FileDropzone,
   InlineNotice,
   LogConsole,
   MetricCard,
   PageHero,
   ProgressBar,
-  SelectInput,
   StatPill,
-  TextInput,
 } from "../components/Ui";
 import { PointInsight } from "../components/PointInsight";
 import { Modal } from "../components/Modal";
+import { TenderUploadPanel } from "../components/TenderUploadPanel";
 
 export function AIReviewPage() {
   const {
@@ -84,61 +82,21 @@ export function AIReviewPage() {
           <Card>
             <CardHeader title="任务设置" />
             <div className="modal-form">
-              <Field label="项目">
-                <SelectInput
-                  value={selectedProjectId ?? ""}
-                  onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                >
-                  <option value="">选择项目</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </SelectInput>
-              </Field>
-              <Field label="新项目名称">
-                <div style={{ display: "flex", gap: 8 }}>
-                  <TextInput
-                    placeholder="输入项目名称"
-                    value={wf.newProjectName}
-                    onChange={(e) => wf.setNewProjectName(e.target.value)}
-                    style={{ flex: 1 }}
-                  />
-                  <Button size="sm" tone="secondary" onClick={wf.handleCreateProject} busy={wf.creating} disabled={!wf.newProjectName}>新建</Button>
-                </div>
-              </Field>
-
-              {activeProject && !tenderDoc && (
-                <>
-                  <Field label="上传招标文书">
-                    {wf.tenderFile ? (
-                      <div className="file-chip-list">
-                        <div className="file-chip">
-                          <div>
-                            <strong>{wf.tenderFile.name}</strong>
-                            <span>{(wf.tenderFile.size / 1024).toFixed(1)} KB</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <FileDropzone
-                        title="选择招标文书"
-                        subtitle="支持 .pdf, .docx, .md"
-                        accept=".pdf,.docx,.md,.txt"
-                        onSelect={(files) => wf.setTenderFile(files[0] ?? null)}
-                      />
-                    )}
-                  </Field>
-                  {wf.tenderFile && (
-                    <Button tone="primary" onClick={wf.handleUploadTender} busy={wf.uploadingTender}>
-                      上传文书
-                    </Button>
-                  )}
-                </>
-              )}
-
-              {tenderDoc && (
-                <InlineNotice tone="success" message={`文书已上传: ${tenderDoc.filename}`} />
-              )}
+              <TenderUploadPanel
+                projects={projects}
+                activeProject={activeProject}
+                selectedProjectId={selectedProjectId}
+                setSelectedProjectId={setSelectedProjectId}
+                tenderDoc={tenderDoc}
+                newProjectName={wf.newProjectName}
+                setNewProjectName={wf.setNewProjectName}
+                creating={wf.creating}
+                handleCreateProject={wf.handleCreateProject}
+                tenderFile={wf.tenderFile}
+                setTenderFile={wf.setTenderFile}
+                uploadingTender={wf.uploadingTender}
+                handleUploadTender={wf.handleUploadTender}
+              />
 
               {tenderDoc && !auditProgress && (
                 <>
