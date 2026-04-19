@@ -2,6 +2,7 @@
 
 与 tests/contract/ 层的集成测试 + golden 对比共同守住 I1（行为不变）。
 """
+
 from __future__ import annotations
 
 import inspect
@@ -175,9 +176,16 @@ def test_run_single_point_is_async_and_has_expected_signature():
     assert inspect.iscoroutinefunction(_run_single_point)
     sig = inspect.signature(_run_single_point)
     assert list(sig.parameters.keys()) == [
-        "point_run", "checkpoint", "tender_doc",
-        "audit_run", "tender_collection", "manager", "store", "cfg",
-        "repo_root", "replay_dir",
+        "point_run",
+        "checkpoint",
+        "tender_doc",
+        "audit_run",
+        "tender_collection",
+        "manager",
+        "store",
+        "cfg",
+        "repo_root",
+        "replay_dir",
     ]
 
 
@@ -517,20 +525,22 @@ def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, mo
         audit_run, tender_doc, cf = _seed_audit(session)
 
         # 手动 seed 两个现有 drafts: version 1, 2
-        session.add_all([
-            WorkpaperDraft(
-                audit_run_id=audit_run.id,
-                workpaper_json="{}",
-                docx_path="/tmp/v1.docx",
-                version=1,
-            ),
-            WorkpaperDraft(
-                audit_run_id=audit_run.id,
-                workpaper_json="{}",
-                docx_path="/tmp/v2.docx",
-                version=2,
-            ),
-        ])
+        session.add_all(
+            [
+                WorkpaperDraft(
+                    audit_run_id=audit_run.id,
+                    workpaper_json="{}",
+                    docx_path="/tmp/v1.docx",
+                    version=1,
+                ),
+                WorkpaperDraft(
+                    audit_run_id=audit_run.id,
+                    workpaper_json="{}",
+                    docx_path="/tmp/v2.docx",
+                    version=2,
+                ),
+            ]
+        )
         # 再加一个 completed point_run
         session.add(
             AuditPointRun(

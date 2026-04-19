@@ -3,6 +3,7 @@
 用途：在拆分前跑一次作为 baseline，拆分后再跑一次对比。
 排除不稳定字段（时间戳 / UUID / 路径前缀）。
 """
+
 from __future__ import annotations
 
 import json
@@ -55,7 +56,7 @@ def _sanitize(record: dict[str, Any]) -> dict[str, Any]:
 class AuditGolden:
     audit_run: dict[str, Any]
     point_runs: list[dict[str, Any]]  # sorted by checkpoint_final_id
-    findings: list[dict[str, Any]]    # parsed + sorted by checkpoint_id
+    findings: list[dict[str, Any]]  # parsed + sorted by checkpoint_id
     workpaper_drafts: list[dict[str, Any]]  # sorted by version
 
 
