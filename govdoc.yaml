@@ -1,0 +1,26 @@
+app:
+  host: 0.0.0.0
+  port: 8000
+  storage_root: ./data/storage
+  database_url: sqlite:///./data/app.sqlite
+
+model:
+  model: glm-5.1
+  base_url: "http://110.42.53.85:11098"
+  api_key: ${ANTHROPIC_API_KEY}
+  fallback_model: glm-5.1
+
+qmd:
+  db_path: ./data/qmd.sqlite
+
+workspace:
+  workspaces_root: ./data/.govdoc/workspaces
+  archives_root: ./data/.govdoc/archives
+  cleanup_days: 30
+
+evolution:
+  enabled: false
+  proposer_model: claude-sonnet-4-6
+  frontier_size: 5
+  eval_dataset_path: ./data/eval/checkpoints_golden.json
+
