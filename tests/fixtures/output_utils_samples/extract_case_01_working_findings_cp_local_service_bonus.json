@@ -1,0 +1,15 @@
+{
+  "id": "cp_local_service_bonus",
+  "category": "不合理条件限制或排斥供应商",
+  "title": "评分不得对本地服务网点倾向加分",
+  "description": "审查评分办法是否对本地服务网点、本地注册地等设置倾向性加分。",
+  "legal_basis": [
+    {
+      "law_name": "政府采购货物和服务招标投标管理办法",
+      "article": "第五十五条",
+      "quote": "评审因素应当细化和量化，不得违反公平竞争原则。"
+    }
+  ],
+  "severity": "major",
+  "retrieval_hint": "检索评分办法中的“服务网点”“本地”“得分”"
+}
