@@ -1,26 +1,21 @@
-import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 import { useProjectWorkflow } from "../hooks/useProjectWorkflow";
 import { useAuditRun } from "../hooks/useAuditRun";
-import { parseCheckpointPayload, parseFindingJson, verdictToStatus } from "../adapters/backendToUi";
+import { parseFindingJson } from "../adapters/backendToUi";
 import {
-  Button,
   Card,
   CardHeader,
   EmptyState,
   InlineNotice,
-  LogConsole,
-  MetricCard,
   PageHero,
-  ProgressBar,
-  StatPill,
 } from "../components/Ui";
 import { PointInsight } from "../components/PointInsight";
 import { Modal } from "../components/Modal";
 import { TenderUploadPanel } from "../components/TenderUploadPanel";
 import { CheckpointPicker } from "../components/CheckpointPicker";
+import { AuditProgressPanel } from "../components/AuditProgressPanel";
 
 export function AIReviewPage() {
   const {
@@ -46,12 +41,6 @@ export function AIReviewPage() {
   const [detailPointRunId, setDetailPointRunId] = useState<string | null>(null);
 
   const tenderDoc = activeProject ? tenderDocs[activeProject.id] : undefined;
-  const isRunning = auditProgress?.status === "running" || auditProgress?.status === "pending";
-
-  const completedCount = auditProgress?.point_runs.filter((pr) => pr.status === "completed").length ?? 0;
-  const failedCount = auditProgress?.point_runs.filter((pr) => pr.status === "failed").length ?? 0;
-  const pendingCount = auditProgress?.point_runs.filter((pr) => pr.status === "pending" || pr.status === "running").length ?? 0;
-  const total = auditProgress?.total_count ?? 0;
 
   // ── Find checkpoint payload for a point run ──
 
@@ -111,83 +100,13 @@ export function AIReviewPage() {
           </Card>
         </div>
 
-        {/* Center: Progress */}
-        <div className="center-column">
-          <Card>
-            <CardHeader title="审核进度" />
-            {auditProgress ? (
-              <>
-                <ProgressBar value={total > 0 ? (completedCount / total) * 100 : 0} />
-                <div className="metric-grid">
-                  <MetricCard label="总计" value={total} tone="blue" />
-                  <MetricCard label="已完成" value={completedCount} tone="green" />
-                  <MetricCard label="失败" value={failedCount} tone="amber" />
-                  <MetricCard label="待处理" value={pendingCount} />
-                </div>
-              </>
-            ) : (
-              <EmptyState title="尚未启动" description="请在左侧配置任务后启动审核。" />
-            )}
-          </Card>
-
-          {logs.length > 0 && (
-            <Card>
-              <CardHeader title="运行日志" />
-              <LogConsole logs={logs} />
-            </Card>
-          )}
-        </div>
-
-        {/* Right: Point status list */}
-        <div className="right-column">
-          <Card>
-            <CardHeader title="审核点进度" />
-            {auditProgress && auditProgress.point_runs.length > 0 ? (
-              <div className="review-point-list">
-                {auditProgress.point_runs.map((pr) => {
-                  const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-                  const title = cp?.parsed?.title ?? pr.checkpoint_final_id.slice(0, 8);
-                  const status = verdictToStatus(
-                    parseFindingJson(pr.finding_json),
-                    pr.status,
-                  );
-                  const statusClass =
-                    status === "running" ? "review-point-item--running"
-                    : status === "passed" ? "review-point-item--passed"
-                    : status === "error" ? "review-point-item--failed"
-                    : "";
-                  return (
-                    <button
-                      key={pr.id}
-                      className={`review-point-item ${statusClass}`}
-                      type="button"
-                      onClick={() => setDetailPointRunId(pr.id)}
-                    >
-                      <div className="review-point-copy">
-                        <strong>{title}</strong>
-                        <span>
-                          <StatPill status={status} />
-                        </span>
-                      </div>
-                      {status === "error" && (
-                        <Button
-                          size="sm"
-                          tone="ghost"
-                          icon={RefreshCw}
-                          onClick={(e) => { e.stopPropagation(); retryPointRun(pr.id); }}
-                        >
-                          重试
-                        </Button>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState title="无审核点" description="启动审核后这里将显示每个审核点的状态。" />
-            )}
-          </Card>
-        </div>
+        <AuditProgressPanel
+          auditProgress={auditProgress}
+          logs={logs}
+          finalCheckpoints={finalCheckpoints}
+          retryPointRun={retryPointRun}
+          onPointRunClick={setDetailPointRunId}
+        />
       </div>
 
       {/* Point detail modal */}
