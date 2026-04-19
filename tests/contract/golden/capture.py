@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -16,7 +15,6 @@ from sqlmodel import Session, select
 from govdoc.db.models import (
     AuditPointRun,
     AuditRun,
-    TenderDoc,
     WorkpaperDraft,
 )
 
@@ -88,12 +86,6 @@ def capture(session: Session, audit_run_id: str) -> AuditGolden:
         findings=findings,
         workpaper_drafts=[_sanitize(d.model_dump()) for d in drafts_sorted],
     )
-
-
-def golden_hash(golden: AuditGolden) -> str:
-    """对 golden 做稳定 hash（排序后 JSON）。"""
-    blob = json.dumps(asdict(golden), ensure_ascii=False, sort_keys=True).encode()
-    return hashlib.sha256(blob).hexdigest()
 
 
 def write_golden(golden: AuditGolden, path: Path) -> None:
