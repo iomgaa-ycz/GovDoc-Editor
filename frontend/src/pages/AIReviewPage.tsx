@@ -1,4 +1,4 @@
-import { Bot, Play, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
@@ -10,7 +10,6 @@ import {
   Card,
   CardHeader,
   EmptyState,
-  Field,
   InlineNotice,
   LogConsole,
   MetricCard,
@@ -21,6 +20,7 @@ import {
 import { PointInsight } from "../components/PointInsight";
 import { Modal } from "../components/Modal";
 import { TenderUploadPanel } from "../components/TenderUploadPanel";
+import { CheckpointPicker } from "../components/CheckpointPicker";
 
 export function AIReviewPage() {
   const {
@@ -99,31 +99,13 @@ export function AIReviewPage() {
               />
 
               {tenderDoc && !auditProgress && (
-                <>
-                  <Field label="选择审核点">
-                    <div style={{ display: "grid", gap: 6, maxHeight: 200, overflow: "auto" }}>
-                      {finalCheckpoints.map((cp) => (
-                        <label key={cp.id} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontSize: 13 }}>
-                          <input
-                            type="checkbox"
-                            checked={auditRun.selectedCpIds.includes(cp.id)}
-                            onChange={() => auditRun.toggleCheckpoint(cp.id)}
-                          />
-                          {cp.parsed.title}
-                        </label>
-                      ))}
-                    </div>
-                  </Field>
-                  <Button
-                    tone="primary"
-                    icon={Play}
-                    onClick={auditRun.handleStartAudit}
-                    busy={auditRun.startingAudit}
-                    disabled={auditRun.selectedCpIds.length === 0 || auditRun.startingAudit}
-                  >
-                    启动审核 ({auditRun.selectedCpIds.length} 个审核点)
-                  </Button>
-                </>
+                <CheckpointPicker
+                  checkpoints={finalCheckpoints}
+                  selectedIds={auditRun.selectedCpIds}
+                  onToggle={auditRun.toggleCheckpoint}
+                  onStart={auditRun.handleStartAudit}
+                  startingAudit={auditRun.startingAudit}
+                />
               )}
             </div>
           </Card>
