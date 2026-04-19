@@ -110,6 +110,7 @@ function defaultValue(): WorkbenchContextValue {
     setWorkpaperHtml: vi.fn(),
     saveWorkpaper: vi.fn(),
     finalizeWorkpaper: vi.fn(),
+    importCheckpointFile: vi.fn(),
     updateCheckpoint: vi.fn(),
     deleteCheckpoint: vi.fn(),
     refreshAll: vi.fn(),
