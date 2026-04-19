@@ -9,6 +9,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  useEffect,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type PropsWithChildren,
@@ -256,5 +259,45 @@ export function IconAction(props: {
     >
       {props.icon === "edit" ? <Pencil size={14} /> : <Trash2 size={14} />}
     </button>
+  );
+}
+
+export function DropdownMenu({
+  trigger,
+  items,
+}: {
+  trigger: ReactNode;
+  items: Array<{ label: string; onClick: () => void }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <div onClick={() => setOpen((o) => !o)}>{trigger}</div>
+      {open && (
+        <div className="dropdown-menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              className="dropdown-item"
+              type="button"
+              onClick={() => { item.onClick(); setOpen(false); }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
