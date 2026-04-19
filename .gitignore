@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Python 虚拟环境
+.venv/
+venv/
+
+# 敏感信息与本地配置
+.env
+.env.*
+
+# 运行时产物（由应用写入，不入库）
+data/
+.govdoc/
+*.sqlite
+*.sqlite3
+*.db
+
+# 第三方 vendored 源码（editable 安装时本地展开）
+vendor/
+
+# 前端
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# GitNexus 中间产物（可由 `npx gitnexus analyze` 重建）
+graphify-out/cache/
+graphify-out/converted/
+
+# 测试产物
+tests/outputs/
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+ehthumbs.db
