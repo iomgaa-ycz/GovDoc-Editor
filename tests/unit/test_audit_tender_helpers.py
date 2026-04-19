@@ -506,3 +506,119 @@ def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
             select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
         ).all()
         assert len(drafts) == 0
+
+
+def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, monkeypatch):
+    """已有 version=2 draft，再跑一次全 completed → 新 draft version=3。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+
+        # 手动 seed 两个现有 drafts: version 1, 2
+        session.add_all([
+            WorkpaperDraft(
+                audit_run_id=audit_run.id,
+                workpaper_json="{}",
+                docx_path="/tmp/v1.docx",
+                version=1,
+            ),
+            WorkpaperDraft(
+                audit_run_id=audit_run.id,
+                workpaper_json="{}",
+                docx_path="/tmp/v2.docx",
+                version=2,
+            ),
+        ])
+        # 再加一个 completed point_run
+        session.add(
+            AuditPointRun(
+                audit_run_id=audit_run.id,
+                checkpoint_final_id=cf.id,
+                status="completed",
+                finding_json=_make_finding_json(),
+            )
+        )
+        session.commit()
+
+        fake_path = tmp_path / "v3.docx"
+        fake_path.touch()
+        monkeypatch.setattr(
+            "govdoc.pipelines.audit_tender.render_workpaper_docx",
+            lambda *a, **kw: fake_path,
+        )
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        session.commit()
+
+        drafts = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        assert len(drafts) == 3
+        assert {d.version for d in drafts} == {1, 2, 3}
+
+
+def test_assemble_workpaper_draft_empty_finding_json_is_skipped():
+    """finding_json 为空串的 completed point_run 不计入 completed_runs → 若仅它是 completed 则 waiting_retry。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+
+        # 唯一一个 "completed" 但 finding_json 为空串
+        session.add(
+            AuditPointRun(
+                audit_run_id=audit_run.id,
+                checkpoint_final_id=cf.id,
+                status="completed",
+                finding_json="",
+            )
+        )
+        session.commit()
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        session.commit()
+
+        # 因为空 finding_json 被过滤掉，completed_runs 实为空，failed_runs 也为空 → 走 else 分支
+        assert audit_run.status == "waiting_retry"
+        drafts = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        assert len(drafts) == 0
+
+
+def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, monkeypatch):
+    """draft_ready 路径下，Workpaper.tender_doc_path 应等于 tender_doc.storage_path。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        session.add(
+            AuditPointRun(
+                audit_run_id=audit_run.id,
+                checkpoint_final_id=cf.id,
+                status="completed",
+                finding_json=_make_finding_json(),
+            )
+        )
+        session.commit()
+
+        captured = {}
+
+        def _capture(workpaper, audit_run_id, *, template_path, version):
+            captured["workpaper"] = workpaper
+            fake = tmp_path / f"v{version}.docx"
+            fake.touch()
+            return fake
+
+        monkeypatch.setattr(
+            "govdoc.pipelines.audit_tender.render_workpaper_docx",
+            _capture,
+        )
+
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+
+        assert captured["workpaper"].tender_doc_path == tender_doc.storage_path

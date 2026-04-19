@@ -452,7 +452,7 @@ def _assemble_workpaper_draft(
     completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
     failed_runs = [pr for pr in all_runs if pr.status == "failed"]
 
-    if not failed_runs and completed_runs:
+    if completed_runs and not failed_runs:
         findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
         workpaper = Workpaper(
             project_id=audit_run.project_id,
@@ -479,7 +479,7 @@ def _assemble_workpaper_draft(
             )
         )
         audit_run.status = "draft_ready"
-    elif completed_runs:
+    elif completed_runs and failed_runs:
         audit_run.status = "partial_ready"
     else:
         audit_run.status = "waiting_retry"
