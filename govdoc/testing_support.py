@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,17 @@ class MockReplayBundle:
     @property
     def working_seed_dir(self) -> Path:
         return self.root / "working"
+
+
+def get_fixtures_root(*, strict: bool = True) -> Path:
+    raw = os.environ.get("GOVDOC_FIXTURES")
+    if raw:
+        root = Path(raw).expanduser().resolve()
+    else:
+        root = (Path(__file__).resolve().parents[1] / "tests" / "fixtures").resolve()
+    if strict and not root.is_dir():
+        raise FileNotFoundError(f"未找到 GOVDOC fixtures 目录: {root}")
+    return root
 
 
 def load_mock_replay(path: str | Path) -> MockReplayBundle:
