@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 import { useProjectWorkflow } from "../hooks/useProjectWorkflow";
+import { useAuditRun } from "../hooks/useAuditRun";
 import { parseCheckpointPayload, parseFindingJson, verdictToStatus } from "../adapters/backendToUi";
 import {
   Button,
@@ -34,16 +35,14 @@ export function AIReviewPage() {
     finalCheckpoints,
     auditProgress,
     logs,
-    createAuditRun,
     retryPointRun,
   } = useWorkbench();
 
   // Task setup state (extracted to useProjectWorkflow)
   const wf = useProjectWorkflow();
 
-  // Checkpoint selection for audit run
-  const [selectedCpIds, setSelectedCpIds] = useState<string[]>([]);
-  const [startingAudit, setStartingAudit] = useState(false);
+  // Audit-run start state (extracted to useAuditRun)
+  const auditRun = useAuditRun();
 
   // Point detail modal
   const [detailPointRunId, setDetailPointRunId] = useState<string | null>(null);
@@ -55,24 +54,6 @@ export function AIReviewPage() {
   const failedCount = auditProgress?.point_runs.filter((pr) => pr.status === "failed").length ?? 0;
   const pendingCount = auditProgress?.point_runs.filter((pr) => pr.status === "pending" || pr.status === "running").length ?? 0;
   const total = auditProgress?.total_count ?? 0;
-
-  // ── Handlers ──
-
-  function toggleCheckpoint(id: string) {
-    setSelectedCpIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
-  async function handleStartAudit() {
-    if (!activeProject || !tenderDoc || selectedCpIds.length === 0) return;
-    setStartingAudit(true);
-    try {
-      await createAuditRun(activeProject.id, tenderDoc.id, selectedCpIds);
-    } finally {
-      setStartingAudit(false);
-    }
-  }
 
   // ── Find checkpoint payload for a point run ──
 
@@ -167,8 +148,8 @@ export function AIReviewPage() {
                         <label key={cp.id} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontSize: 13 }}>
                           <input
                             type="checkbox"
-                            checked={selectedCpIds.includes(cp.id)}
-                            onChange={() => toggleCheckpoint(cp.id)}
+                            checked={auditRun.selectedCpIds.includes(cp.id)}
+                            onChange={() => auditRun.toggleCheckpoint(cp.id)}
                           />
                           {cp.parsed.title}
                         </label>
@@ -178,11 +159,11 @@ export function AIReviewPage() {
                   <Button
                     tone="primary"
                     icon={Play}
-                    onClick={handleStartAudit}
-                    busy={startingAudit}
-                    disabled={selectedCpIds.length === 0 || startingAudit}
+                    onClick={auditRun.handleStartAudit}
+                    busy={auditRun.startingAudit}
+                    disabled={auditRun.selectedCpIds.length === 0 || auditRun.startingAudit}
                   >
-                    启动审核 ({selectedCpIds.length} 个审核点)
+                    启动审核 ({auditRun.selectedCpIds.length} 个审核点)
                   </Button>
                 </>
               )}
