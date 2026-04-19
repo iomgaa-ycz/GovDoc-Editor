@@ -201,6 +201,290 @@ def _ensure_tender_collection(
     return collection_name
 
 
+def _index_tender_doc(
+    audit_run: AuditRun,
+    tender_doc: TenderDoc,
+    *,
+    replay: bool,
+) -> str | None:
+    """为本次 audit run 准备 qmd tender collection。
+
+    - replay 模式：返回占位名 f"run_{audit_run.id}_tender"，不触发 qmd
+    - 非 replay 模式：调用 _ensure_tender_collection；失败时返回 None（允许降级）
+
+    Args:
+        audit_run: 当前 audit run 实例（需要 audit_run.id）
+        tender_doc: 招标文书（交给 _ensure_tender_collection）
+        replay: 是否 replay 模式
+
+    Returns:
+        tender collection 名，或 None（真索引失败时）
+    """
+    if replay:
+        return f"run_{audit_run.id}_tender"
+    try:
+        return _ensure_tender_collection(audit_run.id, tender_doc)
+    except Exception:
+        return None
+
+
+def _resolve_point_runs(
+    session: Session,
+    audit_run: AuditRun,
+    point_run_ids: Sequence[str] | None,
+) -> tuple[int, list[AuditPointRun]]:
+    """查找本次 audit run 下所有 point_runs，应用过滤返回 (总数, 待跑列表)。
+
+    Args:
+        session: SQLModel session
+        audit_run: 当前 audit run 实例
+        point_run_ids: 可选的白名单过滤；None 表示不过滤
+
+    Returns:
+        (total_count, to_run)
+        - total_count: 本 audit run 下所有 point_runs 的总数（不过滤）
+        - to_run: 过滤后待跑的 point_runs，按 created_at/id 稳定排序；
+                  跳过 status=='completed'（保证幂等重试）；
+                  白名单外的也跳过
+    """
+    point_runs = session.exec(
+        select(AuditPointRun)
+        .where(AuditPointRun.audit_run_id == audit_run.id)
+        .order_by(AuditPointRun.created_at, AuditPointRun.id)
+    ).all()
+    selected: set[str] | None = set(point_run_ids) if point_run_ids is not None else None
+    to_run = [
+        pr for pr in point_runs
+        if (selected is None or pr.id in selected) and pr.status != "completed"
+    ]
+    return len(point_runs), to_run
+
+
+async def _run_single_point(
+    point_run: AuditPointRun,
+    checkpoint: GovCheckpoint,
+    tender_doc: TenderDoc,
+    *,
+    audit_run: AuditRun,
+    tender_collection: str | None,
+    manager: Any,
+    store: Any,
+    cfg: Any,
+    repo_root: Path,
+    replay_dir: str | Path | None,
+) -> tuple[Any, Any]:
+    """搭 workspace、构造 PES（真 or replay）、await pes.run，返回 (workspace, result)。
+
+    抽自 run_audit 主循环（原 L315-366），封装单审核点执行闭环：
+    1. 写 checkpoints.json 临时文件
+    2. 构造 WorkspaceSpec（data_inputs + extra_env）
+    3. 根据 replay_dir 选择 MockPES（replay）或真实 PES（build_gov_auditor_pes）
+    4. await pes.run 并 attach_workspace_output
+
+    不做 DB 持久化（留给调用方 / Task 6 的 _persist_point_result），
+    不做 cleanup / archive（调用方根据 result 决定）。
+    PES 正常返回 PESResult（含 status 字段），不会抛异常；
+    异常路径（workspace 创建失败、fixture 读取失败）由调用方 try/except 处理。
+
+    Args:
+        point_run: 当前 AuditPointRun（提供 id 作为 workspace run_id）
+        checkpoint: 待审核的 GovCheckpoint（用于 task_prompt + 落盘 checkpoints.json）
+        tender_doc: 招标文书（提供 markdown_path 作为 data_inputs）
+        audit_run: 当前 AuditRun（提供 id 给 extra_env / checkpoint 落盘）
+        tender_collection: qmd tender collection 名；None 表示不注入该 env
+        manager: workspace manager（Scrivai 注入）
+        store: trajectory store（replay 分支的 MockPES 需要）
+        cfg: config 单例（提供 qmd_db_path）
+        repo_root: 项目根路径（WorkspaceSpec.project_root）
+        replay_dir: replay fixture 目录；None 表示真跑
+
+    Returns:
+        (workspace, result) 元组；result.status 反映 PES 完成情况。
+    """
+    checkpoint_path = write_single_checkpoint_json(audit_run.id, checkpoint)
+
+    extra_env: dict[str, str] = {
+        "GOVDOC_AUDIT_RUN_ID": audit_run.id,
+    }
+    if tender_collection:
+        extra_env["GOVDOC_TENDER_COLLECTION"] = tender_collection
+    extra_env["GOVDOC_DB_PATH"] = str(cfg.qmd_db_path)
+
+    workspace = manager.create(
+        WorkspaceSpec(
+            run_id=point_run.id,
+            project_root=repo_root,
+            data_inputs={
+                "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
+                "checkpoints.json": checkpoint_path,
+            },
+            extra_env=extra_env,
+        )
+    )
+
+    runtime_context = {
+        "output_schema": WorkpaperAuditOutput,
+        "verdict_levels": ["合规", "不合规", "存疑"],
+        "evidence_required": True,
+    }
+
+    if replay_dir is not None:
+        replay = load_mock_replay(replay_dir)
+        seed_working_tree(replay.working_seed_dir, workspace.working_dir)
+        pes = MockPES(
+            config=get_gov_auditor_config(),
+            workspace=workspace,
+            trajectory_store=store,
+            runtime_context=runtime_context,
+            phase_outcomes=replay.phase_outcomes,
+        )
+    else:
+        pes = build_gov_auditor_pes(
+            workspace=workspace, runtime_context=runtime_context
+        )
+
+    result = await pes.run(
+        task_prompt=(
+            "审核 data/tender.md，针对 data/checkpoints.json 中的唯一审核点"
+            f"「{checkpoint.title}」生成一条 GovFinding。"
+        ),
+    )
+    attach_workspace_output(result, workspace.working_dir)
+    return workspace, result
+
+
+def _persist_point_result(
+    point_run: AuditPointRun,
+    result: Any,
+    workspace: Any,
+    checkpoint: GovCheckpoint,
+    manager: Any,
+) -> None:
+    """把 PES result 落到 point_run 字段。
+
+    - result.status == "completed": 加载 payload、匹配 finding、设 status/completed_at/archive
+    - result.status != "completed": 设 failed/error/failed_archive
+    - result 非 None: 写 usage_json
+
+    不调用 session.commit/add；异常由调用方接管。
+    """
+    if result.status == "completed":
+        payload = load_result_payload(result.final_output_path, result.final_output)
+        findings = payload.get("findings", [])
+        finding_data = _match_finding_by_checkpoint_id(findings, checkpoint.id)
+        if finding_data is not None:
+            finding = GovFinding.model_validate(finding_data)
+            point_run.finding_json = finding.model_dump_json()
+        elif findings:
+            finding = GovFinding.model_validate(findings[0])
+            point_run.finding_json = finding.model_dump_json()
+        point_run.status = "completed"
+        point_run.completed_at = datetime.utcnow()
+        point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
+    else:
+        point_run.status = "failed"
+        point_run.error = result.error
+        point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
+
+    if result is not None:
+        point_run.usage_json = dump_phase_usage(result.phase_results)
+
+
+def _cleanup_tender_collection(collection_id: str | None, *, replay: bool) -> None:
+    """清理 qmd 临时 tender collection（best-effort）。
+
+    - replay 模式：no-op（测试 fixture 用的是占位名，不接真 qmd）
+    - 非 replay 模式：调 ``get_qmd().delete_collection(collection_id)``；
+      qmd 对不存在的 collection 静默 no-op，对其他异常则由本函数 try/except
+      吞掉（仅 warning log），不向上传播。
+
+    设计：
+    - **不抛异常**——调用方通常在 finally 块里调，不希望 cleanup 失败
+      覆盖业务异常。
+    - 静默 no-op 条件：collection_id is None / 空串 / replay=True。
+
+    Args:
+        collection_id: qmd collection 名；None 或空串时 no-op。
+        replay: 是否 replay 模式。
+
+    Returns:
+        None
+    """
+    if replay or not collection_id:
+        return
+    try:
+        get_qmd().delete_collection(collection_id)
+    except Exception as exc:
+        logger.warning(
+            "清理 tender collection %r 失败（best-effort，已吞异常）：%s",
+            collection_id,
+            exc,
+        )
+
+
+def _assemble_workpaper_draft(
+    audit_run: AuditRun,
+    session: Session,
+    tender_doc: TenderDoc,
+    template_path: str | Path | None,
+) -> None:
+    """按 completed point_runs 汇总 findings，生成 WorkpaperDraft，更新 audit_run.status。
+
+    Status 分派规则（保真原 run_audit 行为）：
+    - 所有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
+    - 部分 completed 有 failed  → ``partial_ready``（不生成 WorkpaperDraft）
+    - 全部 failed 或无 completed → ``waiting_retry``（不生成 WorkpaperDraft）
+
+    **不**调 ``session.commit``；调用方负责 DB 提交（与 ``_persist_point_result`` 一致）。
+
+    Args:
+        audit_run: 当前 audit run 实例（本函数会直接修改其 ``status`` 字段）。
+        session: SQLModel session（用于查 point_runs / WorkpaperDraft 版本号）。
+        tender_doc: 招标文书（提供 ``storage_path`` 给生成的 Workpaper）。
+        template_path: docxtpl 模板路径（透传给 ``render_workpaper_docx``）。
+
+    Returns:
+        None
+    """
+    all_runs = session.exec(
+        select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
+    ).all()
+    completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
+    failed_runs = [pr for pr in all_runs if pr.status == "failed"]
+
+    if completed_runs and not failed_runs:
+        findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
+        workpaper = Workpaper(
+            project_id=audit_run.project_id,
+            tender_doc_path=tender_doc.storage_path,
+            findings=findings,
+            summary=generate_summary(findings),
+        )
+        current_versions = session.exec(
+            select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
+        ).all()
+        next_version = max((d.version for d in current_versions), default=0) + 1
+        draft_path = render_workpaper_docx(
+            workpaper,
+            audit_run.id,
+            template_path=template_path,
+            version=next_version,
+        )
+        session.add(
+            WorkpaperDraft(
+                audit_run_id=audit_run.id,
+                workpaper_json=workpaper.model_dump_json(),
+                docx_path=str(draft_path),
+                version=next_version,
+            )
+        )
+        audit_run.status = "draft_ready"
+    elif completed_runs and failed_runs:
+        audit_run.status = "partial_ready"
+    else:
+        audit_run.status = "waiting_retry"
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -212,6 +496,29 @@ async def run_audit(
     template_path: str | Path | None = None,
     point_run_ids: Sequence[str] | None = None,
 ) -> AuditRun:
+    """管道 B 入口：审核点 + 招标文书 → 工作底稿。
+
+    薄编排层。所有重活委托给以下 helper：
+    - `_resolve_point_runs`: 查点 + 过滤 + total_count
+    - `_index_tender_doc`: qmd tender collection 准备
+    - `_run_single_point`: 单点 workspace + PES 运行
+    - `_persist_point_result`: 结果落 point_run 字段
+    - `_assemble_workpaper_draft`: 聚合 findings → WorkpaperDraft
+    - `_cleanup_tender_collection`: finally 里清理 qmd collection
+
+    设计基线：docs/design.md §10 +
+    docs/superpowers/specs/2026-04-19-govdoc-tech-debt-cleanup-design.md §3.1
+
+    Args:
+        audit_run_id: 目标 AuditRun ID
+        session: SQLModel session
+        workspace_manager: scrivai workspace manager（默认从 runtime 拿）
+        trajectory_store: scrivai trajectory store（默认从 runtime 拿）
+        replay_dir: replay fixture 目录；None 表示真跑
+        project_root: 项目根路径；None 则从 runtime 解析
+        template_path: docxtpl 模板路径（给 WorkpaperDraft 用）
+        point_run_ids: 白名单过滤；None 表示跑所有未 completed 的点
+    """
     audit_run = session.get(AuditRun, audit_run_id)
     if audit_run is None:
         raise ValueError(f"未找到 AuditRun: {audit_run_id}")
@@ -220,15 +527,11 @@ async def run_audit(
     if tender_doc is None:
         raise ValueError(f"未找到 TenderDoc: {audit_run.tender_doc_id}")
 
-    point_runs = session.exec(
-        select(AuditPointRun)
-        .where(AuditPointRun.audit_run_id == audit_run.id)
-        .order_by(AuditPointRun.created_at, AuditPointRun.id)
-    ).all()
-    selected_point_ids = set(point_run_ids) if point_run_ids is not None else None
-
+    # 解析 point_runs：总数（含 completed）+ 过滤后待跑列表
     audit_run.status = "running"
-    audit_run.total_count = len(point_runs)
+    audit_run.total_count, point_runs_to_run = _resolve_point_runs(
+        session, audit_run, point_run_ids
+    )
     session.add(audit_run)
     session.commit()
     session.refresh(audit_run)
@@ -239,23 +542,11 @@ async def run_audit(
     cfg = get_config()
 
     # 索引招标文书到 qmd 临时 collection（非 replay 模式下才做）
-    tender_collection: str | None = None
-    if replay_dir is None:
-        try:
-            tender_collection = _ensure_tender_collection(audit_run.id, tender_doc)
-        except Exception:
-            tender_collection = None
-    else:
-        tender_collection = f"run_{audit_run.id}_tender"
+    tender_collection = _index_tender_doc(audit_run, tender_doc, replay=replay_dir is not None)
 
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace
-        for point_run in point_runs:
-            if selected_point_ids is not None and point_run.id not in selected_point_ids:
-                continue
-            if point_run.status == "completed":
-                continue
-
+        for point_run in point_runs_to_run:
             checkpoint_row = session.get(CheckpointFinal, point_run.checkpoint_final_id)
             if checkpoint_row is None:
                 point_run.status = "failed"
@@ -269,79 +560,24 @@ async def run_audit(
             session.add(point_run)
             session.commit()
 
-            checkpoint_path = write_single_checkpoint_json(audit_run.id, checkpoint)
             workspace = None
             result = None
 
             try:
-                extra_env: dict[str, str] = {
-                    "GOVDOC_AUDIT_RUN_ID": audit_run.id,
-                }
-                if tender_collection:
-                    extra_env["GOVDOC_TENDER_COLLECTION"] = tender_collection
-                extra_env["GOVDOC_DB_PATH"] = str(cfg.qmd_db_path)
-
-                workspace = manager.create(
-                    WorkspaceSpec(
-                        run_id=point_run.id,
-                        project_root=repo_root,
-                        data_inputs={
-                            "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
-                            "checkpoints.json": checkpoint_path,
-                        },
-                        extra_env=extra_env,
-                    )
+                workspace, result = await _run_single_point(
+                    point_run,
+                    checkpoint,
+                    tender_doc,
+                    audit_run=audit_run,
+                    tender_collection=tender_collection,
+                    manager=manager,
+                    store=store,
+                    cfg=cfg,
+                    repo_root=repo_root,
+                    replay_dir=replay_dir,
                 )
 
-                runtime_context = {
-                    "output_schema": WorkpaperAuditOutput,
-                    "verdict_levels": ["合规", "不合规", "存疑"],
-                    "evidence_required": True,
-                }
-
-                if replay_dir is not None:
-                    replay = load_mock_replay(replay_dir)
-                    seed_working_tree(replay.working_seed_dir, workspace.working_dir)
-                    pes = MockPES(
-                        config=get_gov_auditor_config(),
-                        workspace=workspace,
-                        trajectory_store=store,
-                        runtime_context=runtime_context,
-                        phase_outcomes=replay.phase_outcomes,
-                    )
-                else:
-                    pes = build_gov_auditor_pes(
-                        workspace=workspace, runtime_context=runtime_context
-                    )
-
-                result = await pes.run(
-                    task_prompt=(
-                        "审核 data/tender.md，针对 data/checkpoints.json 中的唯一审核点"
-                        f"「{checkpoint.title}」生成一条 GovFinding。"
-                    ),
-                )
-                attach_workspace_output(result, workspace.working_dir)
-
-                if result.status == "completed":
-                    payload = load_result_payload(result.final_output_path, result.final_output)
-                    findings = payload.get("findings", [])
-                    finding_data = _match_finding_by_checkpoint_id(findings, checkpoint.id)
-                    if finding_data is not None:
-                        finding = GovFinding.model_validate(finding_data)
-                        point_run.finding_json = finding.model_dump_json()
-                    elif findings:
-                        finding = GovFinding.model_validate(findings[0])
-                        point_run.finding_json = finding.model_dump_json()
-                    point_run.status = "completed"
-                    point_run.completed_at = datetime.utcnow()
-                    point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
-                else:
-                    point_run.status = "failed"
-                    point_run.error = result.error
-                    point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
-
-                if result is not None:
-                    point_run.usage_json = dump_phase_usage(result.phase_results)
+                _persist_point_result(point_run, result, workspace, checkpoint, manager)
 
             except Exception as exc:
                 point_run.status = "failed"
@@ -363,44 +599,7 @@ async def run_audit(
             session.add(audit_run)
             session.commit()
 
-        # 汇总所有 point runs
-        all_runs = session.exec(
-            select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
-        ).all()
-        completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
-        failed_runs = [pr for pr in all_runs if pr.status == "failed"]
-
-        if not failed_runs and completed_runs:
-            findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
-            workpaper = Workpaper(
-                project_id=audit_run.project_id,
-                tender_doc_path=tender_doc.storage_path,
-                findings=findings,
-                summary=generate_summary(findings),
-            )
-            current_versions = session.exec(
-                select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
-            ).all()
-            next_version = max((d.version for d in current_versions), default=0) + 1
-            draft_path = render_workpaper_docx(
-                workpaper,
-                audit_run.id,
-                template_path=template_path,
-                version=next_version,
-            )
-            session.add(
-                WorkpaperDraft(
-                    audit_run_id=audit_run.id,
-                    workpaper_json=workpaper.model_dump_json(),
-                    docx_path=str(draft_path),
-                    version=next_version,
-                )
-            )
-            audit_run.status = "draft_ready"
-        elif completed_runs:
-            audit_run.status = "partial_ready"
-        else:
-            audit_run.status = "waiting_retry"
+        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
 
         session.add(audit_run)
         session.commit()
@@ -413,6 +612,8 @@ async def run_audit(
         session.add(audit_run)
         session.commit()
         raise
+    finally:
+        _cleanup_tender_collection(tender_collection, replay=replay_dir is not None)
 
 
 async def retry_point_run(
