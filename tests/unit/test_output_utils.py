@@ -116,12 +116,9 @@ def test_trailing_comma_in_array():
     assert data == {"items": [1, 2, 3]}
 
 
-# 错误模式 4：单引号键（当前实现不支持，Task 4 json5 重构后支持）
-@pytest.mark.xfail(
-    reason="json5 支持单引号键，当前手写实现不支持，Task 4 重构后启用",
-)
+# 错误模式 4：单引号键（P1b Task 4 切到 json5 后原生支持）
 def test_single_quoted_keys():
-    """json5 允许单引号作为字符串分隔符；预期在 Task 4 重构后启用。"""
+    """json5 允许单引号作为字符串分隔符，切到 json5.loads 后直通。"""
     raw = "{'key': 'value', 'n': 1}"
 
     data = relaxed_json_loads(raw)
@@ -171,12 +168,9 @@ def test_markdown_fence_plus_chinese_quotes():
     assert data == {"verdict": "合规", "score": 100}
 
 
-# 错误模式 7：json5 行注释（当前实现不支持，Task 4 重构后支持）
-@pytest.mark.xfail(
-    reason="json5 支持 // 行注释，当前基于 json.loads 的实现不支持，Task 4 重构后启用",
-)
+# 错误模式 7：json5 行注释（P1b Task 4 切到 json5 后原生支持）
 def test_line_comments():
-    """json5 允许 // 行注释；预期在 Task 4 重构后启用。"""
+    """json5 允许 // 行注释，切到 json5.loads 后直通。"""
     raw = '{"a": 1, // 这是一个注释\n"b": 2}'
 
     data = relaxed_json_loads(raw)
