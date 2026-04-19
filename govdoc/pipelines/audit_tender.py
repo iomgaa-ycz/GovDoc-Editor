@@ -390,6 +390,38 @@ def _persist_point_result(
         point_run.usage_json = dump_phase_usage(result.phase_results)
 
 
+def _cleanup_tender_collection(collection_id: str | None, *, replay: bool) -> None:
+    """清理 qmd 临时 tender collection（best-effort）。
+
+    - replay 模式：no-op（测试 fixture 用的是占位名，不接真 qmd）
+    - 非 replay 模式：调 ``get_qmd().delete_collection(collection_id)``；
+      qmd 对不存在的 collection 静默 no-op，对其他异常则由本函数 try/except
+      吞掉（仅 warning log），不向上传播。
+
+    设计：
+    - **不抛异常**——调用方通常在 finally 块里调，不希望 cleanup 失败
+      覆盖业务异常。
+    - 静默 no-op 条件：collection_id is None / 空串 / replay=True。
+
+    Args:
+        collection_id: qmd collection 名；None 或空串时 no-op。
+        replay: 是否 replay 模式。
+
+    Returns:
+        None
+    """
+    if replay or not collection_id:
+        return
+    try:
+        get_qmd().delete_collection(collection_id)
+    except Exception as exc:
+        logger.warning(
+            "清理 tender collection %r 失败（best-effort，已吞异常）：%s",
+            collection_id,
+            exc,
+        )
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -531,6 +563,8 @@ async def run_audit(
         session.add(audit_run)
         session.commit()
         raise
+    finally:
+        _cleanup_tender_collection(tender_collection, replay=replay_dir is not None)
 
 
 async def retry_point_run(
