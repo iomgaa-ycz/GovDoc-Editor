@@ -496,29 +496,6 @@ async def run_audit(
     template_path: str | Path | None = None,
     point_run_ids: Sequence[str] | None = None,
 ) -> AuditRun:
-    """管道 B 入口：审核点 + 招标文书 → 工作底稿。
-
-    薄编排层。所有重活委托给以下 helper：
-    - `_resolve_point_runs`: 查点 + 过滤 + total_count
-    - `_index_tender_doc`: qmd tender collection 准备
-    - `_run_single_point`: 单点 workspace + PES 运行
-    - `_persist_point_result`: 结果落 point_run 字段
-    - `_assemble_workpaper_draft`: 聚合 findings → WorkpaperDraft
-    - `_cleanup_tender_collection`: finally 里清理 qmd collection
-
-    设计基线：docs/design.md §10 +
-    docs/superpowers/specs/2026-04-19-govdoc-tech-debt-cleanup-design.md §3.1
-
-    Args:
-        audit_run_id: 目标 AuditRun ID
-        session: SQLModel session
-        workspace_manager: scrivai workspace manager（默认从 runtime 拿）
-        trajectory_store: scrivai trajectory store（默认从 runtime 拿）
-        replay_dir: replay fixture 目录；None 表示真跑
-        project_root: 项目根路径；None 则从 runtime 解析
-        template_path: docxtpl 模板路径（给 WorkpaperDraft 用）
-        point_run_ids: 白名单过滤；None 表示跑所有未 completed 的点
-    """
     audit_run = session.get(AuditRun, audit_run_id)
     if audit_run is None:
         raise ValueError(f"未找到 AuditRun: {audit_run_id}")
