@@ -260,6 +260,99 @@ def _resolve_point_runs(
     return len(point_runs), to_run
 
 
+async def _run_single_point(
+    point_run: AuditPointRun,
+    checkpoint: GovCheckpoint,
+    tender_doc: TenderDoc,
+    *,
+    audit_run: AuditRun,
+    tender_collection: str | None,
+    manager: Any,
+    store: Any,
+    cfg: Any,
+    repo_root: Path,
+    replay_dir: str | Path | None,
+) -> tuple[Any, Any]:
+    """搭 workspace、构造 PES（真 or replay）、await pes.run，返回 (workspace, result)。
+
+    抽自 run_audit 主循环（原 L315-366），封装单审核点执行闭环：
+    1. 写 checkpoints.json 临时文件
+    2. 构造 WorkspaceSpec（data_inputs + extra_env）
+    3. 根据 replay_dir 选择 MockPES（replay）或真实 PES（build_gov_auditor_pes）
+    4. await pes.run 并 attach_workspace_output
+
+    不做 DB 持久化（留给调用方 / Task 6 的 _persist_point_result），
+    不做 cleanup / archive（调用方根据 result 决定）。
+    PES 正常返回 PESResult（含 status 字段），不会抛异常；
+    异常路径（workspace 创建失败、fixture 读取失败）由调用方 try/except 处理。
+
+    Args:
+        point_run: 当前 AuditPointRun（提供 id 作为 workspace run_id）
+        checkpoint: 待审核的 GovCheckpoint（用于 task_prompt + 落盘 checkpoints.json）
+        tender_doc: 招标文书（提供 markdown_path 作为 data_inputs）
+        audit_run: 当前 AuditRun（提供 id 给 extra_env / checkpoint 落盘）
+        tender_collection: qmd tender collection 名；None 表示不注入该 env
+        manager: workspace manager（Scrivai 注入）
+        store: trajectory store（replay 分支的 MockPES 需要）
+        cfg: config 单例（提供 qmd_db_path）
+        repo_root: 项目根路径（WorkspaceSpec.project_root）
+        replay_dir: replay fixture 目录；None 表示真跑
+
+    Returns:
+        (workspace, result) 元组；result.status 反映 PES 完成情况。
+    """
+    checkpoint_path = write_single_checkpoint_json(audit_run.id, checkpoint)
+
+    extra_env: dict[str, str] = {
+        "GOVDOC_AUDIT_RUN_ID": audit_run.id,
+    }
+    if tender_collection:
+        extra_env["GOVDOC_TENDER_COLLECTION"] = tender_collection
+    extra_env["GOVDOC_DB_PATH"] = str(cfg.qmd_db_path)
+
+    workspace = manager.create(
+        WorkspaceSpec(
+            run_id=point_run.id,
+            project_root=repo_root,
+            data_inputs={
+                "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
+                "checkpoints.json": checkpoint_path,
+            },
+            extra_env=extra_env,
+        )
+    )
+
+    runtime_context = {
+        "output_schema": WorkpaperAuditOutput,
+        "verdict_levels": ["合规", "不合规", "存疑"],
+        "evidence_required": True,
+    }
+
+    if replay_dir is not None:
+        replay = load_mock_replay(replay_dir)
+        seed_working_tree(replay.working_seed_dir, workspace.working_dir)
+        pes = MockPES(
+            config=get_gov_auditor_config(),
+            workspace=workspace,
+            trajectory_store=store,
+            runtime_context=runtime_context,
+            phase_outcomes=replay.phase_outcomes,
+        )
+    else:
+        pes = build_gov_auditor_pes(
+            workspace=workspace, runtime_context=runtime_context
+        )
+
+    result = await pes.run(
+        task_prompt=(
+            "审核 data/tender.md，针对 data/checkpoints.json 中的唯一审核点"
+            f"「{checkpoint.title}」生成一条 GovFinding。"
+        ),
+    )
+    attach_workspace_output(result, workspace.working_dir)
+    return workspace, result
+
+
 async def run_audit(
     audit_run_id: str,
     session: Session,
@@ -312,58 +405,22 @@ async def run_audit(
             session.add(point_run)
             session.commit()
 
-            checkpoint_path = write_single_checkpoint_json(audit_run.id, checkpoint)
             workspace = None
             result = None
 
             try:
-                extra_env: dict[str, str] = {
-                    "GOVDOC_AUDIT_RUN_ID": audit_run.id,
-                }
-                if tender_collection:
-                    extra_env["GOVDOC_TENDER_COLLECTION"] = tender_collection
-                extra_env["GOVDOC_DB_PATH"] = str(cfg.qmd_db_path)
-
-                workspace = manager.create(
-                    WorkspaceSpec(
-                        run_id=point_run.id,
-                        project_root=repo_root,
-                        data_inputs={
-                            "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
-                            "checkpoints.json": checkpoint_path,
-                        },
-                        extra_env=extra_env,
-                    )
+                workspace, result = await _run_single_point(
+                    point_run,
+                    checkpoint,
+                    tender_doc,
+                    audit_run=audit_run,
+                    tender_collection=tender_collection,
+                    manager=manager,
+                    store=store,
+                    cfg=cfg,
+                    repo_root=repo_root,
+                    replay_dir=replay_dir,
                 )
-
-                runtime_context = {
-                    "output_schema": WorkpaperAuditOutput,
-                    "verdict_levels": ["合规", "不合规", "存疑"],
-                    "evidence_required": True,
-                }
-
-                if replay_dir is not None:
-                    replay = load_mock_replay(replay_dir)
-                    seed_working_tree(replay.working_seed_dir, workspace.working_dir)
-                    pes = MockPES(
-                        config=get_gov_auditor_config(),
-                        workspace=workspace,
-                        trajectory_store=store,
-                        runtime_context=runtime_context,
-                        phase_outcomes=replay.phase_outcomes,
-                    )
-                else:
-                    pes = build_gov_auditor_pes(
-                        workspace=workspace, runtime_context=runtime_context
-                    )
-
-                result = await pes.run(
-                    task_prompt=(
-                        "审核 data/tender.md，针对 data/checkpoints.json 中的唯一审核点"
-                        f"「{checkpoint.title}」生成一条 GovFinding。"
-                    ),
-                )
-                attach_workspace_output(result, workspace.working_dir)
 
                 if result.status == "completed":
                     payload = load_result_payload(result.final_output_path, result.final_output)
