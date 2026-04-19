@@ -15,7 +15,8 @@ function resolveBaseUrl(): string {
   return import.meta.env.VITE_GOVDOC_API_BASE_URL || "";
 }
 
-async function request<T>(
+// exported for contract testing
+export async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
