@@ -2,6 +2,7 @@ import { Bot, Play, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
+import { useProjectWorkflow } from "../hooks/useProjectWorkflow";
 import { parseCheckpointPayload, parseFindingJson, verdictToStatus } from "../adapters/backendToUi";
 import {
   Button,
@@ -29,8 +30,6 @@ export function AIReviewPage() {
     activeProject,
     selectedProjectId,
     setSelectedProjectId,
-    createProject,
-    uploadTenderDoc,
     tenderDocs,
     finalCheckpoints,
     auditProgress,
@@ -39,11 +38,8 @@ export function AIReviewPage() {
     retryPointRun,
   } = useWorkbench();
 
-  // Task setup state
-  const [newProjectName, setNewProjectName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [tenderFile, setTenderFile] = useState<File | null>(null);
-  const [uploadingTender, setUploadingTender] = useState(false);
+  // Task setup state (extracted to useProjectWorkflow)
+  const wf = useProjectWorkflow();
 
   // Checkpoint selection for audit run
   const [selectedCpIds, setSelectedCpIds] = useState<string[]>([]);
@@ -61,28 +57,6 @@ export function AIReviewPage() {
   const total = auditProgress?.total_count ?? 0;
 
   // ── Handlers ──
-
-  async function handleCreateProject() {
-    if (!newProjectName) return;
-    setCreating(true);
-    try {
-      await createProject(newProjectName);
-      setNewProjectName("");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleUploadTender() {
-    if (!activeProject || !tenderFile) return;
-    setUploadingTender(true);
-    try {
-      await uploadTenderDoc(activeProject.id, tenderFile);
-      setTenderFile(null);
-    } finally {
-      setUploadingTender(false);
-    }
-  }
 
   function toggleCheckpoint(id: string) {
     setSelectedCpIds((prev) =>
@@ -144,23 +118,23 @@ export function AIReviewPage() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <TextInput
                     placeholder="输入项目名称"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
+                    value={wf.newProjectName}
+                    onChange={(e) => wf.setNewProjectName(e.target.value)}
                     style={{ flex: 1 }}
                   />
-                  <Button size="sm" tone="secondary" onClick={handleCreateProject} busy={creating} disabled={!newProjectName}>新建</Button>
+                  <Button size="sm" tone="secondary" onClick={wf.handleCreateProject} busy={wf.creating} disabled={!wf.newProjectName}>新建</Button>
                 </div>
               </Field>
 
               {activeProject && !tenderDoc && (
                 <>
                   <Field label="上传招标文书">
-                    {tenderFile ? (
+                    {wf.tenderFile ? (
                       <div className="file-chip-list">
                         <div className="file-chip">
                           <div>
-                            <strong>{tenderFile.name}</strong>
-                            <span>{(tenderFile.size / 1024).toFixed(1)} KB</span>
+                            <strong>{wf.tenderFile.name}</strong>
+                            <span>{(wf.tenderFile.size / 1024).toFixed(1)} KB</span>
                           </div>
                         </div>
                       </div>
@@ -169,12 +143,12 @@ export function AIReviewPage() {
                         title="选择招标文书"
                         subtitle="支持 .pdf, .docx, .md"
                         accept=".pdf,.docx,.md,.txt"
-                        onSelect={(files) => setTenderFile(files[0] ?? null)}
+                        onSelect={(files) => wf.setTenderFile(files[0] ?? null)}
                       />
                     )}
                   </Field>
-                  {tenderFile && (
-                    <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
+                  {wf.tenderFile && (
+                    <Button tone="primary" onClick={wf.handleUploadTender} busy={wf.uploadingTender}>
                       上传文书
                     </Button>
                   )}
