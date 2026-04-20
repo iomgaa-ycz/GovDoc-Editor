@@ -11,7 +11,6 @@ from sqlmodel import select
 from govdoc.api.deps import get_db_session
 from govdoc.api.schemas import FinalizeWorkpaperRequest, UpdateWorkpaperDraftRequest
 from govdoc.db.models import AuditRun, WorkpaperDraft, WorkpaperFinal
-from govdoc.schemas import Workpaper
 
 router = APIRouter(prefix="/api/v1/audit/runs", tags=["workpapers"])
 
@@ -139,5 +138,7 @@ async def download_final_workpaper_docx(audit_run_id: str):
     return StreamingResponse(
         open(docx_path, "rb"),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename=workpaper-final-{audit_run_id}.docx"},
+        headers={
+            "Content-Disposition": f"attachment; filename=workpaper-final-{audit_run_id}.docx"
+        },
     )

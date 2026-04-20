@@ -30,4 +30,3 @@ def validate_checkpoint_command(raw_json: str) -> dict[str, object]:
     except Exception as exc:  # noqa: BLE001 - CLI returns structured error JSON
         return {"valid": False, "errors": [str(exc)]}
     return {"valid": True}
-

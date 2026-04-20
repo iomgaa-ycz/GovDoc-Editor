@@ -28,7 +28,12 @@ async def list_projects():
     with get_db_session() as session:
         projects = session.exec(select(Project)).all()
         return [
-            {"id": p.id, "name": p.name, "created_at": str(p.created_at), "created_by": p.created_by}
+            {
+                "id": p.id,
+                "name": p.name,
+                "created_at": str(p.created_at),
+                "created_by": p.created_by,
+            }
             for p in projects
         ]
 
@@ -39,7 +44,12 @@ async def get_project(project_id: str):
         project = session.get(Project, project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="项目不存在")
-        return {"id": project.id, "name": project.name, "created_at": str(project.created_at), "created_by": project.created_by}
+        return {
+            "id": project.id,
+            "name": project.name,
+            "created_at": str(project.created_at),
+            "created_by": project.created_by,
+        }
 
 
 @router.get("/{project_id}/tender-docs")
@@ -48,9 +58,7 @@ async def list_tender_docs(project_id: str):
         project = session.get(Project, project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="项目不存在")
-        docs = session.exec(
-            select(TenderDoc).where(TenderDoc.project_id == project_id)
-        ).all()
+        docs = session.exec(select(TenderDoc).where(TenderDoc.project_id == project_id)).all()
         return [
             {
                 "id": d.id,
@@ -71,7 +79,9 @@ async def upload_tender_doc(project_id: str, file: UploadFile = File(...)):
 
     store = get_document_store()
     content = await file.read()
-    raw_path = store.save_raw(file.filename or "tender.docx", content, subdir=f"projects/{project_id}")
+    raw_path = store.save_raw(
+        file.filename or "tender.docx", content, subdir=f"projects/{project_id}"
+    )
     warnings_stack: list[str] = []
     md_path = store.get_or_convert(raw_path, warnings_stack=warnings_stack)
 

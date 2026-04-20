@@ -77,4 +77,3 @@ def locate_section(md: str, section: str) -> TenderSection | None:
         if item.name == normalized_query:
             return item
     return None
-
