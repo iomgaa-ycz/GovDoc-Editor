@@ -17,6 +17,7 @@ from scrivai import (
     build_workspace_manager,
     load_pes_config,
 )
+from scrivai.pes.prompts.manager import PromptManager as _PromptManager
 
 from govdoc.config import GovDocConfig, load_config
 from govdoc.pipelines.pes_overrides import GovDocAuditorPES, GovDocExtractorPES
@@ -72,6 +73,18 @@ def get_gov_auditor_config():
     return load_pes_config(get_project_root() / "agents" / "gov-auditor.yaml")
 
 
+@lru_cache
+def get_prompt_manager() -> _PromptManager:
+    """构造最小化 PromptManager，解决 scrivai 0.1.7 BasePES 初始化时
+    _create_default_prompt_manager 找不到 prompt_spec.yaml 的问题。"""
+    prompts_dir = get_project_root() / "govdoc" / "prompts"
+    return _PromptManager(
+        template_dir=prompts_dir / "templates",
+        fragments_dir=prompts_dir / "fragments",
+        spec_path=prompts_dir / "prompt_spec.yaml",
+    )
+
+
 def get_model_config() -> ModelConfig:
     cfg = get_config()
     return ModelConfig(
@@ -92,7 +105,9 @@ def _build_hooks() -> Any:
     return mgr
 
 
-def build_gov_extractor_pes(*, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None) -> GovDocExtractorPES:
+def build_gov_extractor_pes(
+    *, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None
+) -> GovDocExtractorPES:
     return GovDocExtractorPES(
         config=get_gov_extractor_config(),
         model=get_model_config(),
@@ -100,10 +115,13 @@ def build_gov_extractor_pes(*, workspace: Any, runtime_context: dict[str, Any], 
         hooks=hooks or _build_hooks(),
         trajectory_store=get_trajectory_store(),
         runtime_context=runtime_context,
+        prompt_manager=get_prompt_manager(),
     )
 
 
-def build_gov_auditor_pes(*, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None) -> GovDocAuditorPES:
+def build_gov_auditor_pes(
+    *, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None
+) -> GovDocAuditorPES:
     return GovDocAuditorPES(
         config=get_gov_auditor_config(),
         model=get_model_config(),
@@ -111,6 +129,7 @@ def build_gov_auditor_pes(*, workspace: Any, runtime_context: dict[str, Any], ho
         hooks=hooks or _build_hooks(),
         trajectory_store=get_trajectory_store(),
         runtime_context=runtime_context,
+        prompt_manager=get_prompt_manager(),
     )
 
 
