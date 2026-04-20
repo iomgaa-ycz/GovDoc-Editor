@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from scrivai import AuditorPES, ExtractorPES, PhaseConfig, PhaseResult
+from scrivai import AuditorPES, ExtractorPES, MockPES, PhaseConfig, PhaseResult
 
 from govdoc.pipelines.output_utils import relaxed_json_loads
 
@@ -346,6 +346,49 @@ class GovDocAuditorPES(_RelaxedPreviousPhaseOutputMixin, AuditorPES):
 
         run.final_output = payload
         run.final_output_path = output_path
+
+
+# ── Mock PES（replay / 测试用） ──
+
+
+class GovDocMockExtractorPES(_RelaxedPreviousPhaseOutputMixin, MockPES):
+    """MockPES + GovDoc phase prompt 覆写，避免 PromptManager 空 spec 报错。"""
+
+    async def build_phase_prompt(
+        self,
+        phase: str,
+        phase_cfg: PhaseConfig,
+        context: dict[str, Any],
+        task_prompt: str,
+    ) -> str:
+        parts: list[str] = []
+        phase_prompt = _EXTRACTOR_PHASE_PROMPTS.get(phase, "")
+        if phase_prompt:
+            parts.append(phase_prompt)
+        parts.append(task_prompt)
+        if context:
+            parts.append(json.dumps(context, ensure_ascii=False, default=str))
+        return "\n\n".join(parts)
+
+
+class GovDocMockAuditorPES(_RelaxedPreviousPhaseOutputMixin, MockPES):
+    """MockPES + GovDoc phase prompt 覆写，避免 PromptManager 空 spec 报错。"""
+
+    async def build_phase_prompt(
+        self,
+        phase: str,
+        phase_cfg: PhaseConfig,
+        context: dict[str, Any],
+        task_prompt: str,
+    ) -> str:
+        parts: list[str] = []
+        phase_prompt = _AUDITOR_PHASE_PROMPTS.get(phase, "")
+        if phase_prompt:
+            parts.append(phase_prompt)
+        parts.append(task_prompt)
+        if context:
+            parts.append(json.dumps(context, ensure_ascii=False, default=str))
+        return "\n\n".join(parts)
 
 
 # ── Validator ──

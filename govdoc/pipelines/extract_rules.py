@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from scrivai import MockPES, WorkspaceSpec
+from scrivai import WorkspaceSpec
 from sqlmodel import Session
 
 from govdoc.db.models import CheckpointDraft, CheckpointFinal, ExtractRun, RuleSource
 from govdoc.pipelines.common import attach_workspace_output, dump_phase_usage, load_result_payload
+from govdoc.pipelines.pes_overrides import GovDocMockExtractorPES
 from govdoc.runtime import (
     build_gov_extractor_pes,
     get_config,
@@ -46,9 +47,7 @@ async def run_extract(
         if extract_run is None:
             raise ValueError(f"未找到 ExtractRun: {extract_run_id}")
         if extract_run.rule_source_id != rule_source_id:
-            raise ValueError(
-                f"ExtractRun {extract_run_id} 不属于 RuleSource {rule_source_id}"
-            )
+            raise ValueError(f"ExtractRun {extract_run_id} 不属于 RuleSource {rule_source_id}")
         extract_run.status = "running"
         extract_run.error = None
         extract_run.workspace_archive_path = None
@@ -81,7 +80,7 @@ async def run_extract(
         if replay_dir is not None:
             replay = load_mock_replay(replay_dir)
             seed_working_tree(replay.working_seed_dir, workspace.working_dir)
-            pes = MockPES(
+            pes = GovDocMockExtractorPES(
                 config=get_gov_extractor_config(),
                 workspace=workspace,
                 trajectory_store=store,
@@ -127,7 +126,11 @@ async def run_extract(
         session.refresh(extract_run)
         return extract_run
     except Exception as exc:
-        if workspace is not None and workspace.root_dir.exists() and extract_run.workspace_failed_path is None:
+        if (
+            workspace is not None
+            and workspace.root_dir.exists()
+            and extract_run.workspace_failed_path is None
+        ):
             failed_path = manager.archive(workspace, success=False)
             extract_run.workspace_failed_path = str(failed_path)
         extract_run.status = "failed"

@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from scrivai import MockPES, WorkspaceSpec
+from scrivai import WorkspaceSpec
 from sqlmodel import Session
 from sqlmodel import select
 
@@ -27,6 +27,7 @@ from govdoc.db.models import (
     WorkpaperDraft,
 )
 from govdoc.pipelines.common import attach_workspace_output, dump_phase_usage, load_result_payload
+from govdoc.pipelines.pes_overrides import GovDocMockAuditorPES
 from govdoc.runtime import (
     build_gov_auditor_pes,
     get_config,
@@ -254,7 +255,8 @@ def _resolve_point_runs(
     ).all()
     selected: set[str] | None = set(point_run_ids) if point_run_ids is not None else None
     to_run = [
-        pr for pr in point_runs
+        pr
+        for pr in point_runs
         if (selected is None or pr.id in selected) and pr.status != "completed"
     ]
     return len(point_runs), to_run
@@ -336,7 +338,7 @@ async def _run_single_point(
     if replay_dir is not None:
         replay = load_mock_replay(replay_dir)
         seed_working_tree(replay.working_seed_dir, workspace.working_dir)
-        pes = MockPES(
+        pes = GovDocMockAuditorPES(
             config=get_gov_auditor_config(),
             workspace=workspace,
             trajectory_store=store,
@@ -344,9 +346,7 @@ async def _run_single_point(
             phase_outcomes=replay.phase_outcomes,
         )
     else:
-        pes = build_gov_auditor_pes(
-            workspace=workspace, runtime_context=runtime_context
-        )
+        pes = build_gov_auditor_pes(workspace=workspace, runtime_context=runtime_context)
 
     result = await pes.run(
         task_prompt=(
