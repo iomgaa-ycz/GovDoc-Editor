@@ -57,4 +57,3 @@ class GovFinding(GovDocModel):
     verdict: GovFindingVerdict
     evidence_refs: list[ChunkRef] = Field(default_factory=list)
     case_refs: list[str] = Field(default_factory=list)
-

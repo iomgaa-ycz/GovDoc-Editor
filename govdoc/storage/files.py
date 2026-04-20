@@ -120,9 +120,7 @@ class DocumentStore:
                 continue
         return manifests
 
-    def _convert_docx(
-        self, raw: Path, target: Path, warnings_stack: list[str] | None
-    ) -> Path:
+    def _convert_docx(self, raw: Path, target: Path, warnings_stack: list[str] | None) -> Path:
         try:
             from scrivai import docx_to_markdown
 
@@ -136,9 +134,7 @@ class DocumentStore:
             warnings.warn(msg)
             return self._fallback_text_extract(raw, target)
 
-    def _convert_pdf(
-        self, raw: Path, target: Path, warnings_stack: list[str] | None
-    ) -> Path:
+    def _convert_pdf(self, raw: Path, target: Path, warnings_stack: list[str] | None) -> Path:
         try:
             from scrivai import pdf_to_markdown
 
