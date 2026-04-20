@@ -155,29 +155,32 @@ def test_pipeline_b_with_mock_pes_replay(monkeypatch, tmp_path):
     # I1: behavior-preservation checks. Any helper extraction must preserve these.
 
     # 1. AuditRun 最终 status 在合法集合内
-    assert result.status in {"draft_ready", "partial_ready", "waiting_retry", "failed"}, \
+    assert result.status in {"draft_ready", "partial_ready", "waiting_retry", "failed"}, (
         f"unexpected audit_run.status: {result.status}"
+    )
 
     # 2. run_audit 返回后每个 point_run 必在终态（run_audit 保证 pending/running 不会遗留）
     for pr in point_runs:
-        assert pr.status in {"completed", "failed"}, \
-            f"point_run {pr.id} 停留在非终态: {pr.status}"
+        assert pr.status in {"completed", "failed"}, f"point_run {pr.id} 停留在非终态: {pr.status}"
 
     # 3. 每个 completed point_run 的 finding_json 可解析为 GovFinding，且 verdict 合法
     for pr in point_runs:
         if pr.status == "completed":
-            assert pr.finding_json and pr.finding_json.strip(), \
+            assert pr.finding_json and pr.finding_json.strip(), (
                 f"completed point_run {pr.id} has empty finding_json"
+            )
             finding = GovFinding.model_validate_json(pr.finding_json)
-            assert finding.verdict.verdict in {v.value for v in VerdictValue}, \
+            assert finding.verdict.verdict in {v.value for v in VerdictValue}, (
                 f"point_run {pr.id} verdict 不在合法集合: {finding.verdict.verdict!r}"
+            )
 
     # 4. draft_ready 时 WorkpaperDraft 的 docx 文件必须实际存在
     if result.status == "draft_ready":
         assert len(drafts) >= 1, "draft_ready but no WorkpaperDraft"
         for d in drafts:
-            assert d.docx_path and Path(d.docx_path).is_file(), \
+            assert d.docx_path and Path(d.docx_path).is_file(), (
                 f"WorkpaperDraft.docx_path 文件不存在: {d.docx_path}"
+            )
 
     # 5. trajectory 落盘：FakeTrajectoryStore 接口可能没有 list/get，
     #    L144 原断言 pr.workspace_archive_path is not None 已提供等价保证，本条留注释不强断言

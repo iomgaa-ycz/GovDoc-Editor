@@ -17,4 +17,3 @@ class Workpaper(GovDocModel):
     summary: str = ""
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     final: bool = False
-

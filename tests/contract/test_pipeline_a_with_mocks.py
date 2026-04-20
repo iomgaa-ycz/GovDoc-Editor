@@ -48,7 +48,9 @@ def test_pipeline_a_with_mock_pes_replay(monkeypatch, tmp_path):
             select(CheckpointDraft).where(CheckpointDraft.extract_run_id == extract_run.id)
         ).all()
         finals = session.exec(select(CheckpointFinal)).all()
-        expected = json.loads((fixtures_root / "checkpoints_golden.json").read_text(encoding="utf-8"))
+        expected = json.loads(
+            (fixtures_root / "checkpoints_golden.json").read_text(encoding="utf-8")
+        )
 
     assert extract_run.status == "draft_ready"
     assert extract_run.workspace_archive_path is not None

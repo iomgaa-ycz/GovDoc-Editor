@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from govdoc.config import load_config
@@ -38,4 +37,3 @@ def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
     config = load_config(config_path)
     assert config.model.api_key == "secret-key"
     assert config.project_root == Path(__file__).resolve().parents[2]
-

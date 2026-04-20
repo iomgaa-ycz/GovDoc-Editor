@@ -135,4 +135,3 @@ def load_config(path: str | Path | None = None) -> GovDocConfig:
 
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     return GovDocConfig.model_validate(_expand_env(payload))
-

@@ -17,7 +17,12 @@ async def list_rule_sources():
     with get_db_session() as session:
         sources = session.exec(select(RuleSource).order_by(RuleSource.added_at.desc())).all()
         return [
-            {"id": s.id, "title": s.title, "source_path": s.source_path, "added_at": str(s.added_at)}
+            {
+                "id": s.id,
+                "title": s.title,
+                "source_path": s.source_path,
+                "added_at": str(s.added_at),
+            }
             for s in sources
         ]
 
@@ -36,6 +41,7 @@ async def upload_rule(
 
     # 写入 RuleLibrary
     import uuid
+
     entry_id = f"rules_{uuid.uuid4().hex}"
     rule_library, _, _ = get_libraries()
     rule_entry = rule_library.add(
@@ -100,7 +106,4 @@ async def list_checkpoint_drafts(rule_id: str):
         drafts = session.exec(
             select(CheckpointDraft).where(CheckpointDraft.rule_source_id == rule_id)
         ).all()
-        return [
-            {"id": d.id, "status": d.status, "payload_json": d.payload_json}
-            for d in drafts
-        ]
+        return [{"id": d.id, "status": d.status, "payload_json": d.payload_json} for d in drafts]
