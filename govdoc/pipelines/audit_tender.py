@@ -322,11 +322,16 @@ async def _run_single_point(
         )
     )
 
-    runtime_context = {
+    runtime_context: dict[str, Any] = {
         "output_schema": WorkpaperAuditOutput,
         "verdict_levels": ["合规", "不合规", "存疑"],
         "evidence_required": True,
     }
+    if tender_collection:
+        runtime_context["external_cli_tools"] = [
+            f"govdoc-cli qmd-search --collection {tender_collection}"
+            f" --db {cfg.qmd_db_path} --query",
+        ]
 
     if replay_dir is not None:
         replay = load_mock_replay(replay_dir)
