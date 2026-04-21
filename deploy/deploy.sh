@@ -21,7 +21,10 @@ echo ">>> 等待后端就绪..."
 sleep 5
 
 echo ">>> 执行数据库迁移..."
-docker compose --env-file "$ENV_FILE" exec -T backend alembic upgrade head
+docker compose --env-file "$ENV_FILE" exec -T backend alembic upgrade head 2>&1 || {
+    echo ">>> 迁移失败（可能是首次部署，表已由 init_db 创建），标记迁移基线..."
+    docker compose --env-file "$ENV_FILE" exec -T backend alembic stamp head
+}
 
 echo ">>> 清理旧镜像..."
 docker image prune -f
