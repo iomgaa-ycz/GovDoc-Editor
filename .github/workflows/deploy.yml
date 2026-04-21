@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+
+# 同一时间只允许一个部署任务运行，后来的取消前面排队的
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 确定部署环境
+        id: env
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "target=stable" >> "$GITHUB_OUTPUT"
+            echo ">>> 部署目标: 稳定版 (tag: $GITHUB_REF_NAME)"
+          else
+            echo "target=testing" >> "$GITHUB_OUTPUT"
+            echo ">>> 部署目标: 测试版 (commit: ${GITHUB_SHA::8})"
+          fi
+
+      - name: 执行部署
+        run: bash deploy/deploy.sh ${{ steps.env.outputs.target }}
+
+      - name: 健康检查
+        run: |
+          if [ "${{ steps.env.outputs.target }}" = "stable" ]; then
+            PORT=8000
+          else
+            PORT=8001
+          fi
+          echo ">>> 检查 http://localhost:${PORT}/healthz ..."
+          for i in $(seq 1 10); do
+            if curl -sf "http://localhost:${PORT}/healthz" > /dev/null 2>&1; then
+              echo ">>> 健康检查通过"
+              exit 0
+            fi
+            echo "    等待后端启动... ($i/10)"
+            sleep 3
+          done
+          echo ">>> 健康检查失败"
+          exit 1
