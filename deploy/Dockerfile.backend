@@ -1,0 +1,32 @@
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.11 python3.11-venv python3.11-dev python3-pip && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Layer 1: 依赖（变化少，利用 Docker 缓存）
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -e .
+
+# Layer 2: 业务代码（变化频繁）
+COPY govdoc/ govdoc/
+COPY skills/ skills/
+COPY agents/ agents/
+COPY govdoc.yaml .
+COPY alembic.ini .
+
+EXPOSE 8000
+CMD ["uvicorn", "govdoc.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
