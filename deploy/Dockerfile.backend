@@ -17,9 +17,15 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+RUN pip install --no-cache-dir --upgrade pip setuptools
+
 # Layer 1: 依赖（变化少，利用 Docker 缓存）
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+RUN python -c "\
+import tomllib; \
+deps = tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']; \
+print('\n'.join(deps))" > /tmp/deps.txt && \
+    pip install --no-cache-dir -r /tmp/deps.txt && rm /tmp/deps.txt
 
 # Layer 2: 业务代码（变化频繁）
 COPY govdoc/ govdoc/
@@ -27,6 +33,7 @@ COPY skills/ skills/
 COPY agents/ agents/
 COPY govdoc.yaml .
 COPY alembic.ini .
+RUN pip install --no-cache-dir --no-deps .
 
 EXPOSE 8000
 CMD ["uvicorn", "govdoc.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
