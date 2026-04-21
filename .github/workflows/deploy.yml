@@ -5,7 +5,6 @@ on:
     branches: [master]
     tags: ['v*']
 
-# 同一时间只允许一个部署任务运行，后来的取消前面排队的
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -29,6 +28,19 @@ jobs:
             echo ">>> 部署目标: 测试版 (commit: ${GITHUB_SHA::8})"
           fi
 
+      - name: 生成 .env.runtime
+        run: |
+          cat > deploy/.env.runtime <<'ENVEOF'
+          ANTHROPIC_BASE_URL=${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_AUTH_TOKEN=${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          NO_PROXY=110.42.53.85
+          no_proxy=110.42.53.85
+          SCRIVAI_DEFAULT_MODEL=glm-5.1
+          SCRIVAI_DEFAULT_PROVIDER=glm
+          LOCAL_RANK=2
+          ENVEOF
+          sed -i 's/^          //' deploy/.env.runtime
+
       - name: 执行部署
         run: bash deploy/deploy.sh ${{ steps.env.outputs.target }}
 
@@ -50,3 +62,7 @@ jobs:
           done
           echo ">>> 健康检查失败"
           exit 1
+
+      - name: 清理 .env.runtime
+        if: always()
+        run: rm -f deploy/.env.runtime
