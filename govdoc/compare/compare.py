@@ -1,3 +1,8 @@
+"""DOCX 文本匹配算法。
+
+提供段落、句子和连续公共片段三类匹配能力，供服务层和单元测试复用。
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -14,6 +19,8 @@ SENTENCE_SPLIT_RE = re.compile(r"(?<=[\u3002\uff01\uff1f!?；;])\s*|(?<=[.])\s+(
 
 @dataclass(frozen=True)
 class ExactMatch:
+    """完全相同文本及其在两份文档中的位置。"""
+
     text: str
     first_positions: list[int]
     second_positions: list[int]
@@ -21,6 +28,8 @@ class ExactMatch:
 
 @dataclass(frozen=True)
 class TextSegment:
+    """两份全文中的连续公共文本片段。"""
+
     text: str
     first_start: int
     first_end: int
@@ -30,6 +39,7 @@ class TextSegment:
 
 
 def split_sentences(paragraphs: list[str]) -> list[str]:
+    """按中英文常见句末符号拆分段落为句子。"""
     sentences: list[str] = []
 
     for paragraph in paragraphs:
@@ -46,6 +56,7 @@ def split_sentences(paragraphs: list[str]) -> list[str]:
 
 
 def find_exact_matches(first_items: list[str], second_items: list[str]) -> list[ExactMatch]:
+    """查找两组文本项中完全相同的内容。"""
     first_positions: dict[str, list[int]] = defaultdict(list)
     second_positions: dict[str, list[int]] = defaultdict(list)
 
@@ -79,6 +90,7 @@ def trim_match(
     second_start: int,
     size: int,
 ) -> TextSegment | None:
+    """去掉 SequenceMatcher 匹配块两端空白并验证两侧文本一致。"""
     text = first_text[first_start : first_start + size]
 
     leading = len(text) - len(text.lstrip())
@@ -114,6 +126,7 @@ def find_common_segments(
     second_text: str,
     min_length: int = 12,
 ) -> list[TextSegment]:
+    """查找两份全文中长度不小于阈值的连续公共片段。"""
     matcher = SequenceMatcher(a=first_text, b=second_text, autojunk=False)
     segments: list[TextSegment] = []
     seen: set[tuple[str, int, int]] = set()
@@ -147,6 +160,7 @@ def compare_docx_files(
     second_path: str | Path,
     min_segment_length: int = 12,
 ) -> dict:
+    """对两份 DOCX 文件执行段落、句子和片段级公共文本对比。"""
     first_file = Path(first_path)
     second_file = Path(second_path)
 
