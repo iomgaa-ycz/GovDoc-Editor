@@ -103,7 +103,7 @@ export function Button(
   );
 }
 
-export type ReviewStatus = "pending" | "running" | "passed" | "failed" | "error";
+export type ReviewStatus = "pending" | "running" | "passed" | "failed" | "uncertain" | "error";
 
 export function StatPill(props: {
   status: ReviewStatus | "completed" | "idle";
