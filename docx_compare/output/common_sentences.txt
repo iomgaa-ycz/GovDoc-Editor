@@ -1,0 +1,14 @@
+[1]
+Shared paragraph here.
+first_positions: 2
+second_positions: 1
+
+[2]
+共享句子。
+first_positions: 4
+second_positions: 3
+
+[3]
+This continuous block should match exactly.
+first_positions: 6
+second_positions: 4
