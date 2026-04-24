@@ -54,7 +54,7 @@ export function parseFindingJson(
 export function verdictToStatus(
   finding: GovFinding | null,
   pointStatus: string,
-): "pending" | "running" | "passed" | "failed" | "error" {
+): "pending" | "running" | "passed" | "failed" | "uncertain" | "error" {
   if (pointStatus === "pending") return "pending";
   if (pointStatus === "running") return "running";
   if (pointStatus === "failed" || pointStatus === "waiting_retry") return "error";
@@ -63,7 +63,8 @@ export function verdictToStatus(
   const v = finding.verdict?.verdict;
   if (v === "合规") return "passed";
   if (v === "不合规") return "failed";
-  return "failed"; // "存疑"
+  if (v === "存疑") return "uncertain";
+  return "failed";
 }
 
 export function severityToRisk(
