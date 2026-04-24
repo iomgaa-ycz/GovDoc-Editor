@@ -1,14 +1,13 @@
-"""DOCX comparison routes."""
+"""DOCX 文档对比 API 路由。"""
 
 from __future__ import annotations
 
 from typing import Literal
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from govdoc.api.deps import get_db_session
 from govdoc.compare.service import create_compare_bundle_from_bytes, get_compare_download
 from govdoc.schemas.compare import CompareResponse
 
@@ -16,19 +15,14 @@ from govdoc.schemas.compare import CompareResponse
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
-def _require_db_session() -> None:
-    with get_db_session():
-        return
-
-
 router = APIRouter(
     prefix="/api/v1/compare",
     tags=["compare"],
-    dependencies=[Depends(_require_db_session)],
 )
 
 
 def _ensure_docx(filename: str) -> None:
+    """校验上传文件名是否为 DOCX 文件。"""
     if not filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="仅支持 DOCX 文件。")
 
@@ -38,6 +32,7 @@ async def compare_uploaded_docx(
     first_file: UploadFile = File(...),
     second_file: UploadFile = File(...),
 ) -> CompareResponse:
+    """接收两份 DOCX 文件并返回文档对比结果。"""
     first_name = first_file.filename or "first.docx"
     second_name = second_file.filename or "second.docx"
     _ensure_docx(first_name)
@@ -59,6 +54,7 @@ def download_compare_docx(
     review_id: str,
     side: Literal["first", "second"],
 ) -> FileResponse:
+    """下载指定 review 的高亮 DOCX 副本。"""
     try:
         download = get_compare_download(review_id=review_id, side=side)
     except FileNotFoundError as exc:

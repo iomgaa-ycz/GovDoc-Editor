@@ -1,3 +1,9 @@
+"""DOCX 对比服务层。
+
+该模块负责构建前端展示用 match payload、生成高亮 DOCX，并把 review.json
+与下载文件写入运行时目录。
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -72,6 +78,8 @@ REVIEW_ID_RE = re.compile(r"^[a-f0-9]{12}$")
 
 @dataclass(frozen=True)
 class TextBlock:
+    """文档中的一个段落块及其全文偏移范围。"""
+
     id: str
     index: int
     text: str
@@ -81,6 +89,8 @@ class TextBlock:
 
 @dataclass(frozen=True)
 class SentenceOccurrence:
+    """一个句子在全文和段落中的出现位置。"""
+
     text: str
     start: int
     end: int
@@ -92,12 +102,16 @@ class SentenceOccurrence:
 
 @dataclass(frozen=True)
 class MatchOccurrence:
+    """一个匹配项在全文中的出现范围。"""
+
     start: int
     end: int
 
 
 @dataclass(frozen=True)
 class MatchRecord:
+    """服务层内部使用的匹配记录。"""
+
     id: str
     category: CategoryId
     text: str
@@ -107,6 +121,8 @@ class MatchRecord:
 
 @dataclass(frozen=True)
 class DocumentModel:
+    """服务层内部使用的文档模型。"""
+
     side: str
     file_name: str
     blocks: list[TextBlock]
@@ -115,22 +131,30 @@ class DocumentModel:
 
 @dataclass(frozen=True)
 class CompareDownload:
+    """高亮 DOCX 下载文件信息。"""
+
     path: Path
     filename: str
 
 
 def get_compare_root() -> Path:
+    """返回文档对比运行时目录。
+
+    对比功能按产品约定固定写入项目根目录下的 data/compare，不单独暴露配置项。
+    """
     project_root = Path(__file__).resolve().parents[2]
     return project_root / "data" / "compare"
 
 
 def _prepare_output_root(output_root: Path | None) -> Path:
+    """准备对比输出根目录，测试可通过参数覆盖。"""
     root = output_root or get_compare_root()
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
 def _create_review_dir(output_root: Path) -> tuple[str, Path]:
+    """创建唯一 review 目录并返回 review_id。"""
     while True:
         review_id = uuid.uuid4().hex[:12]
         review_dir = output_root / review_id
@@ -140,11 +164,13 @@ def _create_review_dir(output_root: Path) -> tuple[str, Path]:
 
 
 def _sanitize_filename(name: str) -> str:
+    """清理上传文件名，避免写入危险或不可移植字符。"""
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name)
     return cleaned.strip("._") or "reviewed_document.docx"
 
 
 def _build_document_model(side: str, file_name: str, path: Path) -> DocumentModel:
+    """把 DOCX 段落转换为带全文偏移的内部文档模型。"""
     paragraphs = extract_docx_paragraphs(path)
     blocks: list[TextBlock] = []
     cursor = 0
@@ -168,6 +194,7 @@ def _build_document_model(side: str, file_name: str, path: Path) -> DocumentMode
 
 
 def _iter_sentence_occurrences(document: DocumentModel) -> list[SentenceOccurrence]:
+    """枚举文档中所有句子的全文位置和段落内位置。"""
     sentences: list[SentenceOccurrence] = []
 
     for block in document.blocks:
@@ -244,6 +271,7 @@ def _build_exact_block_matches(
     first_document: DocumentModel,
     second_document: DocumentModel,
 ) -> list[MatchRecord]:
+    """构建两份文档中完全相同的段落匹配。"""
     first_lookup: dict[str, list[MatchOccurrence]] = defaultdict(list)
     second_lookup: dict[str, list[MatchOccurrence]] = defaultdict(list)
 
@@ -275,6 +303,7 @@ def _build_exact_sentence_matches(
     first_document: DocumentModel,
     second_document: DocumentModel,
 ) -> list[MatchRecord]:
+    """构建两份文档中完全相同的句子匹配。"""
     first_sentences = _iter_sentence_occurrences(first_document)
     second_sentences = _iter_sentence_occurrences(second_document)
 
@@ -311,6 +340,7 @@ def _build_segment_matches(
     min_segment_length: int,
     exact_matches: list[MatchRecord],
 ) -> list[MatchRecord]:
+    """构建两份文档中的连续公共片段匹配。"""
     exact_occurrence_ranges: set[tuple[str, int, int, int, int]] = set()
 
     for match in exact_matches:
@@ -368,6 +398,7 @@ def _split_occurrence_by_blocks(
     blocks: list[TextBlock],
     occurrence: MatchOccurrence,
 ) -> list[CompareOccurrenceSegment]:
+    """把全文匹配范围切分到对应段落块内。"""
     pieces: list[CompareOccurrenceSegment] = []
 
     for block in blocks:
@@ -393,6 +424,7 @@ def _build_annotations(
     matches: list[MatchRecord],
     side: Literal["first", "second"],
 ) -> tuple[dict[str, list[dict]], dict[str, list[CompareOccurrence]]]:
+    """生成段落渲染 annotation 和按 match 聚合的位置索引。"""
     block_annotations: dict[str, list[dict]] = defaultdict(list)
     match_segments: dict[str, list[CompareOccurrence]] = defaultdict(list)
 
@@ -422,6 +454,7 @@ def _build_annotations(
 
 
 def _pick_primary_match(match_ids: list[str], match_lookup: dict[str, MatchRecord]) -> str:
+    """根据类别优先级选择重叠片段的主匹配。"""
     return sorted(
         match_ids,
         key=lambda item: (CATEGORY_PRIORITY[match_lookup[item].category], item),
@@ -433,6 +466,7 @@ def _build_block_segments(
     annotations: list[dict],
     match_lookup: dict[str, MatchRecord],
 ) -> list[CompareBlockSegment]:
+    """按 annotation 边界把段落切成前端可渲染片段。"""
     if not annotations:
         return [
             CompareBlockSegment(
@@ -493,6 +527,7 @@ def _serialize_document(
     block_annotations: dict[str, list[dict]],
     match_lookup: dict[str, MatchRecord],
 ) -> CompareDocument:
+    """序列化单侧文档为前端展示结构。"""
     return CompareDocument(
         name=document.file_name,
         block_count=len(document.blocks),
@@ -517,6 +552,7 @@ def _serialize_matches(
     first_match_segments: dict[str, list[CompareOccurrence]],
     second_match_segments: dict[str, list[CompareOccurrence]],
 ) -> list[CompareMatch]:
+    """序列化匹配记录为前端列表结构。"""
     serialized: list[CompareMatch] = []
 
     for match in matches:
@@ -546,6 +582,7 @@ def _serialize_matches(
 
 
 def _write_highlighted_review_copy(path: Path, document_payload: CompareDocument) -> None:
+    """根据前端片段结构写出带高亮的 DOCX 副本。"""
     review_doc = Document()
 
     for block in document_payload.blocks:
@@ -568,6 +605,7 @@ def _build_compare_response(
     second_name: str,
     min_segment_length: int,
 ) -> CompareResponse:
+    """构建完整对比响应并落盘 review.json 与下载文件。"""
     first_document = _build_document_model("first", first_name, first_path)
     second_document = _build_document_model("second", second_name, second_path)
 
@@ -666,6 +704,7 @@ def create_compare_bundle(
     first_name: str | None = None,
     second_name: str | None = None,
 ) -> CompareResponse:
+    """从两个本地 DOCX 路径创建对比 review。"""
     root = _prepare_output_root(output_root)
     review_id, review_dir = _create_review_dir(root)
 
@@ -699,6 +738,7 @@ def create_compare_bundle_from_bytes(
     output_root: Path | None = None,
     min_segment_length: int = 16,
 ) -> CompareResponse:
+    """从上传字节内容创建对比 review。"""
     root = _prepare_output_root(output_root)
     review_id, review_dir = _create_review_dir(root)
 
@@ -726,6 +766,7 @@ def get_compare_download(
     side: Literal["first", "second"],
     output_root: Path | None = None,
 ) -> CompareDownload:
+    """读取 review 元数据并返回指定侧的高亮 DOCX 下载信息。"""
     if not REVIEW_ID_RE.fullmatch(review_id):
         raise FileNotFoundError(review_id)
 
