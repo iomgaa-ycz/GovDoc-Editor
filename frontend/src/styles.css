@@ -860,6 +860,11 @@ a {
   color: var(--warn);
 }
 
+.status-pill--uncertain {
+  background: #e0e7f1;
+  color: #4a5568;
+}
+
 .status-pill--error {
   background: #fff1f2;
   color: #be123c;
@@ -950,6 +955,10 @@ a {
 
 .review-point-item--passed {
   background: linear-gradient(180deg, #fbfffc 0%, #f3fff8 100%);
+}
+
+.review-point-item--uncertain {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
 }
 
 .log-console {
