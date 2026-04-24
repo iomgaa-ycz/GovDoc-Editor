@@ -1,0 +1,10 @@
+[1] length=22
+first_range: 13..35
+second_range: 0..22
+Shared paragraph here.
+
+[2] length=45
+first_range: 51..96
+second_range: 35..80
+。
+This continuous block should match exactly.

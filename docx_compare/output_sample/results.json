@@ -1,0 +1,100 @@
+{
+  "documents": {
+    "first": "samples\\test_file_a.docx",
+    "second": "samples\\test_file_b.docx"
+  },
+  "summary": {
+    "first_paragraph_count": 5,
+    "second_paragraph_count": 5,
+    "first_sentence_count": 8,
+    "second_sentence_count": 10,
+    "common_paragraph_count": 1,
+    "common_sentence_count": 5,
+    "common_segment_count": 3,
+    "min_segment_length": 12
+  },
+  "common_paragraphs": [
+    {
+      "text": "共同段落：系统需要支持文档比较功能。",
+      "first_positions": [
+        2
+      ],
+      "second_positions": [
+        2
+      ]
+    }
+  ],
+  "common_sentences": [
+    {
+      "text": "共同段落：系统需要支持文档比较功能。",
+      "first_positions": [
+        2
+      ],
+      "second_positions": [
+        2
+      ]
+    },
+    {
+      "text": "这里有一个共享句子。",
+      "first_positions": [
+        3
+      ],
+      "second_positions": [
+        4
+      ]
+    },
+    {
+      "text": "这个句子只在部分段落中重复。",
+      "first_positions": [
+        4
+      ],
+      "second_positions": [
+        5
+      ]
+    },
+    {
+      "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。",
+      "first_positions": [
+        6
+      ],
+      "second_positions": [
+        7
+      ]
+    },
+    {
+      "text": "连续公共片段测试结束。",
+      "first_positions": [
+        7
+      ],
+      "second_positions": [
+        8
+      ]
+    }
+  ],
+  "common_segments": [
+    {
+      "text": "开头说明。\n共同段落：系统需要支持文档比较功能。",
+      "first_start": 11,
+      "first_end": 35,
+      "second_start": 14,
+      "second_end": 38,
+      "length": 24
+    },
+    {
+      "text": "这里有一个共享句子。这个句子只在部分段落中重复。",
+      "first_start": 36,
+      "first_end": 60,
+      "second_start": 50,
+      "second_end": 74,
+      "length": 24
+    },
+    {
+      "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。连续公共片段测试结束。",
+      "first_start": 72,
+      "first_end": 128,
+      "second_start": 97,
+      "second_end": 153,
+      "length": 56
+    }
+  ]
+}
