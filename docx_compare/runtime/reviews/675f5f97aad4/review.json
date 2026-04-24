@@ -1,0 +1,672 @@
+{
+  "reviewId": "675f5f97aad4",
+  "summary": {
+    "firstFileName": "test_file_a.docx",
+    "secondFileName": "test_file_b.docx",
+    "firstParagraphCount": 5,
+    "secondParagraphCount": 5,
+    "commonParagraphCount": 1,
+    "commonSentenceCount": 5,
+    "commonSegmentCount": 3,
+    "matchCount": 9,
+    "minSegmentLength": 16
+  },
+  "documents": {
+    "first": {
+      "name": "test_file_a.docx",
+      "blockCount": 5,
+      "blocks": [
+        {
+          "id": "first-block-1",
+          "index": 1,
+          "text": "项目背景：这是文档A的开头说明。",
+          "segments": [
+            {
+              "text": "项目背景：这是文档A的",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            },
+            {
+              "text": "开头说明。",
+              "matchIds": [
+                "segment-001"
+              ],
+              "categories": [
+                "segment"
+              ],
+              "primaryMatchId": "segment-001"
+            }
+          ]
+        },
+        {
+          "id": "first-block-2",
+          "index": 2,
+          "text": "共同段落：系统需要支持文档比较功能。",
+          "segments": [
+            {
+              "text": "共同段落：系统需要支持文档比较功能。",
+              "matchIds": [
+                "paragraph-001",
+                "segment-001",
+                "sentence-001"
+              ],
+              "categories": [
+                "paragraph",
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "paragraph-001"
+            }
+          ]
+        },
+        {
+          "id": "first-block-3",
+          "index": 3,
+          "text": "这里有一个共享句子。这个句子只在部分段落中重复。文档A额外还有这一句。",
+          "segments": [
+            {
+              "text": "这里有一个共享句子。",
+              "matchIds": [
+                "segment-002",
+                "sentence-002"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-002"
+            },
+            {
+              "text": "这个句子只在部分段落中重复。",
+              "matchIds": [
+                "segment-002",
+                "sentence-003"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-003"
+            },
+            {
+              "text": "文档A额外还有这一句。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            }
+          ]
+        },
+        {
+          "id": "first-block-4",
+          "index": 4,
+          "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。连续公共片段测试结束。",
+          "segments": [
+            {
+              "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。",
+              "matchIds": [
+                "segment-003",
+                "sentence-004"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-004"
+            },
+            {
+              "text": "连续公共片段测试结束。",
+              "matchIds": [
+                "segment-003",
+                "sentence-005"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-005"
+            }
+          ]
+        },
+        {
+          "id": "first-block-5",
+          "index": 5,
+          "text": "文档A自己的结尾内容。",
+          "segments": [
+            {
+              "text": "文档A自己的结尾内容。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            }
+          ]
+        }
+      ]
+    },
+    "second": {
+      "name": "test_file_b.docx",
+      "blockCount": 5,
+      "blocks": [
+        {
+          "id": "second-block-1",
+          "index": 1,
+          "text": "项目背景：这是文档B的另一段开头说明。",
+          "segments": [
+            {
+              "text": "项目背景：这是文档B的另一段",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            },
+            {
+              "text": "开头说明。",
+              "matchIds": [
+                "segment-001"
+              ],
+              "categories": [
+                "segment"
+              ],
+              "primaryMatchId": "segment-001"
+            }
+          ]
+        },
+        {
+          "id": "second-block-2",
+          "index": 2,
+          "text": "共同段落：系统需要支持文档比较功能。",
+          "segments": [
+            {
+              "text": "共同段落：系统需要支持文档比较功能。",
+              "matchIds": [
+                "paragraph-001",
+                "segment-001",
+                "sentence-001"
+              ],
+              "categories": [
+                "paragraph",
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "paragraph-001"
+            }
+          ]
+        },
+        {
+          "id": "second-block-3",
+          "index": 3,
+          "text": "文档B前面有不同内容。这里有一个共享句子。这个句子只在部分段落中重复。",
+          "segments": [
+            {
+              "text": "文档B前面有不同内容。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            },
+            {
+              "text": "这里有一个共享句子。",
+              "matchIds": [
+                "segment-002",
+                "sentence-002"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-002"
+            },
+            {
+              "text": "这个句子只在部分段落中重复。",
+              "matchIds": [
+                "segment-002",
+                "sentence-003"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-003"
+            }
+          ]
+        },
+        {
+          "id": "second-block-4",
+          "index": 4,
+          "text": "为了验证功能，下面也插入一段相同的连续内容。连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。连续公共片段测试结束。后面再接文档B自己的尾巴。",
+          "segments": [
+            {
+              "text": "为了验证功能，下面也插入一段相同的连续内容。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            },
+            {
+              "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。",
+              "matchIds": [
+                "segment-003",
+                "sentence-004"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-004"
+            },
+            {
+              "text": "连续公共片段测试结束。",
+              "matchIds": [
+                "segment-003",
+                "sentence-005"
+              ],
+              "categories": [
+                "sentence",
+                "segment"
+              ],
+              "primaryMatchId": "sentence-005"
+            },
+            {
+              "text": "后面再接文档B自己的尾巴。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            }
+          ]
+        },
+        {
+          "id": "second-block-5",
+          "index": 5,
+          "text": "文档B自己的结尾内容。",
+          "segments": [
+            {
+              "text": "文档B自己的结尾内容。",
+              "matchIds": [],
+              "categories": [],
+              "primaryMatchId": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "matches": [
+    {
+      "id": "paragraph-001",
+      "category": "paragraph",
+      "label": "相同段落",
+      "color": "#f5b700",
+      "text": "共同段落：系统需要支持文档比较功能。",
+      "length": 18,
+      "firstOccurrences": [
+        {
+          "start": 17,
+          "end": 35,
+          "segments": [
+            {
+              "blockId": "first-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 20,
+          "end": 38,
+          "segments": [
+            {
+              "blockId": "second-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "sentence-004",
+      "category": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb",
+      "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。",
+      "length": 45,
+      "firstOccurrences": [
+        {
+          "start": 72,
+          "end": 117,
+          "segments": [
+            {
+              "blockId": "first-block-4",
+              "blockIndex": 4,
+              "start": 0,
+              "end": 45
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 97,
+          "end": 142,
+          "segments": [
+            {
+              "blockId": "second-block-4",
+              "blockIndex": 4,
+              "start": 22,
+              "end": 67
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "sentence-001",
+      "category": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb",
+      "text": "共同段落：系统需要支持文档比较功能。",
+      "length": 18,
+      "firstOccurrences": [
+        {
+          "start": 17,
+          "end": 35,
+          "segments": [
+            {
+              "blockId": "first-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 20,
+          "end": 38,
+          "segments": [
+            {
+              "blockId": "second-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "sentence-003",
+      "category": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb",
+      "text": "这个句子只在部分段落中重复。",
+      "length": 14,
+      "firstOccurrences": [
+        {
+          "start": 46,
+          "end": 60,
+          "segments": [
+            {
+              "blockId": "first-block-3",
+              "blockIndex": 3,
+              "start": 10,
+              "end": 24
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 60,
+          "end": 74,
+          "segments": [
+            {
+              "blockId": "second-block-3",
+              "blockIndex": 3,
+              "start": 21,
+              "end": 35
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "sentence-005",
+      "category": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb",
+      "text": "连续公共片段测试结束。",
+      "length": 11,
+      "firstOccurrences": [
+        {
+          "start": 117,
+          "end": 128,
+          "segments": [
+            {
+              "blockId": "first-block-4",
+              "blockIndex": 4,
+              "start": 45,
+              "end": 56
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 142,
+          "end": 153,
+          "segments": [
+            {
+              "blockId": "second-block-4",
+              "blockIndex": 4,
+              "start": 67,
+              "end": 78
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "sentence-002",
+      "category": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb",
+      "text": "这里有一个共享句子。",
+      "length": 10,
+      "firstOccurrences": [
+        {
+          "start": 36,
+          "end": 46,
+          "segments": [
+            {
+              "blockId": "first-block-3",
+              "blockIndex": 3,
+              "start": 0,
+              "end": 10
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 50,
+          "end": 60,
+          "segments": [
+            {
+              "blockId": "second-block-3",
+              "blockIndex": 3,
+              "start": 11,
+              "end": 21
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "segment-003",
+      "category": "segment",
+      "label": "连续公共片段",
+      "color": "#ff7a59",
+      "text": "连续公共片段测试开始：我们希望提取两个文档里连续重复出现的文字内容，用于验证最长公共片段。连续公共片段测试结束。",
+      "length": 56,
+      "firstOccurrences": [
+        {
+          "start": 72,
+          "end": 128,
+          "segments": [
+            {
+              "blockId": "first-block-4",
+              "blockIndex": 4,
+              "start": 0,
+              "end": 56
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 97,
+          "end": 153,
+          "segments": [
+            {
+              "blockId": "second-block-4",
+              "blockIndex": 4,
+              "start": 22,
+              "end": 78
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "segment-001",
+      "category": "segment",
+      "label": "连续公共片段",
+      "color": "#ff7a59",
+      "text": "开头说明。\n共同段落：系统需要支持文档比较功能。",
+      "length": 24,
+      "firstOccurrences": [
+        {
+          "start": 11,
+          "end": 35,
+          "segments": [
+            {
+              "blockId": "first-block-1",
+              "blockIndex": 1,
+              "start": 11,
+              "end": 16
+            },
+            {
+              "blockId": "first-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 14,
+          "end": 38,
+          "segments": [
+            {
+              "blockId": "second-block-1",
+              "blockIndex": 1,
+              "start": 14,
+              "end": 19
+            },
+            {
+              "blockId": "second-block-2",
+              "blockIndex": 2,
+              "start": 0,
+              "end": 18
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    },
+    {
+      "id": "segment-002",
+      "category": "segment",
+      "label": "连续公共片段",
+      "color": "#ff7a59",
+      "text": "这里有一个共享句子。这个句子只在部分段落中重复。",
+      "length": 24,
+      "firstOccurrences": [
+        {
+          "start": 36,
+          "end": 60,
+          "segments": [
+            {
+              "blockId": "first-block-3",
+              "blockIndex": 3,
+              "start": 0,
+              "end": 24
+            }
+          ]
+        }
+      ],
+      "secondOccurrences": [
+        {
+          "start": 50,
+          "end": 74,
+          "segments": [
+            {
+              "blockId": "second-block-3",
+              "blockIndex": 3,
+              "start": 11,
+              "end": 35
+            }
+          ]
+        }
+      ],
+      "firstCount": 1,
+      "secondCount": 1
+    }
+  ],
+  "categories": [
+    {
+      "id": "paragraph",
+      "label": "相同段落",
+      "color": "#f5b700"
+    },
+    {
+      "id": "sentence",
+      "label": "相同句子",
+      "color": "#12b5cb"
+    },
+    {
+      "id": "segment",
+      "label": "连续公共片段",
+      "color": "#ff7a59"
+    }
+  ],
+  "downloads": {
+    "first": "/api/reviews/675f5f97aad4/download/first",
+    "second": "/api/reviews/675f5f97aad4/download/second"
+  },
+  "artifacts": {
+    "reviewDir": "D:\\HCC\\对比功能\\runtime\\reviews\\675f5f97aad4",
+    "firstDownloadName": "test_file_a_reviewed.docx",
+    "secondDownloadName": "test_file_b_reviewed.docx"
+  }
+}
