@@ -1,4 +1,11 @@
-import { Bot, Files, LayoutDashboard, LibraryBig, ScrollText } from "lucide-react";
+import {
+  Bot,
+  Files,
+  GitCompareArrows,
+  LayoutDashboard,
+  LibraryBig,
+  ScrollText,
+} from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
@@ -9,6 +16,7 @@ const navItems = [
   { to: "/ai-review", label: "AI批量审核", icon: Bot },
   { to: "/workpaper", label: "结果与工作底稿", icon: Files },
   { to: "/audit-results", label: "审核点结果", icon: ScrollText },
+  { to: "/compare", label: "文档对比", icon: GitCompareArrows },
 ];
 
 export function AppShell() {

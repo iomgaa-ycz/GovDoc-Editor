@@ -10,12 +10,38 @@ from govdoc.schemas.checkpoints import (
     VerdictValue,
 )
 from govdoc.schemas.common import GovDocModel
+from govdoc.schemas.compare import (
+    CompareArtifacts,
+    CompareBlockSegment,
+    CompareCategory,
+    CompareDocument,
+    CompareDocumentBlock,
+    CompareDocuments,
+    CompareDownloads,
+    CompareMatch,
+    CompareOccurrence,
+    CompareOccurrenceSegment,
+    CompareResponse,
+    CompareSummary,
+)
 from govdoc.schemas.pipeline_outputs import CheckpointListOutput, WorkpaperAuditOutput
 from govdoc.schemas.workpaper import Workpaper
 
 __all__ = [
     "CheckpointCategory",
     "CheckpointListOutput",
+    "CompareArtifacts",
+    "CompareBlockSegment",
+    "CompareCategory",
+    "CompareDocument",
+    "CompareDocumentBlock",
+    "CompareDocuments",
+    "CompareDownloads",
+    "CompareMatch",
+    "CompareOccurrence",
+    "CompareOccurrenceSegment",
+    "CompareResponse",
+    "CompareSummary",
     "GovCheckpoint",
     "GovDocModel",
     "GovFinding",
