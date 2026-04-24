@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Pencil,
   Trash2,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -215,13 +216,14 @@ export function EmptyState(props: { title: string; description: string }) {
 }
 
 export function InlineNotice(props: {
-  tone: "info" | "success" | "warning";
+  tone: "info" | "success" | "warning" | "error";
   message: string;
 }) {
   const iconMap: Record<typeof props.tone, LucideIcon> = {
     info: Info,
     success: CheckCircle2,
     warning: AlertTriangle,
+    error: XCircle,
   };
   const Icon = iconMap[props.tone];
   return (

@@ -89,6 +89,7 @@ function defaultValue(): WorkbenchContextValue {
     setSelectedProjectId: vi.fn(),
     createProject: vi.fn(),
     uploadTenderDoc: vi.fn(),
+    uploadWarning: null,
     tenderDocs: {},
     auditRuns: [],
     activeAuditRun: undefined,
