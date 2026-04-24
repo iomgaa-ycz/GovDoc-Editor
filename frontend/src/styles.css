@@ -19,6 +19,7 @@
   --warn: #d97706;
   --warn-soft: #fef3c7;
   --err: #dc2626;
+  --err-soft: #fef2f2;
   --shadow-soft: 0 16px 40px rgba(27, 42, 74, 0.06);
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -488,6 +489,11 @@ a {
 .inline-notice--warning {
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+.inline-notice--error {
+  background: var(--err-soft);
+  color: var(--err);
 }
 
 .empty-state {

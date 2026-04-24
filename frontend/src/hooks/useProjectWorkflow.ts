@@ -27,6 +27,8 @@ export interface ProjectWorkflow {
   creating: boolean;
   /** 正在调用 uploadTenderDoc */
   uploadingTender: boolean;
+  /** 上传失败的错误消息（无错误时为 null） */
+  uploadError: string | null;
   /** 触发新建项目；空名直接 no-op */
   handleCreateProject: () => Promise<void>;
   /** 触发上传招标文书；无活动项目或无文件直接 no-op */
@@ -40,6 +42,7 @@ export function useProjectWorkflow(): ProjectWorkflow {
   const [creating, setCreating] = useState<boolean>(false);
   const [tenderFile, setTenderFile] = useState<File | null>(null);
   const [uploadingTender, setUploadingTender] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function handleCreateProject(): Promise<void> {
     if (!newProjectName) return;
@@ -55,9 +58,12 @@ export function useProjectWorkflow(): ProjectWorkflow {
   async function handleUploadTender(): Promise<void> {
     if (!activeProject || !tenderFile) return;
     setUploadingTender(true);
+    setUploadError(null);
     try {
       await uploadTenderDoc(activeProject.id, tenderFile);
       setTenderFile(null);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "上传失败");
     } finally {
       setUploadingTender(false);
     }
@@ -70,6 +76,7 @@ export function useProjectWorkflow(): ProjectWorkflow {
     setTenderFile,
     creating,
     uploadingTender,
+    uploadError,
     handleCreateProject,
     handleUploadTender,
   };

@@ -23,6 +23,7 @@ export function AIReviewPage() {
     auditProgress,
     logs,
     retryPointRun,
+    uploadWarning,
   } = useWorkbench();
 
   const wf = useProjectWorkflow();
@@ -60,6 +61,8 @@ export function AIReviewPage() {
                 setTenderFile={wf.setTenderFile}
                 uploadingTender={wf.uploadingTender}
                 handleUploadTender={wf.handleUploadTender}
+                uploadError={wf.uploadError}
+                uploadWarning={uploadWarning}
               />
 
               {tenderDoc && !auditProgress && (

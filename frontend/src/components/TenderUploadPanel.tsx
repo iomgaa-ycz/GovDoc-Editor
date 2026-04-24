@@ -47,6 +47,10 @@ export interface TenderUploadPanelProps {
   uploadingTender: boolean;
   /** 触发上传招标文书 */
   handleUploadTender: () => void;
+  /** 上传失败的错误消息 */
+  uploadError: string | null;
+  /** 上传成功的降级警告 */
+  uploadWarning: string | null;
 }
 
 export function TenderUploadPanel(props: TenderUploadPanelProps) {
@@ -64,6 +68,8 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
     setTenderFile,
     uploadingTender,
     handleUploadTender,
+    uploadError,
+    uploadWarning,
   } = props;
 
   return (
@@ -115,15 +121,21 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
             )}
           </Field>
           {tenderFile && (
-            <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
-              上传文书
-            </Button>
+            <>
+              <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
+                上传文书
+              </Button>
+              {uploadError && <InlineNotice tone="error" message={uploadError} />}
+            </>
           )}
         </>
       )}
 
       {tenderDoc && (
-        <InlineNotice tone="success" message={`文书已上传: ${tenderDoc.filename}`} />
+        <>
+          <InlineNotice tone="success" message={`文书已上传: ${tenderDoc.filename}`} />
+          {uploadWarning && <InlineNotice tone="warning" message={uploadWarning} />}
+        </>
       )}
     </>
   );
