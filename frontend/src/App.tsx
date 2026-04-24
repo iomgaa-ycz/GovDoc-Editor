@@ -6,6 +6,7 @@ import { AuditLibraryPage } from "./pages/AuditLibraryPage";
 import { AIReviewPage } from "./pages/AIReviewPage";
 import { WorkpaperPage } from "./pages/WorkpaperPage";
 import { AuditResultsPage } from "./pages/AuditResultsPage";
+import { DocComparePage } from "./pages/DocComparePage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/ai-review" element={<AIReviewPage />} />
         <Route path="/workpaper" element={<WorkpaperPage />} />
         <Route path="/audit-results" element={<AuditResultsPage />} />
+        <Route path="/compare" element={<DocComparePage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Route>
     </Routes>
