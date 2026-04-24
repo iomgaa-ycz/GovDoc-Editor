@@ -1,4 +1,0 @@
-[1]
-共同段落：系统需要支持文档比较功能。
-first_positions: 2
-second_positions: 2

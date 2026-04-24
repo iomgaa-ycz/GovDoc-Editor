@@ -1,6 +1,6 @@
 """验证 init_db 通过 alembic 管理 schema。"""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def test_init_db_calls_alembic_upgrade():
