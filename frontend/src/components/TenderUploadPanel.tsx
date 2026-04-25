@@ -49,8 +49,6 @@ export interface TenderUploadPanelProps {
   handleUploadTender: () => void;
   /** 上传失败的错误消息 */
   uploadError: string | null;
-  /** 上传成功的降级警告 */
-  uploadWarning: string | null;
 }
 
 export function TenderUploadPanel(props: TenderUploadPanelProps) {
@@ -69,7 +67,6 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
     uploadingTender,
     handleUploadTender,
     uploadError,
-    uploadWarning,
   } = props;
 
   return (
@@ -134,7 +131,9 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
       {tenderDoc && (
         <>
           <InlineNotice tone="success" message={`文书已上传: ${tenderDoc.filename}`} />
-          {uploadWarning && <InlineNotice tone="warning" message={uploadWarning} />}
+          {tenderDoc.warnings && tenderDoc.warnings.length > 0 && (
+            <InlineNotice tone="warning" message={tenderDoc.warnings.join("；")} />
+          )}
         </>
       )}
     </>
