@@ -61,7 +61,6 @@ export interface WorkbenchContextValue {
   setSelectedProjectId: (id: string | null) => void;
   createProject: (name: string) => Promise<Project>;
   uploadTenderDoc: (projectId: string, file: File) => Promise<TenderDoc>;
-  uploadWarning: string | null;
 
   // Tender docs (per project)
   tenderDocs: Record<string, TenderDoc>;
@@ -138,7 +137,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [tenderDocs, setTenderDocs] = useState<Record<string, TenderDoc>>({});
-  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
 
   // Audit runs
   const [auditRuns, setAuditRuns] = useState<AuditRun[]>([]);
@@ -284,11 +282,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   async function handleUploadTenderDoc(projectId: string, file: File) {
     const doc = await api.uploadTenderDoc(projectId, file);
     setTenderDocs((prev) => ({ ...prev, [projectId]: doc }));
-    setUploadWarning(
-      doc.warnings && doc.warnings.length > 0
-        ? doc.warnings.join("；")
-        : null,
-    );
     return doc;
   }
 
@@ -511,7 +504,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setSelectedProjectId,
     createProject,
     uploadTenderDoc: handleUploadTenderDoc,
-    uploadWarning,
     tenderDocs,
     auditRuns,
     activeAuditRun,
