@@ -13,5 +13,4 @@ description: |
 ## 方法
 1. 先用 `govdoc-cli parse-tender` 识别文书结构。
 2. 再用 `govdoc-cli locate-section` 缩小范围。
-3. 必要时用 `qmd search` 做全文检索。
-
+3. 必要时用 `govdoc-cli qmd-search` 做全文检索。
