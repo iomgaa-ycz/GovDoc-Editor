@@ -89,6 +89,8 @@ function defaultValue(): WorkbenchContextValue {
     setSelectedProjectId: vi.fn(),
     createProject: vi.fn(),
     uploadTenderDoc: vi.fn(),
+    uploadAuditInputDocs: vi.fn(),
+    auditInputDocs: {},
     tenderDocs: {},
     auditRuns: [],
     activeAuditRun: undefined,
@@ -207,12 +209,17 @@ describe("AIReviewPage · 行为护栏", () => {
     expect(createProject).toHaveBeenCalledWith("测试项目");
   });
 
-  it("有 activeProject + tenderDoc + finalCheckpoints 时，「启动审核」按钮随选中数量切换 disabled", async () => {
+  it("有 activeProject + mainDoc + finalCheckpoints 时，「启动审核」按钮随选中数量切换 disabled", async () => {
     renderPage({
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       finalCheckpoints: sampleCheckpoints,
       checkpoints: sampleCheckpoints,
     });
@@ -247,7 +254,12 @@ describe("AIReviewPage · 行为护栏", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       auditProgress: progress,
     });
 
@@ -282,7 +294,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       finalCheckpoints: sampleCheckpoints,
       auditProgress: progress,
     });
@@ -292,12 +309,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
   });
 
   it("文书上传失败时显示红色错误提示", async () => {
-    const uploadTenderDoc = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
+    const uploadAuditInputDocs = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
     renderPage({
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      uploadTenderDoc,
+      uploadAuditInputDocs,
     });
 
     const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
@@ -319,7 +336,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: tenderDocWithWarnings },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: tenderDocWithWarnings,
+          supplementaryDocs: [],
+        },
+      },
     });
 
     expect(screen.getByText(/文书已上传/)).toBeInTheDocument();

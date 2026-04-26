@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+
+import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from sqlmodel import Session as SQLSession
@@ -23,15 +26,19 @@ from govdoc.db.models import (
 from govdoc.pipelines.audit_tender import (
     _assemble_workpaper_draft,
     _cleanup_tender_collection,
+    _ensure_tender_collection,
     _index_tender_doc,
     _persist_point_result,
     _resolve_point_runs,
+    write_documents_manifest_json,
 )
 
 
 class _FakeTenderDoc:
     """最小化 TenderDoc 替身，只要求 audit_tender 内部拿来做 _ensure_tender_collection 的参数即可。"""
 
+    id = "fake-doc"
+    filename = "fake.md"
     markdown_path = "/tmp/fake.md"
     qmd_collection = None
 
@@ -56,7 +63,11 @@ def test_index_tender_doc_non_replay_calls_ensure_collection():
         result = _index_tender_doc(audit_run, tender_doc, replay=False)
 
     assert result == "real_collection_xyz"
-    mock_ensure.assert_called_once_with("ar_prod_456", tender_doc)
+    mock_ensure.assert_called_once_with(
+        "ar_prod_456",
+        tender_doc,
+        supplementary_docs=(),
+    )
 
 
 def test_index_tender_doc_non_replay_exception_returns_none():
@@ -69,6 +80,58 @@ def test_index_tender_doc_non_replay_exception_returns_none():
         result = _index_tender_doc(audit_run, tender_doc, replay=False)
 
     assert result is None
+
+
+def test_ensure_tender_collection_indexes_supplement_when_main_exists(tmp_path):
+    """主文书已存在时仍应继续索引附件，避免早退漏文件。"""
+    main_md = tmp_path / "main.md"
+    supp_md = tmp_path / "supp.md"
+    main_md.write_text("main", encoding="utf-8")
+    supp_md.write_text("supp", encoding="utf-8")
+
+    main_doc = SimpleNamespace(
+        id="main-doc",
+        filename="main.docx",
+        markdown_path=str(main_md),
+    )
+    supp_doc = SimpleNamespace(
+        id="supp-doc",
+        filename="supp.pdf",
+        markdown_path=str(supp_md),
+    )
+    coll = MagicMock()
+    coll.get_document.side_effect = lambda doc_id: object() if doc_id == "main-doc" else None
+    client = MagicMock()
+    client.collection.return_value = coll
+
+    result = _ensure_tender_collection(
+        "audit-1",
+        main_doc,
+        supplementary_docs=[supp_doc],
+        qmd_client=client,
+    )
+
+    assert result == "run_audit-1_tender"
+    coll.add_document.assert_called_once()
+    doc_id, markdown_text = coll.add_document.call_args.args[:2]
+    metadata = coll.add_document.call_args.kwargs["metadata"]
+    assert doc_id == "supp-doc"
+    assert markdown_text == "supp"
+    assert metadata["source"] == "supp.pdf"
+    assert metadata["filename"] == "supp.pdf"
+    assert metadata["source_type"] == "supplementary"
+
+
+def test_write_documents_manifest_json_writes_manifest(tmp_path, monkeypatch):
+    """documents.json manifest 应可被 workspace data_inputs 注入。"""
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    manifest = [{"path": "tender.md", "filename": "tender.docx", "source_type": "main"}]
+
+    path = write_documents_manifest_json("audit-1", manifest)
+
+    assert path.name == "documents.json"
+    assert path.exists()
+    assert path.read_text(encoding="utf-8").strip()
 
 
 def _make_point_run(run_id: str, audit_run_id: str, status: str = "pending"):
@@ -179,6 +242,7 @@ def test_run_single_point_is_async_and_has_expected_signature():
         "point_run",
         "checkpoint",
         "tender_doc",
+        "supplementary_docs",
         "audit_run",
         "tender_collection",
         "manager",
@@ -632,3 +696,81 @@ def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, 
         _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert captured["workpaper"].tender_doc_path == tender_doc.storage_path
+
+
+# --- run_audit supplementary_doc_ids 校验 ----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_invalid_supplementary_json():
+    """supplementary_doc_ids 为非法 JSON 时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = "NOT_VALID_JSON"
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="附件 ID JSON 无效"):
+            await run_audit(audit_run.id, session)
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_nonexistent_supplementary_doc():
+    """supplementary_doc_ids 含不存在的 doc_id 时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = '["nonexistent-doc-id"]'
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="未找到附件 TenderDoc"):
+            await run_audit(audit_run.id, session)
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_non_string_supplementary_ids():
+    """supplementary_doc_ids 含非字符串元素时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = "[1, 2, 3]"
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="不是字符串列表"):
+            await run_audit(audit_run.id, session)
