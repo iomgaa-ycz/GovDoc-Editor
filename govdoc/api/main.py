@@ -1,7 +1,5 @@
 """GovDoc FastAPI app factory."""
 
-# ruff: noqa: E402
-
 from __future__ import annotations
 
 import os
