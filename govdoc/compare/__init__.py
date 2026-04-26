@@ -1,4 +1,4 @@
-"""DOCX comparison package."""
+"""DOCX 文档对比包。"""
 
 from govdoc.compare.service import (
     CompareDownload,
