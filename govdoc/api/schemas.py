@@ -36,6 +36,7 @@ class UpdateCheckpointRequest(GovDocModel):
 class CreateAuditRunRequest(GovDocModel):
     project_id: str
     tender_doc_id: str
+    supplementary_doc_ids: list[str] = Field(default_factory=list)
     checkpoint_ids: list[str] = Field(
         default_factory=list,
         validation_alias=AliasChoices("checkpoint_ids", "checkpoint_final_ids"),
