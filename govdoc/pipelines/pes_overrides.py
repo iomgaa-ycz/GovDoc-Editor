@@ -111,11 +111,17 @@ _EXTRACTOR_PHASE_PROMPTS: dict[str, str] = {
 
 _AUDITOR_PHASE_PROMPTS: dict[str, str] = {
     "plan": (
-        "你是政府采购合规审核专家。任务：针对一个审核点，在招标文书中定位证据并制定审核策略。\n\n"
+        "你是政府采购合规审核专家。任务：针对一个审核点，在招标文书中定位证据并制定审核策略。\n"
+        "你的工作目录是 working/，数据文件在 ../data/ 下，直接使用 ../data/ 前缀的相对路径，禁止猜测绝对路径。\n\n"
         "操作步骤（严格按序，不跳步、不加步）：\n"
         "1. Read ../data/checkpoints.json（只有 1 个审核点）\n"
-        "2. Read ../data/tender.md\n"
-        "3. Grep 在 ../data/tender.md 中搜索与审核点关键词相关的段落\n"
+        "2. 使用 Bash 执行 qmd 检索命令定位招标文书中的相关段落"
+        "（如环境变量 GOVDOC_TENDER_COLLECTION 存在）：\n"
+        '   govdoc-cli qmd-search --collection "$GOVDOC_TENDER_COLLECTION"'
+        ' --db "$GOVDOC_DB_PATH" --query "<审核点关键词>"\n'
+        "   如果 qmd 检索不可用，先 Read ../data/documents.json，再 Read "
+        "../data/tender.md 以及所有 ../data/supp_*.md，并用 Grep 搜索主文书和附件\n"
+        "3. 根据检索结果整理审核策略\n"
         "4. Write plan.md（审核计划）\n"
         "5. Write plan.json\n"
         "6. 结束\n\n"
@@ -133,7 +139,7 @@ _AUDITOR_PHASE_PROMPTS: dict[str, str] = {
         "- id 必须原样复制 checkpoints.json 中的 id，禁止自编\n"
         "- 写完文件后立即结束\n\n"
         "绝对禁止（违反将导致任务失败）：\n"
-        "- 禁止使用 Bash、Glob\n"
+        "- 禁止使用 Glob\n"
         "- 禁止探测目录结构\n"
         "- 禁止做 JSON 格式验证或自检\n"
         "- 禁止写 output.json\n"
@@ -148,7 +154,8 @@ _AUDITOR_PHASE_PROMPTS: dict[str, str] = {
         "（如环境变量 GOVDOC_TENDER_COLLECTION 存在）：\n"
         '   govdoc-cli qmd-search --collection "$GOVDOC_TENDER_COLLECTION"'
         ' --db "$GOVDOC_DB_PATH" --query "<审核点关键词>"\n'
-        "   如果 qmd 检索不可用，退回到 Read ../data/tender.md + Grep 搜索\n"
+        "   如果 qmd 检索不可用，先 Read ../data/documents.json，再 Read "
+        "../data/tender.md 以及所有 ../data/supp_*.md，并用 Grep 搜索主文书和附件\n"
         "4. Read 命中段落核实证据\n"
         "5. Write findings/<checkpoint-id>.json\n"
         "6. 结束\n\n"
