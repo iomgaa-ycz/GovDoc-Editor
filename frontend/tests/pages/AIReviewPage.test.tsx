@@ -89,6 +89,8 @@ function defaultValue(): WorkbenchContextValue {
     setSelectedProjectId: vi.fn(),
     createProject: vi.fn(),
     uploadTenderDoc: vi.fn(),
+    uploadAuditInputDocs: vi.fn(),
+    auditInputDocs: {},
     tenderDocs: {},
     auditRuns: [],
     activeAuditRun: undefined,
@@ -207,12 +209,17 @@ describe("AIReviewPage · 行为护栏", () => {
     expect(createProject).toHaveBeenCalledWith("测试项目");
   });
 
-  it("有 activeProject + tenderDoc + finalCheckpoints 时，「启动审核」按钮随选中数量切换 disabled", async () => {
+  it("有 activeProject + mainDoc + finalCheckpoints 时，「启动审核」按钮随选中数量切换 disabled", async () => {
     renderPage({
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       finalCheckpoints: sampleCheckpoints,
       checkpoints: sampleCheckpoints,
     });
@@ -247,7 +254,12 @@ describe("AIReviewPage · 行为护栏", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       auditProgress: progress,
     });
 

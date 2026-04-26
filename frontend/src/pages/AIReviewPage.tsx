@@ -18,7 +18,7 @@ export function AIReviewPage() {
     activeProject,
     selectedProjectId,
     setSelectedProjectId,
-    tenderDocs,
+    auditInputDocs,
     finalCheckpoints,
     auditProgress,
     logs,
@@ -29,7 +29,10 @@ export function AIReviewPage() {
   const auditRun = useAuditRun();
   const [detailPointRunId, setDetailPointRunId] = useState<string | null>(null);
 
-  const tenderDoc = activeProject ? tenderDocs[activeProject.id] : undefined;
+  const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
+  const mainDoc = inputDocs?.mainDoc;
+  const supplementaryDocs = inputDocs?.supplementaryDocs ?? [];
+  const hasPendingUpload = Boolean(wf.mainTenderFile || wf.supplementaryFiles.length > 0);
 
   return (
     <>
@@ -51,19 +54,22 @@ export function AIReviewPage() {
                 activeProject={activeProject}
                 selectedProjectId={selectedProjectId}
                 setSelectedProjectId={setSelectedProjectId}
-                tenderDoc={tenderDoc}
+                mainDoc={mainDoc}
+                supplementaryDocs={supplementaryDocs}
                 newProjectName={wf.newProjectName}
                 setNewProjectName={wf.setNewProjectName}
                 creating={wf.creating}
                 handleCreateProject={wf.handleCreateProject}
-                tenderFile={wf.tenderFile}
-                setTenderFile={wf.setTenderFile}
+                mainTenderFile={wf.mainTenderFile}
+                setMainTenderFile={wf.setMainTenderFile}
+                supplementaryFiles={wf.supplementaryFiles}
+                setSupplementaryFiles={wf.setSupplementaryFiles}
                 uploadingTender={wf.uploadingTender}
                 handleUploadTender={wf.handleUploadTender}
                 uploadError={wf.uploadError}
               />
 
-              {tenderDoc && !auditProgress && (
+              {mainDoc && !hasPendingUpload && !auditProgress && (
                 <CheckpointPicker
                   checkpoints={finalCheckpoints}
                   selectedIds={auditRun.selectedCpIds}

@@ -73,6 +73,7 @@ class AuditRun(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     project_id: str = Field(foreign_key="project.id")
     tender_doc_id: str = Field(foreign_key="tenderdoc.id")
+    supplementary_doc_ids: str | None = None  # JSON list[str]，附件文书 ID
     checkpoint_final_ids: str  # JSON list[str]
     # pending / running / partial_ready / draft_ready / finalized / failed / waiting_retry
     status: str = "pending"
