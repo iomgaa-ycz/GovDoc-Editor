@@ -60,6 +60,7 @@ export function AIReviewPage() {
                 setTenderFile={wf.setTenderFile}
                 uploadingTender={wf.uploadingTender}
                 handleUploadTender={wf.handleUploadTender}
+                uploadError={wf.uploadError}
               />
 
               {tenderDoc && !auditProgress && (

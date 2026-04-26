@@ -19,6 +19,9 @@
   --warn: #d97706;
   --warn-soft: #fef3c7;
   --err: #dc2626;
+  --err-soft: #fef2f2;
+  --uncertain: #4a5568;
+  --uncertain-soft: #e0e7f1;
   --shadow-soft: 0 16px 40px rgba(27, 42, 74, 0.06);
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -490,6 +493,11 @@ a {
   color: var(--warn);
 }
 
+.inline-notice--error {
+  background: var(--err-soft);
+  color: var(--err);
+}
+
 .empty-state {
   border: 1px dashed var(--border-medium);
   background: linear-gradient(180deg, #fbfcfe 0%, #f7f9fc 100%);
@@ -860,6 +868,11 @@ a {
   color: var(--warn);
 }
 
+.status-pill--uncertain {
+  background: var(--uncertain-soft);
+  color: var(--uncertain);
+}
+
 .status-pill--error {
   background: #fff1f2;
   color: #be123c;
@@ -950,6 +963,10 @@ a {
 
 .review-point-item--passed {
   background: linear-gradient(180deg, #fbfffc 0%, #f3fff8 100%);
+}
+
+.review-point-item--uncertain {
+  background: linear-gradient(180deg, var(--surface-bg) 0%, var(--uncertain-soft) 100%);
 }
 
 .log-console {

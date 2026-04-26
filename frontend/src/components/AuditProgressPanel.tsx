@@ -94,6 +94,8 @@ export function AuditProgressPanel(props: AuditProgressPanelProps) {
                 const statusClass =
                   status === "running" ? "review-point-item--running"
                   : status === "passed" ? "review-point-item--passed"
+                  : status === "failed" ? "review-point-item--failed"
+                  : status === "uncertain" ? "review-point-item--uncertain"
                   : status === "error" ? "review-point-item--failed"
                   : "";
                 return (
