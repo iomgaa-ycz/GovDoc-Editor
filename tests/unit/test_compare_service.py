@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from docx import Document
 
 from govdoc.compare.compare import find_common_segments, find_exact_matches
@@ -84,3 +85,72 @@ def test_create_compare_bundle_writes_payload_and_downloads(tmp_path: Path) -> N
     assert second_download.path.exists()
     assert first_download.filename == "first_reviewed.docx"
     assert second_download.filename == "second_reviewed.docx"
+
+
+def test_compare_empty_documents_returns_zero_matches(tmp_path: Path) -> None:
+    """两个空文档对比应返回 0 匹配而非崩溃。"""
+    first_path = tmp_path / "empty_a.docx"
+    second_path = tmp_path / "empty_b.docx"
+    output_root = tmp_path / "compare"
+    _write_docx(first_path, [])
+    _write_docx(second_path, [])
+
+    payload = create_compare_bundle(
+        first_path=first_path,
+        second_path=second_path,
+        output_root=output_root,
+    )
+
+    assert payload.summary.match_count == 0
+    assert payload.summary.first_paragraph_count == 0
+    assert payload.summary.second_paragraph_count == 0
+    assert payload.matches == []
+
+
+def test_sanitize_filename_strips_dangerous_characters() -> None:
+    """文件名清理应移除路径分隔符和特殊字符。"""
+    from govdoc.compare.service import _sanitize_filename
+
+    assert _sanitize_filename("../../etc/passwd") == "etc_passwd"
+    assert _sanitize_filename("hello world (1).docx") == "hello_world_1_.docx"
+    assert _sanitize_filename("") == "reviewed_document.docx"
+    assert _sanitize_filename("...") == "reviewed_document.docx"
+
+
+def test_get_compare_download_raises_on_nonexistent_id(tmp_path: Path) -> None:
+    """不存在的 review_id 应抛出 FileNotFoundError。"""
+    output_root = tmp_path / "compare"
+    output_root.mkdir()
+
+    with pytest.raises(FileNotFoundError):
+        get_compare_download("aabbccddeeff", "first", output_root=output_root)
+
+
+def test_get_compare_download_raises_on_invalid_id_format(tmp_path: Path) -> None:
+    """非法格式的 review_id 应抛出 FileNotFoundError。"""
+    output_root = tmp_path / "compare"
+    output_root.mkdir()
+
+    with pytest.raises(FileNotFoundError):
+        get_compare_download("../../../etc", "first", output_root=output_root)
+
+    with pytest.raises(FileNotFoundError):
+        get_compare_download("too-short", "first", output_root=output_root)
+
+
+def test_compare_single_paragraph_documents(tmp_path: Path) -> None:
+    """单段落相同文档应产生段落级匹配。"""
+    first_path = tmp_path / "single_a.docx"
+    second_path = tmp_path / "single_b.docx"
+    output_root = tmp_path / "compare"
+    _write_docx(first_path, ["唯一段落内容。"])
+    _write_docx(second_path, ["唯一段落内容。"])
+
+    payload = create_compare_bundle(
+        first_path=first_path,
+        second_path=second_path,
+        output_root=output_root,
+    )
+
+    assert payload.summary.common_paragraph_count == 1
+    assert any(m.category == "paragraph" for m in payload.matches)
