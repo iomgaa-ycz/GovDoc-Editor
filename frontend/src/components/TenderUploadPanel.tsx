@@ -151,7 +151,7 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
                 ))}
               </div>
             ) : null}
-            {!mainDoc && (
+            {!mainTenderFile && (
               <FileDropzone
                 title="选择补充文件"
                 subtitle="可多选，支持 .pdf, .docx, .md"
@@ -167,15 +167,20 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
               上传文书
             </Button>
           )}
+          {uploadError && <InlineNotice tone="error" message={uploadError} />}
         </>
       )}
 
       {mainDoc && (
-        <InlineNotice
-          tone="success"
-          message={`文书已上传: ${mainDoc.filename}${supplementaryDocs.length > 0 ? `，附件 ${supplementaryDocs.length} 个` : ""}`}
-        />
-      )}
+        <>
+          <InlineNotice
+            tone="success"
+            message={`文书已上传: ${mainDoc.filename}${supplementaryDocs.length > 0 ? `，附件 ${supplementaryDocs.length} 个` : ""}`}
+          />
+          {mainDoc.warnings && mainDoc.warnings.length > 0 && (
+            <InlineNotice tone="warning" message={mainDoc.warnings.join("；")} />
+          )}
+        </>
       )}
     </>
   );
