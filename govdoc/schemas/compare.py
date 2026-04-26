@@ -1,4 +1,4 @@
-"""DOCX comparison response schemas."""
+"""DOCX 文档对比响应 schema。"""
 
 from __future__ import annotations
 
@@ -18,9 +18,10 @@ CompareCategoryId = Literal["paragraph", "sentence", "segment"]
 
 
 class CompareModel(GovDocModel):
+    """文档对比 schema 基类，自动转换 snake_case → camelCase 别名。"""
+
     model_config = ConfigDict(
         alias_generator=_to_camel,
-        extra="forbid",
         populate_by_name=True,
     )
 
