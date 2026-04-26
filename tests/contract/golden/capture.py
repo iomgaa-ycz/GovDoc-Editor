@@ -35,6 +35,7 @@ UNSTABLE_FIELDS = {
     "audit_run_id",
     "project_id",
     "tender_doc_id",
+    "supplementary_doc_ids",
     "checkpoint_final_id",
     # FK UUID 列表的 JSON string 形式
     "checkpoint_final_ids",

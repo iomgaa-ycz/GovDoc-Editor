@@ -32,6 +32,11 @@ import {
 
 // ── Context value ──
 
+export interface AuditInputDocs {
+  mainDoc?: TenderDoc;
+  supplementaryDocs: TenderDoc[];
+}
+
 export interface WorkbenchContextValue {
   // Connection
   apiConnected: boolean;
@@ -61,8 +66,15 @@ export interface WorkbenchContextValue {
   setSelectedProjectId: (id: string | null) => void;
   createProject: (name: string) => Promise<Project>;
   uploadTenderDoc: (projectId: string, file: File) => Promise<TenderDoc>;
+  uploadAuditInputDocs: (
+    projectId: string,
+    mainFile: File,
+    supplementaryFiles: File[],
+  ) => Promise<AuditInputDocs>;
 
   // Tender docs (per project)
+  auditInputDocs: Record<string, AuditInputDocs>;
+  /** Deprecated compatibility alias for the current project's main tender doc. */
   tenderDocs: Record<string, TenderDoc>;
 
   // Audit runs
@@ -73,6 +85,7 @@ export interface WorkbenchContextValue {
   createAuditRun: (
     projectId: string,
     tenderDocId: string,
+    supplementaryDocIds: string[],
     checkpointIds: string[],
   ) => Promise<{ audit_run_id: string }>;
   auditProgress: AuditRunProgress | null;
@@ -136,7 +149,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // Projects
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [tenderDocs, setTenderDocs] = useState<Record<string, TenderDoc>>({});
+  const [auditInputDocs, setAuditInputDocs] = useState<Record<string, AuditInputDocs>>({});
 
   // Audit runs
   const [auditRuns, setAuditRuns] = useState<AuditRun[]>([]);
@@ -156,6 +169,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // Derived
   const activeRuleSource = ruleSources.find((r) => r.id === selectedRuleSourceId);
   const activeProject = projects.find((p) => p.id === selectedProjectId);
+  const tenderDocs: Record<string, TenderDoc> = Object.fromEntries(
+    Object.entries(auditInputDocs)
+      .filter(([, docs]) => docs.mainDoc)
+      .map(([projectId, docs]) => [projectId, docs.mainDoc as TenderDoc]),
+  );
 
   const activeAuditRun = auditRuns.find((r) => r.id === selectedAuditRunId);
   const pointRuns = auditProgress?.point_runs ?? [];
@@ -191,17 +209,23 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         projs.map(async (p) => {
           try {
             const docs = await api.listTenderDocs(p.id);
-            return docs.length > 0 ? [p.id, docs[docs.length - 1]] as const : null;
+            return docs.length > 0 ? ([p.id, docs] as const) : null;
           } catch {
             return null;
           }
         }),
       );
-      const docsMap: Record<string, TenderDoc> = {};
+      const docsMap: Record<string, AuditInputDocs> = {};
       for (const entry of docEntries) {
-        if (entry) docsMap[entry[0]] = entry[1];
+        if (entry) {
+          const [pid, docs] = entry;
+          docsMap[pid] = {
+            mainDoc: docs[0],
+            supplementaryDocs: docs.slice(1),
+          };
+        }
       }
-      setTenderDocs((prev) => ({ ...docsMap, ...prev }));
+      setAuditInputDocs((prev) => ({ ...docsMap, ...prev }));
       setApiConnected(true);
     } catch {
       setApiConnected(false);
@@ -281,8 +305,47 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function handleUploadTenderDoc(projectId: string, file: File) {
     const doc = await api.uploadTenderDoc(projectId, file);
-    setTenderDocs((prev) => ({ ...prev, [projectId]: doc }));
+    setAuditInputDocs((prev) => ({
+      ...prev,
+      [projectId]: {
+        mainDoc: doc,
+        supplementaryDocs: prev[projectId]?.supplementaryDocs ?? [],
+      },
+    }));
     return doc;
+  }
+
+  async function handleUploadAuditInputDocs(
+    projectId: string,
+    mainFile: File,
+    supplementaryFiles: File[],
+  ): Promise<AuditInputDocs> {
+    const existing = auditInputDocs[projectId];
+    const mainDoc = existing?.mainDoc ?? await api.uploadTenderDoc(projectId, mainFile);
+    let supplementaryDocs = [...(existing?.supplementaryDocs ?? [])];
+
+    setAuditInputDocs((prev) => ({
+      ...prev,
+      [projectId]: {
+        mainDoc,
+        supplementaryDocs,
+      },
+    }));
+
+    const filesToUpload = supplementaryFiles.slice(supplementaryDocs.length);
+    for (const file of filesToUpload) {
+      const doc = await api.uploadTenderDoc(projectId, file);
+      supplementaryDocs = [...supplementaryDocs, doc];
+      setAuditInputDocs((prev) => ({
+        ...prev,
+        [projectId]: {
+          mainDoc,
+          supplementaryDocs,
+        },
+      }));
+    }
+
+    return { mainDoc, supplementaryDocs };
   }
 
   // ── Audit runs ──
@@ -328,15 +391,22 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   async function handleCreateAuditRun(
     projectId: string,
     tenderDocId: string,
+    supplementaryDocIds: string[],
     checkpointIds: string[],
   ) {
-    const result = await api.createAuditRun(projectId, tenderDocId, checkpointIds);
+    const result = await api.createAuditRun(
+      projectId,
+      tenderDocId,
+      supplementaryDocIds,
+      checkpointIds,
+    );
     // Add to auditRuns immediately
     setAuditRuns((prev) => [
       {
         id: result.audit_run_id,
         project_id: projectId,
         tender_doc_id: tenderDocId,
+        supplementary_doc_ids: supplementaryDocIds,
         status: "pending",
         processed_count: 0,
         total_count: result.total_count,
@@ -504,6 +574,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setSelectedProjectId,
     createProject,
     uploadTenderDoc: handleUploadTenderDoc,
+    uploadAuditInputDocs: handleUploadAuditInputDocs,
+    auditInputDocs,
     tenderDocs,
     auditRuns,
     activeAuditRun,

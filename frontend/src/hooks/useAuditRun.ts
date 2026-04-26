@@ -13,9 +13,8 @@
  *   轮询/进度不在此 hook 内重复实现，避免与 context 双写。
  *
  * 设计要点：
- *   hook 内部从 useWorkbench() 读取 activeProject / createAuditRun，
- *   并自行通过 tenderDocs[activeProject.id] 解析当前 tenderDoc，
- *   与 AIReviewPage 现有逻辑一致（消费端零语义差异）。
+ *   hook 内部从 useWorkbench() 读取 activeProject / auditInputDocs / createAuditRun，
+ *   并自行解析当前主文书和附件 ID。
  */
 
 import { useState } from "react";
@@ -32,14 +31,14 @@ export interface AuditRunController {
   /**
    * 触发启动审核；以下任一条件都会直接 no-op：
    *   - 无 activeProject
-   *   - 无 tenderDoc（当前活动项目尚未上传）
+   *   - 无 mainDoc（当前活动项目尚未上传主文书）
    *   - 未勾选任何审核点
    */
   handleStartAudit: () => Promise<void>;
 }
 
 export function useAuditRun(): AuditRunController {
-  const { activeProject, tenderDocs, createAuditRun } = useWorkbench();
+  const { activeProject, auditInputDocs, createAuditRun } = useWorkbench();
 
   const [selectedCpIds, setSelectedCpIds] = useState<string[]>([]);
   const [startingAudit, setStartingAudit] = useState<boolean>(false);
@@ -51,11 +50,13 @@ export function useAuditRun(): AuditRunController {
   }
 
   async function handleStartAudit(): Promise<void> {
-    const tenderDoc = activeProject ? tenderDocs[activeProject.id] : undefined;
-    if (!activeProject || !tenderDoc || selectedCpIds.length === 0) return;
+    const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
+    const mainDoc = inputDocs?.mainDoc;
+    const supplementaryDocIds = inputDocs?.supplementaryDocs.map((doc) => doc.id) ?? [];
+    if (!activeProject || !mainDoc || selectedCpIds.length === 0) return;
     setStartingAudit(true);
     try {
-      await createAuditRun(activeProject.id, tenderDoc.id, selectedCpIds);
+      await createAuditRun(activeProject.id, mainDoc.id, supplementaryDocIds, selectedCpIds);
     } finally {
       setStartingAudit(false);
     }

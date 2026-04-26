@@ -68,6 +68,22 @@ def write_single_checkpoint_json(audit_run_id: str, checkpoint: GovCheckpoint) -
     return path
 
 
+def write_documents_manifest_json(
+    audit_run_id: str,
+    manifest: list[dict[str, str]],
+) -> Path:
+    """将本次审核输入文档说明写为临时 JSON 文件，供 workspace data_inputs 使用。"""
+    import tempfile
+
+    tmp = tempfile.mkdtemp(prefix=f"audit_{audit_run_id}_")
+    path = Path(tmp) / "documents.json"
+    path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return path
+
+
 def count_processed_points(session: Session, audit_run_id: str) -> int:
     """统计已完成的 AuditPointRun 数量。"""
     runs = session.exec(
@@ -173,13 +189,41 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
     return point_run
 
 
+def _add_doc_to_collection(
+    coll: Any,
+    audit_run_id: str,
+    doc: TenderDoc,
+    source_type: str,
+) -> None:
+    """把单个 TenderDoc 幂等加入 qmd collection。"""
+    if coll.get_document(doc.id) is not None:
+        return
+
+    md_path = Path(doc.markdown_path).expanduser().resolve()
+    if not md_path.exists():
+        logger.warning("文书 markdown 不存在，跳过 qmd 索引: %s", md_path)
+        return
+
+    coll.add_document(
+        doc.id,
+        md_path.read_text(encoding="utf-8"),
+        metadata={
+            "audit_run": audit_run_id,
+            "source": doc.filename,
+            "filename": doc.filename,
+            "source_type": source_type,
+        },
+    )
+
+
 def _ensure_tender_collection(
     audit_run_id: str,
     tender_doc: TenderDoc,
+    supplementary_docs: Sequence[TenderDoc] = (),
     *,
     qmd_client: Any | None = None,
 ) -> str:
-    """创建临时 qmd collection 并索引招标文书 markdown。
+    """创建临时 qmd collection 并索引招标文书 markdown 与附件。
 
     按 design §10 L584-592：创建 run_{id}_tender collection，
     将 tender markdown 加入，使 agent 在 workspace 中可通过 qmd search 检索。
@@ -187,17 +231,10 @@ def _ensure_tender_collection(
     collection_name = f"run_{audit_run_id}_tender"
     client = qmd_client or get_qmd()
     coll = client.collection(collection_name)
-    if coll.get_document(tender_doc.id) is not None:
-        return collection_name
 
-    tender_md_path = Path(tender_doc.markdown_path).expanduser().resolve()
-    if tender_md_path.exists():
-        markdown_text = tender_md_path.read_text(encoding="utf-8")
-        coll.add_document(
-            tender_doc.id,
-            markdown_text,
-            metadata={"audit_run": audit_run_id, "source": tender_doc.filename},
-        )
+    _add_doc_to_collection(coll, audit_run_id, tender_doc, "main")
+    for doc in supplementary_docs:
+        _add_doc_to_collection(coll, audit_run_id, doc, "supplementary")
 
     return collection_name
 
@@ -206,6 +243,7 @@ def _index_tender_doc(
     audit_run: AuditRun,
     tender_doc: TenderDoc,
     *,
+    supplementary_docs: Sequence[TenderDoc] = (),
     replay: bool,
 ) -> str | None:
     """为本次 audit run 准备 qmd tender collection。
@@ -224,7 +262,11 @@ def _index_tender_doc(
     if replay:
         return f"run_{audit_run.id}_tender"
     try:
-        return _ensure_tender_collection(audit_run.id, tender_doc)
+        return _ensure_tender_collection(
+            audit_run.id,
+            tender_doc,
+            supplementary_docs=supplementary_docs,
+        )
     except Exception:
         return None
 
@@ -267,6 +309,7 @@ async def _run_single_point(
     checkpoint: GovCheckpoint,
     tender_doc: TenderDoc,
     *,
+    supplementary_docs: Sequence[TenderDoc] = (),
     audit_run: AuditRun,
     tender_collection: str | None,
     manager: Any,
@@ -292,6 +335,7 @@ async def _run_single_point(
         point_run: 当前 AuditPointRun（提供 id 作为 workspace run_id）
         checkpoint: 待审核的 GovCheckpoint（用于 task_prompt + 落盘 checkpoints.json）
         tender_doc: 招标文书（提供 markdown_path 作为 data_inputs）
+        supplementary_docs: 附件文书列表（作为 supp_*.md 注入 workspace）
         audit_run: 当前 AuditRun（提供 id 给 extra_env / checkpoint 落盘）
         tender_collection: qmd tender collection 名；None 表示不注入该 env
         manager: workspace manager（Scrivai 注入）
@@ -312,14 +356,31 @@ async def _run_single_point(
         extra_env["GOVDOC_TENDER_COLLECTION"] = tender_collection
     extra_env["GOVDOC_DB_PATH"] = str(cfg.qmd_db_path)
 
+    manifest = [
+        {"path": "tender.md", "filename": tender_doc.filename, "source_type": "main"},
+        *[
+            {
+                "path": f"supp_{index}.md",
+                "filename": doc.filename,
+                "source_type": "supplementary",
+            }
+            for index, doc in enumerate(supplementary_docs)
+        ],
+    ]
+    manifest_path = write_documents_manifest_json(audit_run.id, manifest)
+    data_inputs = {
+        "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
+        "checkpoints.json": checkpoint_path,
+        "documents.json": manifest_path,
+    }
+    for index, doc in enumerate(supplementary_docs):
+        data_inputs[f"supp_{index}.md"] = Path(doc.markdown_path).expanduser().resolve()
+
     workspace = manager.create(
         WorkspaceSpec(
             run_id=point_run.id,
             project_root=repo_root,
-            data_inputs={
-                "tender.md": Path(tender_doc.markdown_path).expanduser().resolve(),
-                "checkpoints.json": checkpoint_path,
-            },
+            data_inputs=data_inputs,
             extra_env=extra_env,
         )
     )
@@ -348,9 +409,16 @@ async def _run_single_point(
     else:
         pes = build_gov_auditor_pes(workspace=workspace, runtime_context=runtime_context)
 
+    files_desc = "data/tender.md"
+    if supplementary_docs:
+        files_desc += "、" + "、".join(
+            f"data/supp_{index}.md" for index in range(len(supplementary_docs))
+        )
+
     result = await pes.run(
         task_prompt=(
-            "审核 data/tender.md，针对 data/checkpoints.json 中的唯一审核点"
+            f"审核 {files_desc}，参考 data/documents.json 中的文件说明，"
+            "针对 data/checkpoints.json 中的唯一审核点"
             f"「{checkpoint.title}」生成一条 GovFinding。"
         ),
     )
@@ -532,6 +600,22 @@ async def run_audit(
     if tender_doc is None:
         raise ValueError(f"未找到 TenderDoc: {audit_run.tender_doc_id}")
 
+    try:
+        supplementary_doc_ids = json.loads(audit_run.supplementary_doc_ids or "[]")
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 无效") from exc
+    if not isinstance(supplementary_doc_ids, list):
+        raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 不是列表")
+
+    supplementary_docs: list[TenderDoc] = []
+    for doc_id in supplementary_doc_ids:
+        doc = session.get(TenderDoc, doc_id)
+        if doc is None:
+            raise ValueError(f"未找到附件 TenderDoc: {doc_id}")
+        if doc.project_id != audit_run.project_id:
+            raise ValueError(f"附件 TenderDoc {doc_id} 不属于项目 {audit_run.project_id}")
+        supplementary_docs.append(doc)
+
     # 解析 point_runs：总数（含 completed）+ 过滤后待跑列表
     audit_run.status = "running"
     audit_run.total_count, point_runs_to_run = _resolve_point_runs(
@@ -547,7 +631,12 @@ async def run_audit(
     cfg = get_config()
 
     # 索引招标文书到 qmd 临时 collection（非 replay 模式下才做）
-    tender_collection = _index_tender_doc(audit_run, tender_doc, replay=replay_dir is not None)
+    tender_collection = _index_tender_doc(
+        audit_run,
+        tender_doc,
+        supplementary_docs=supplementary_docs,
+        replay=replay_dir is not None,
+    )
 
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace
@@ -573,6 +662,7 @@ async def run_audit(
                     point_run,
                     checkpoint,
                     tender_doc,
+                    supplementary_docs=supplementary_docs,
                     audit_run=audit_run,
                     tender_collection=tender_collection,
                     manager=manager,
