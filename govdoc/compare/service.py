@@ -194,6 +194,61 @@ def _build_document_model(side: str, file_name: str, path: Path) -> DocumentMode
     return DocumentModel(side=side, file_name=file_name, blocks=blocks, full_text=full_text)
 
 
+def _find_sentence_boundary(text: str, index: int) -> int | None:
+    """检测 text[index] 是否为句子结束符，返回句子边界位置。
+
+    返回 None 表示当前字符不是句子边界。
+    返回 int 表示句子结束后的下一个字符位置。
+    """
+    current = text[index]
+
+    if current in SENTENCE_END_CHARS:
+        return index + 1
+
+    if current == ".":
+        lookahead = index + 1
+        while lookahead < len(text) and text[lookahead].isspace():
+            lookahead += 1
+        if (
+            lookahead >= len(text)
+            or text[lookahead].isupper()
+            or text[lookahead].isdigit()
+            or text[lookahead] in {'"', "'"}
+        ):
+            return lookahead
+
+    return None
+
+
+def _trim_and_append_sentence(
+    sentences: list[SentenceOccurrence],
+    block: TextBlock,
+    start: int,
+    end: int,
+) -> None:
+    """裁剪段落内 [start, end) 范围的首尾空白后追加到句子列表。"""
+    text = block.text
+    leading = start
+    while leading < end and text[leading].isspace():
+        leading += 1
+    trailing = end
+    while trailing > leading and text[trailing - 1].isspace():
+        trailing -= 1
+
+    if leading < trailing:
+        sentences.append(
+            SentenceOccurrence(
+                text=text[leading:trailing],
+                start=block.start + leading,
+                end=block.start + trailing,
+                block_id=block.id,
+                block_index=block.index,
+                start_in_block=leading,
+                end_in_block=trailing,
+            )
+        )
+
+
 def _iter_sentence_occurrences(document: DocumentModel) -> list[SentenceOccurrence]:
     """枚举文档中所有句子的全文位置和段落内位置。"""
     sentences: list[SentenceOccurrence] = []
@@ -204,66 +259,13 @@ def _iter_sentence_occurrences(document: DocumentModel) -> list[SentenceOccurren
         index = 0
 
         while index < len(text):
-            current = text[index]
-            boundary_end: int | None = None
-
-            if current in SENTENCE_END_CHARS:
-                boundary_end = index + 1
-            elif current == ".":
-                lookahead = index + 1
-                while lookahead < len(text) and text[lookahead].isspace():
-                    lookahead += 1
-                if (
-                    lookahead >= len(text)
-                    or text[lookahead].isupper()
-                    or text[lookahead].isdigit()
-                    or text[lookahead] in {'"', "'"}
-                ):
-                    boundary_end = lookahead
-
+            boundary_end = _find_sentence_boundary(text, index)
             if boundary_end is not None:
-                leading = start
-                while leading < boundary_end and text[leading].isspace():
-                    leading += 1
-                trailing = boundary_end
-                while trailing > leading and text[trailing - 1].isspace():
-                    trailing -= 1
-
-                if leading < trailing:
-                    sentences.append(
-                        SentenceOccurrence(
-                            text=text[leading:trailing],
-                            start=block.start + leading,
-                            end=block.start + trailing,
-                            block_id=block.id,
-                            block_index=block.index,
-                            start_in_block=leading,
-                            end_in_block=trailing,
-                        )
-                    )
+                _trim_and_append_sentence(sentences, block, start, boundary_end)
                 start = boundary_end
-
             index += 1
 
-        leading = start
-        while leading < len(text) and text[leading].isspace():
-            leading += 1
-        trailing = len(text)
-        while trailing > leading and text[trailing - 1].isspace():
-            trailing -= 1
-
-        if leading < trailing:
-            sentences.append(
-                SentenceOccurrence(
-                    text=text[leading:trailing],
-                    start=block.start + leading,
-                    end=block.start + trailing,
-                    block_id=block.id,
-                    block_index=block.index,
-                    start_in_block=leading,
-                    end_in_block=trailing,
-                )
-            )
+        _trim_and_append_sentence(sentences, block, start, len(text))
 
     return sentences
 
