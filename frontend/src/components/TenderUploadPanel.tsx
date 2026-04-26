@@ -7,12 +7,7 @@
  * 设计要点：
  *   1. 纯展示组件：不直接调用 useWorkbench，所有状态与 handler 由调用方
  *      （AIReviewPage 容器）经 props 传入，保持组件可测试、可复用。
- *   2. 文案与 DOM 结构与拆分前 AIReviewPage 保持逐字一致，以兼容现有行为
- *      护栏测试（tests/pages/AIReviewPage.test.tsx）。
- *   3. 条件分支：
- *        - `activeProject && !tenderDoc` → 渲染上传区
- *        - `tenderDoc` → 渲染成功提示
- *      与原实现一致。
+ *   2. 区分主招标文书与补充文件，上传语义由容器注入。
  */
 
 import type { ChangeEvent } from "react";
@@ -29,8 +24,10 @@ export interface TenderUploadPanelProps {
   selectedProjectId: string | null;
   /** 切换选中项目 */
   setSelectedProjectId: (id: string | null) => void;
-  /** 当前活动项目已上传的招标文书（未上传时为 undefined） */
-  tenderDoc: TenderDoc | undefined;
+  /** 当前活动项目已上传的主招标文书（未上传时为 undefined） */
+  mainDoc: TenderDoc | undefined;
+  /** 当前活动项目已上传的附件列表 */
+  supplementaryDocs: TenderDoc[];
   /** 新项目名称输入框值 */
   newProjectName: string;
   /** 更新新项目名称 */
@@ -39,10 +36,14 @@ export interface TenderUploadPanelProps {
   creating: boolean;
   /** 触发创建项目 */
   handleCreateProject: () => void;
-  /** 待上传的招标文书 File（未选择时为 null） */
-  tenderFile: File | null;
-  /** 更新待上传文件 */
-  setTenderFile: (f: File | null) => void;
+  /** 待上传的主招标文书 File（未选择时为 null） */
+  mainTenderFile: File | null;
+  /** 更新待上传主文书 */
+  setMainTenderFile: (f: File | null) => void;
+  /** 待上传附件列表 */
+  supplementaryFiles: File[];
+  /** 更新待上传附件列表 */
+  setSupplementaryFiles: (files: File[]) => void;
   /** 正在上传招标文书 */
   uploadingTender: boolean;
   /** 触发上传招标文书 */
@@ -57,13 +58,16 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
     activeProject,
     selectedProjectId,
     setSelectedProjectId,
-    tenderDoc,
+    mainDoc,
+    supplementaryDocs,
     newProjectName,
     setNewProjectName,
     creating,
     handleCreateProject,
-    tenderFile,
-    setTenderFile,
+    mainTenderFile,
+    setMainTenderFile,
+    supplementaryFiles,
+    setSupplementaryFiles,
     uploadingTender,
     handleUploadTender,
     uploadError,
@@ -96,15 +100,24 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
         </div>
       </Field>
 
-      {activeProject && !tenderDoc && (
+      {activeProject && (
         <>
-          <Field label="上传招标文书">
-            {tenderFile ? (
+          <Field label="上传主招标文书">
+            {mainDoc ? (
               <div className="file-chip-list">
                 <div className="file-chip">
                   <div>
-                    <strong>{tenderFile.name}</strong>
-                    <span>{(tenderFile.size / 1024).toFixed(1)} KB</span>
+                    <strong>{mainDoc.filename}</strong>
+                    <span>已上传</span>
+                  </div>
+                </div>
+              </div>
+            ) : mainTenderFile ? (
+              <div className="file-chip-list">
+                <div className="file-chip">
+                  <div>
+                    <strong>{mainTenderFile.name}</strong>
+                    <span>{(mainTenderFile.size / 1024).toFixed(1)} KB</span>
                   </div>
                 </div>
               </div>
@@ -113,26 +126,59 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
                 title="选择招标文书"
                 subtitle="支持 .pdf, .docx, .md"
                 accept=".pdf,.docx,.md,.txt"
-                onSelect={(files) => setTenderFile(files[0] ?? null)}
+                onSelect={(files) => setMainTenderFile(files[0] ?? null)}
               />
             )}
           </Field>
-          {tenderFile && (
-            <>
-              <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
-                上传文书
-              </Button>
-              {uploadError && <InlineNotice tone="error" message={uploadError} />}
-            </>
+          <Field label="上传补充文件 / 变更公告 / 答疑纪要">
+            {supplementaryDocs.length > 0 || supplementaryFiles.length > 0 ? (
+              <div className="file-chip-list">
+                {supplementaryDocs.map((doc) => (
+                  <div className="file-chip" key={doc.id}>
+                    <div>
+                      <strong>{doc.filename}</strong>
+                      <span>已上传附件</span>
+                    </div>
+                  </div>
+                ))}
+                {supplementaryFiles.map((file) => (
+                  <div className="file-chip" key={`${file.name}-${file.size}-${file.lastModified}`}>
+                    <div>
+                      <strong>{file.name}</strong>
+                      <span>{(file.size / 1024).toFixed(1)} KB</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!mainTenderFile && (
+              <FileDropzone
+                title="选择补充文件"
+                subtitle="可多选，支持 .pdf, .docx, .md"
+                accept=".pdf,.docx,.md,.txt"
+                multiple
+                onSelect={(files) => setSupplementaryFiles(files)}
+              />
+            )}
+          </Field>
+
+          {mainTenderFile && (
+            <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
+              上传文书
+            </Button>
           )}
+          {uploadError && <InlineNotice tone="error" message={uploadError} />}
         </>
       )}
 
-      {tenderDoc && (
+      {mainDoc && (
         <>
-          <InlineNotice tone="success" message={`文书已上传: ${tenderDoc.filename}`} />
-          {tenderDoc.warnings && tenderDoc.warnings.length > 0 && (
-            <InlineNotice tone="warning" message={tenderDoc.warnings.join("；")} />
+          <InlineNotice
+            tone="success"
+            message={`文书已上传: ${mainDoc.filename}${supplementaryDocs.length > 0 ? `，附件 ${supplementaryDocs.length} 个` : ""}`}
+          />
+          {mainDoc.warnings && mainDoc.warnings.length > 0 && (
+            <InlineNotice tone="warning" message={mainDoc.warnings.join("；")} />
           )}
         </>
       )}
