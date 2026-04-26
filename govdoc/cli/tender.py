@@ -37,6 +37,7 @@ def validate_checkpoint_command(raw_json: str) -> dict[str, object]:
 
 
 def _resolve_qmd_db_path(db_path: str | None) -> Path:
+    """解析 qmd 数据库路径。优先级：显式参数 > GOVDOC_DB_PATH > QMD_DB_PATH。"""
     resolved = db_path or os.environ.get("GOVDOC_DB_PATH") or os.environ.get("QMD_DB_PATH")
     if not resolved:
         raise ValueError("missing qmd db path: pass --db/--db-path or set GOVDOC_DB_PATH")
@@ -44,6 +45,7 @@ def _resolve_qmd_db_path(db_path: str | None) -> Path:
 
 
 def _search_result_to_json(result: Any) -> dict[str, Any]:
+    """将 qmd 搜索结果转为可 JSON 序列化的 dict。优先 model_dump，fallback 到 __dict__。"""
     if hasattr(result, "model_dump"):
         return result.model_dump(mode="json")
     if hasattr(result, "__dict__"):
@@ -60,7 +62,7 @@ def qmd_search_command(
     rerank: bool = False,
     filters_json: str | None = None,
 ) -> dict[str, Any]:
-    """Search a GovDoc/qmd collection through Scrivai's qmd facade."""
+    """通过 Scrivai 的 qmd facade 执行混合检索（向量 + FTS5）。"""
     filters = json.loads(filters_json) if filters_json else None
     if filters is not None and not isinstance(filters, dict):
         raise ValueError("--filters must be a JSON object")
