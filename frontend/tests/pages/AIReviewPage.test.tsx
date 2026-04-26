@@ -264,3 +264,65 @@ describe("AIReviewPage · 行为护栏", () => {
     expect(within(pendingCard).getByText("2")).toBeInTheDocument();
   });
 });
+
+describe("AIReviewPage · PR#2 新功能", () => {
+  it("审核点 verdict 存疑时，StatPill 渲染 uncertain 状态", () => {
+    const uncertainFinding = JSON.stringify({
+      checkpoint: { id: "cp-1", category: "其他违法违规", title: "采购范围", description: "", legal_basis: [], severity: "minor", retrieval_hint: "" },
+      verdict: { verdict: "存疑", rationale: "证据不足", evidence_quotes: [], suggestion: "" },
+      evidence_refs: [], case_refs: [],
+    });
+
+    const progress: AuditRunProgress = {
+      audit_run_id: "ar-1", status: "running", total_count: 1, processed_count: 1,
+      point_runs: [{ id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: uncertainFinding }],
+    };
+
+    renderPage({
+      projects: [sampleProject],
+      activeProject: sampleProject,
+      selectedProjectId: sampleProject.id,
+      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      finalCheckpoints: sampleCheckpoints,
+      auditProgress: progress,
+    });
+
+    const pill = screen.getByText("uncertain");
+    expect(pill).toHaveClass("status-pill--uncertain");
+  });
+
+  it("文书上传失败时显示红色错误提示", async () => {
+    const uploadTenderDoc = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
+    renderPage({
+      projects: [sampleProject],
+      activeProject: sampleProject,
+      selectedProjectId: sampleProject.id,
+      uploadTenderDoc,
+    });
+
+    const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+    const testFile = new File(["dummy"], "tender.pdf", { type: "application/pdf" });
+    await userEvent.upload(fileInput, testFile);
+
+    const uploadBtn = screen.getByRole("button", { name: "上传文书" });
+    await userEvent.click(uploadBtn);
+
+    expect(await screen.findByText("MonkeyOCR 不可用")).toBeInTheDocument();
+  });
+
+  it("文书上传成功且含 warnings 时显示降级警告", () => {
+    const tenderDocWithWarnings: TenderDoc = {
+      ...sampleTenderDoc,
+      warnings: ["docx_to_markdown 失败，使用 fallback 文本提取"],
+    };
+    renderPage({
+      projects: [sampleProject],
+      activeProject: sampleProject,
+      selectedProjectId: sampleProject.id,
+      tenderDocs: { [sampleProject.id]: tenderDocWithWarnings },
+    });
+
+    expect(screen.getByText(/文书已上传/)).toBeInTheDocument();
+    expect(screen.getByText("docx_to_markdown 失败，使用 fallback 文本提取")).toBeInTheDocument();
+  });
+});
