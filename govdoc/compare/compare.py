@@ -8,7 +8,6 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from pathlib import Path
 import re
 
 from govdoc.compare.extractor import extract_docx_paragraphs, normalize_text
@@ -153,74 +152,3 @@ def find_common_segments(
         segments.append(segment)
 
     return segments
-
-
-def compare_docx_files(
-    first_path: str | Path,
-    second_path: str | Path,
-    min_segment_length: int = 12,
-) -> dict:
-    """对两份 DOCX 文件执行段落、句子和片段级公共文本对比。"""
-    first_file = Path(first_path)
-    second_file = Path(second_path)
-
-    first_paragraphs = extract_docx_paragraphs(first_file)
-    second_paragraphs = extract_docx_paragraphs(second_file)
-
-    first_sentences = split_sentences(first_paragraphs)
-    second_sentences = split_sentences(second_paragraphs)
-
-    first_text = "\n".join(first_paragraphs)
-    second_text = "\n".join(second_paragraphs)
-
-    paragraph_matches = find_exact_matches(first_paragraphs, second_paragraphs)
-    sentence_matches = find_exact_matches(first_sentences, second_sentences)
-    segment_matches = find_common_segments(
-        first_text=first_text,
-        second_text=second_text,
-        min_length=min_segment_length,
-    )
-
-    return {
-        "documents": {
-            "first": str(first_file),
-            "second": str(second_file),
-        },
-        "summary": {
-            "first_paragraph_count": len(first_paragraphs),
-            "second_paragraph_count": len(second_paragraphs),
-            "first_sentence_count": len(first_sentences),
-            "second_sentence_count": len(second_sentences),
-            "common_paragraph_count": len(paragraph_matches),
-            "common_sentence_count": len(sentence_matches),
-            "common_segment_count": len(segment_matches),
-            "min_segment_length": min_segment_length,
-        },
-        "common_paragraphs": [
-            {
-                "text": match.text,
-                "first_positions": match.first_positions,
-                "second_positions": match.second_positions,
-            }
-            for match in paragraph_matches
-        ],
-        "common_sentences": [
-            {
-                "text": match.text,
-                "first_positions": match.first_positions,
-                "second_positions": match.second_positions,
-            }
-            for match in sentence_matches
-        ],
-        "common_segments": [
-            {
-                "text": match.text,
-                "first_start": match.first_start,
-                "first_end": match.first_end,
-                "second_start": match.second_start,
-                "second_end": match.second_end,
-                "length": match.length,
-            }
-            for match in segment_matches
-        ],
-    }
