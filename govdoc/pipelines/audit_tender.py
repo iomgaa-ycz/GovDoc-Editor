@@ -604,8 +604,10 @@ async def run_audit(
         supplementary_doc_ids = json.loads(audit_run.supplementary_doc_ids or "[]")
     except json.JSONDecodeError as exc:
         raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 无效") from exc
-    if not isinstance(supplementary_doc_ids, list):
-        raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 不是列表")
+    if not isinstance(supplementary_doc_ids, list) or not all(
+        isinstance(x, str) for x in supplementary_doc_ids
+    ):
+        raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 不是字符串列表")
 
     supplementary_docs: list[TenderDoc] = []
     for doc_id in supplementary_doc_ids:
