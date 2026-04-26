@@ -157,6 +157,7 @@ export function listAuditRuns(projectId?: string): Promise<AuditRun[]> {
 export function createAuditRun(
   projectId: string,
   tenderDocId: string,
+  supplementaryDocIds: string[],
   checkpointIds: string[],
 ): Promise<{ audit_run_id: string; total_count: number; status: string }> {
   return request("/api/v1/audit/runs", {
@@ -165,6 +166,7 @@ export function createAuditRun(
     body: JSON.stringify({
       project_id: projectId,
       tender_doc_id: tenderDocId,
+      supplementary_doc_ids: supplementaryDocIds,
       checkpoint_ids: checkpointIds,
     }),
   });
