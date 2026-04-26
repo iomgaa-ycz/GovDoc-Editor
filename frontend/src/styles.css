@@ -20,6 +20,8 @@
   --warn-soft: #fef3c7;
   --err: #dc2626;
   --err-soft: #fef2f2;
+  --uncertain: #4a5568;
+  --uncertain-soft: #e0e7f1;
   --shadow-soft: 0 16px 40px rgba(27, 42, 74, 0.06);
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -867,8 +869,8 @@ a {
 }
 
 .status-pill--uncertain {
-  background: #e0e7f1;
-  color: #4a5568;
+  background: var(--uncertain-soft);
+  color: var(--uncertain);
 }
 
 .status-pill--error {
@@ -964,7 +966,7 @@ a {
 }
 
 .review-point-item--uncertain {
-  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--surface-bg) 0%, var(--uncertain-soft) 100%);
 }
 
 .log-console {
