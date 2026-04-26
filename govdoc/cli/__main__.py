@@ -11,6 +11,7 @@ from typing import Any
 from govdoc.cli.tender import (
     locate_section_command,
     parse_tender_command,
+    qmd_search_command,
     validate_checkpoint_command,
 )
 
@@ -39,6 +40,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate = subparsers.add_parser("validate-checkpoint")
     validate.add_argument("--json", required=True)
+
+    qmd_search = subparsers.add_parser("qmd-search")
+    qmd_search.add_argument("--collection", required=True)
+    qmd_search.add_argument("--query", required=True)
+    qmd_search.add_argument("--db", "--db-path", dest="db_path")
+    qmd_search.add_argument("--top-k", type=int, default=5)
+    qmd_search.add_argument("--rerank", action="store_true")
+    qmd_search.add_argument("--filters", default=None)
     return parser
 
 
@@ -54,6 +63,18 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "validate-checkpoint":
             _emit_stdout(validate_checkpoint_command(args.json))
+            return 0
+        if args.command == "qmd-search":
+            _emit_stdout(
+                qmd_search_command(
+                    collection=args.collection,
+                    query=args.query,
+                    db_path=args.db_path,
+                    top_k=args.top_k,
+                    rerank=args.rerank,
+                    filters_json=args.filters,
+                )
+            )
             return 0
         parser.error(f"未知命令: {args.command}")
     except Exception as exc:  # noqa: BLE001 - CLI should always emit JSON
