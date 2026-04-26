@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def _load_supplementary_doc_ids(raw: str | None) -> list[str]:
+    """解析 AuditRun.supplementary_doc_ids 的 JSON 字符串为 ID 列表。
+
+    容错处理：空值、JSON 解析失败、非列表值均返回空列表。
+    """
     if not raw:
         return []
     try:
@@ -90,7 +94,7 @@ async def create_audit_run(
             try:
                 await run_audit(audit_run.id, s)
             except Exception:
-                pass
+                logger.exception("后台审核执行失败: %s", audit_run.id)
 
     background_tasks.add_task(_run_audit)
     return result

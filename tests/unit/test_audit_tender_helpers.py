@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+
+import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -694,3 +696,81 @@ def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, 
         _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert captured["workpaper"].tender_doc_path == tender_doc.storage_path
+
+
+# --- run_audit supplementary_doc_ids 校验 ----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_invalid_supplementary_json():
+    """supplementary_doc_ids 为非法 JSON 时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = "NOT_VALID_JSON"
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="附件 ID JSON 无效"):
+            await run_audit(audit_run.id, session)
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_nonexistent_supplementary_doc():
+    """supplementary_doc_ids 含不存在的 doc_id 时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = '["nonexistent-doc-id"]'
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="未找到附件 TenderDoc"):
+            await run_audit(audit_run.id, session)
+
+
+@pytest.mark.asyncio
+async def test_run_audit_rejects_non_string_supplementary_ids():
+    """supplementary_doc_ids 含非字符串元素时 run_audit 应抛 ValueError。"""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with SQLSession(engine) as session:
+        audit_run, tender_doc, cf = _seed_audit(session)
+        audit_run.supplementary_doc_ids = "[1, 2, 3]"
+        session.add(audit_run)
+        session.commit()
+
+        pr = AuditPointRun(
+            audit_run_id=audit_run.id,
+            checkpoint_final_id=cf.id,
+        )
+        session.add(pr)
+        session.commit()
+
+        from govdoc.pipelines.audit_tender import run_audit
+
+        with pytest.raises(ValueError, match="不是字符串列表"):
+            await run_audit(audit_run.id, session)

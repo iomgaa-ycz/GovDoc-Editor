@@ -225,7 +225,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
           };
         }
       }
-      setAuditInputDocs((prev) => ({ ...docsMap, ...prev }));
+      setAuditInputDocs((prev) => ({ ...prev, ...docsMap }));
       setApiConnected(true);
     } catch {
       setApiConnected(false);

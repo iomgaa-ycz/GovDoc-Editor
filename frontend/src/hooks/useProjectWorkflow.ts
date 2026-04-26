@@ -9,7 +9,7 @@
  *   2. 业务副作用（网络 I/O）仍由 context 负责；hook 仅管理 busy 标志与输入态。
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 
@@ -43,19 +43,15 @@ export function useProjectWorkflow(): ProjectWorkflow {
 
   const [newProjectName, setNewProjectName] = useState<string>("");
   const [creating, setCreating] = useState<boolean>(false);
-  const [mainTenderFile, setMainTenderFile] = useState<File | null>(null);
+  const [mainTenderFile, setMainTenderFileRaw] = useState<File | null>(null);
   const [supplementaryFiles, setSupplementaryFiles] = useState<File[]>([]);
   const [uploadingTender, setUploadingTender] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // 切换文件时清空上传错误
-  const setTenderFile = useCallback(
-    (f: File | null) => {
-      setTenderFileRaw(f);
-      if (f !== null) setUploadError(null);
-    },
-    [],
-  );
+  function setMainTenderFile(f: File | null) {
+    setMainTenderFileRaw(f);
+    if (f !== null) setUploadError(null);
+  }
 
   // 切换项目时清空上传错误
   useEffect(() => {

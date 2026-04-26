@@ -294,7 +294,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: sampleTenderDoc },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: sampleTenderDoc,
+          supplementaryDocs: [],
+        },
+      },
       finalCheckpoints: sampleCheckpoints,
       auditProgress: progress,
     });
@@ -304,12 +309,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
   });
 
   it("文书上传失败时显示红色错误提示", async () => {
-    const uploadTenderDoc = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
+    const uploadAuditInputDocs = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
     renderPage({
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      uploadTenderDoc,
+      uploadAuditInputDocs,
     });
 
     const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
@@ -331,7 +336,12 @@ describe("AIReviewPage · PR#2 新功能", () => {
       projects: [sampleProject],
       activeProject: sampleProject,
       selectedProjectId: sampleProject.id,
-      tenderDocs: { [sampleProject.id]: tenderDocWithWarnings },
+      auditInputDocs: {
+        [sampleProject.id]: {
+          mainDoc: tenderDocWithWarnings,
+          supplementaryDocs: [],
+        },
+      },
     });
 
     expect(screen.getByText(/文书已上传/)).toBeInTheDocument();
