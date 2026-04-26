@@ -10,7 +10,7 @@
  *   3. 对 AIReviewPage 调用端保持零语义差异：返回字段名沿用原 state/ handler 命名。
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 
@@ -27,6 +27,8 @@ export interface ProjectWorkflow {
   creating: boolean;
   /** 正在调用 uploadTenderDoc */
   uploadingTender: boolean;
+  /** 上传失败的错误消息（无错误时为 null） */
+  uploadError: string | null;
   /** 触发新建项目；空名直接 no-op */
   handleCreateProject: () => Promise<void>;
   /** 触发上传招标文书；无活动项目或无文件直接 no-op */
@@ -38,8 +40,23 @@ export function useProjectWorkflow(): ProjectWorkflow {
 
   const [newProjectName, setNewProjectName] = useState<string>("");
   const [creating, setCreating] = useState<boolean>(false);
-  const [tenderFile, setTenderFile] = useState<File | null>(null);
+  const [tenderFile, setTenderFileRaw] = useState<File | null>(null);
   const [uploadingTender, setUploadingTender] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // 切换文件时清空上传错误
+  const setTenderFile = useCallback(
+    (f: File | null) => {
+      setTenderFileRaw(f);
+      if (f !== null) setUploadError(null);
+    },
+    [],
+  );
+
+  // 切换项目时清空上传错误
+  useEffect(() => {
+    setUploadError(null);
+  }, [activeProject?.id]);
 
   async function handleCreateProject(): Promise<void> {
     if (!newProjectName) return;
@@ -55,9 +72,12 @@ export function useProjectWorkflow(): ProjectWorkflow {
   async function handleUploadTender(): Promise<void> {
     if (!activeProject || !tenderFile) return;
     setUploadingTender(true);
+    setUploadError(null);
     try {
       await uploadTenderDoc(activeProject.id, tenderFile);
-      setTenderFile(null);
+      setTenderFileRaw(null);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "上传失败");
     } finally {
       setUploadingTender(false);
     }
@@ -70,6 +90,7 @@ export function useProjectWorkflow(): ProjectWorkflow {
     setTenderFile,
     creating,
     uploadingTender,
+    uploadError,
     handleCreateProject,
     handleUploadTender,
   };
