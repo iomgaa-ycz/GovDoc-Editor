@@ -37,27 +37,25 @@ from govdoc.schemas.compare import (
 )
 
 
-CategoryId = Literal["paragraph", "sentence", "segment"]
-
-CATEGORY_PRIORITY: dict[CategoryId, int] = {
+CATEGORY_PRIORITY: dict[CompareCategoryId, int] = {
     "paragraph": 0,
     "sentence": 1,
     "segment": 2,
 }
 
-CATEGORY_LABELS: dict[CategoryId, str] = {
+CATEGORY_LABELS: dict[CompareCategoryId, str] = {
     "paragraph": "相同段落",
     "sentence": "相同句子",
     "segment": "连续公共片段",
 }
 
-CATEGORY_COLORS: dict[CategoryId, str] = {
+CATEGORY_COLORS: dict[CompareCategoryId, str] = {
     "paragraph": "#f5b700",
     "sentence": "#12b5cb",
     "segment": "#ff7a59",
 }
 
-DOCX_HIGHLIGHT_COLORS: dict[CategoryId, WD_COLOR_INDEX] = {
+DOCX_HIGHLIGHT_COLORS: dict[CompareCategoryId, WD_COLOR_INDEX] = {
     "paragraph": WD_COLOR_INDEX.YELLOW,
     "sentence": WD_COLOR_INDEX.TURQUOISE,
     "segment": WD_COLOR_INDEX.PINK,
@@ -113,7 +111,7 @@ class MatchRecord:
     """服务层内部使用的匹配记录。"""
 
     id: str
-    category: CategoryId
+    category: CompareCategoryId
     text: str
     first_occurrences: list[MatchOccurrence]
     second_occurrences: list[MatchOccurrence]
@@ -140,10 +138,13 @@ class CompareDownload:
 def get_compare_root() -> Path:
     """返回文档对比运行时目录。
 
-    对比功能按产品约定固定写入项目根目录下的 data/compare，不单独暴露配置项。
+    复用项目统一存储根 (storage_root / "compare")，与其他存储路径管理一致。
     """
-    project_root = Path(__file__).resolve().parents[2]
-    return project_root / "data" / "compare"
+    from govdoc.storage.files import get_storage_root
+
+    root = get_storage_root() / "compare"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def _prepare_output_root(output_root: Path | None) -> Path:
