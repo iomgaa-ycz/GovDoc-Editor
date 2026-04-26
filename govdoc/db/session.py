@@ -9,7 +9,7 @@ from typing import Iterator
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, create_engine
 
 from govdoc.config import load_config
 
