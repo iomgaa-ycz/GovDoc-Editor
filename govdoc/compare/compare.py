@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 import re
 
-from govdoc.compare.extractor import extract_docx_paragraphs, normalize_text
+from govdoc.compare.extractor import normalize_text
 
 
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[\u3002\uff01\uff1f!?；;])\s*|(?<=[.])\s+(?=[A-Z0-9\"\'])")
