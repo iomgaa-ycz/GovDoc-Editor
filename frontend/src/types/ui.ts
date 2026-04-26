@@ -132,6 +132,7 @@ export interface AuditRun {
   id: string;
   project_id: string;
   tender_doc_id: string;
+  supplementary_doc_ids?: string[];
   status: AuditRunStatus;
   processed_count: number;
   total_count: number;

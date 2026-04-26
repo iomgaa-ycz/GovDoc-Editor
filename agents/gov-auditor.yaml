@@ -8,13 +8,13 @@ external_cli_tools:
 phases:
   plan:
     name: plan
-    max_turns: 30
-    allowed_tools: ["Read", "Write", "Grep"]
+    max_turns: 50
+    allowed_tools: ["Read", "Write", "Grep", "Bash"]
     required_outputs: ["plan.md", "plan.json"]
 
   execute:
     name: execute
-    max_turns: 30
+    max_turns: 50
     allowed_tools: ["Read", "Write", "Grep", "Bash", "Skill"]
     required_outputs:
       - path: findings
