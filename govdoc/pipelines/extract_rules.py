@@ -8,7 +8,7 @@ from typing import Any
 from scrivai import WorkspaceSpec
 from sqlmodel import Session
 
-from govdoc.db.models import CheckpointDraft, CheckpointFinal, ExtractRun, RuleSource
+from govdoc.db.models import CheckpointFinal, ExtractRun, RuleSource
 from govdoc.pipelines.common import attach_workspace_output, dump_phase_usage, load_result_payload
 from govdoc.pipelines.pes_overrides import GovDocMockExtractorPES
 from govdoc.runtime import (
@@ -99,13 +99,6 @@ async def run_extract(
                 load_result_payload(result.final_output_path, result.final_output)
             )
             for checkpoint in payload.checkpoints:
-                draft = CheckpointDraft(
-                    rule_source_id=rule_source.id,
-                    payload_json=checkpoint.model_dump_json(),
-                    extract_run_id=extract_run.id,
-                    status="promoted",
-                )
-                session.add(draft)
                 session.add(
                     CheckpointFinal(
                         payload_json=checkpoint.model_dump_json(),
