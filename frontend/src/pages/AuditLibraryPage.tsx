@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 import type { GovCheckpointPayload, CheckpointItem } from "../types/ui";
-import { parseCheckpointPayload, checkpointToDisplay } from "../adapters/backendToUi";
+import { parseCheckpointPayload } from "../adapters/backendToUi";
 import {
   Button,
   Card,
@@ -56,9 +56,6 @@ export function AuditLibraryPage() {
     const p = parseCheckpointPayload(c.payload_json);
     return { item: c, payload: p };
   }).filter((c) => c.payload != null);
-
-  const draftCount = checkpoints.filter((c) => c.kind === "draft").length;
-  const finalCount = checkpoints.filter((c) => c.kind === "final").length;
 
   // ── Upload flow ──
 
@@ -149,15 +146,7 @@ export function AuditLibraryPage() {
           {/* Overview */}
           <div className="library-overview-grid">
             <Card>
-              <CardHeader title="终审审核点" />
-              <strong style={{ fontSize: 28 }}>{finalCount}</strong>
-            </Card>
-            <Card>
-              <CardHeader title="草稿审核点" />
-              <strong style={{ fontSize: 28 }}>{draftCount}</strong>
-            </Card>
-            <Card>
-              <CardHeader title="总计" />
+              <CardHeader title="已入库审核点" />
               <strong style={{ fontSize: 28 }}>{checkpoints.length}</strong>
             </Card>
           </div>
@@ -175,7 +164,7 @@ export function AuditLibraryPage() {
                   <div className="point-preview-copy">
                     <strong>{payload!.title}</strong>
                     <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                      {payload!.category} · {payload!.severity} · <StatPill status={item.kind === "final" ? "passed" : "pending"}>{item.kind === "final" ? "终审" : "草稿"}</StatPill>
+                      {payload!.category} · {payload!.severity} · <StatPill status="passed">已入库</StatPill>
                     </span>
                     <p>{payload!.description}</p>
                   </div>
@@ -238,7 +227,7 @@ export function AuditLibraryPage() {
                 />
               )}
               {extractStatus === "draft_ready" && (
-                <InlineNotice tone="success" message="提取完成，审核点已生成。" />
+                <InlineNotice tone="success" message="提取完成，审核点已入库。" />
               )}
               <div className="footer-actions">
                 <Button
@@ -259,7 +248,7 @@ export function AuditLibraryPage() {
       {mode === "import" && (
         <div className="stack-gap">
           <Card>
-            <CardHeader title="导入审查点表格" description="上传已整理的审查点表格（.xls / .xlsx / .csv），系统将自动解析并生成草稿审核点。" />
+            <CardHeader title="导入审查点表格" description="上传已整理的审查点表格（.xls / .xlsx / .csv），系统将自动解析并写入审核点库。" />
             <div className="modal-form">
               <Field label="审查点文件">
                 {importFile ? (

@@ -1,7 +1,10 @@
 # 设计：直接导入已整理审查点（xls/xlsx/csv）
 
 > 日期：2026-04-19
-> 状态：待实施
+> 状态：已废弃
+> 取代方案：`docs/superpowers/plans/2026-04-27-remove-checkpoint-drafts.md`
+
+> 说明：本文记录的是旧的“导入后进入 `CheckpointDraft` 草稿流程”方案。2026-04-27 起，审核点库不再维护草稿态；AI 抽取和表格导入都直接写入已入库审核点（`CheckpointFinal`）。后续实现以取代方案为准。
 
 ## 1. 背景与目标
 

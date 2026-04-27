@@ -136,12 +136,12 @@ sequenceDiagram
     WS-->>PES: workspace (含 .claude/skills snapshot)
     PES->>PES: plan → execute → summarize
     PES->>PES: output.json = {"checkpoints": [...]}
-    API->>DB: INSERT CheckpointDraft(promoted) + CheckpointFinal × N
+    API->>DB: INSERT CheckpointFinal × N
     API->>WS: archive(success=True)
     API->>DB: UPDATE ExtractRun.status = "draft_ready"
 ```
 
-**关键简化**（M0 决策）：抽取完的 draft **自动 promote** 到 final，跳过 v2 的"专家审核 draft → final"流程。
+**关键简化**：审核点提取完成后直接写入审核点库，不再维护"草稿 → 终稿"确认流程。
 
 📍 `govdoc/pipelines/extract_rules.py` → `run_extract()` 函数是全流程骨架。
 
@@ -259,7 +259,7 @@ data/.govdoc/archives/{run_id}/         ← 归档期（原封保留）
                     │                        │ FK
                     │                        ▼
                     │               ┌──────────────────┐
-                    │               │ CheckpointFinal  │←── (Pipeline A 自动 promote)
+                    │               │ CheckpointFinal  │←── (审核点库)
                     │               └──────────────────┘        │
                     ▼                                           │
            ┌─────────────────┐                                  │
@@ -272,9 +272,9 @@ data/.govdoc/archives/{run_id}/         ← 归档期（原封保留）
            └─────────────────┘                                  │
                                                                 │
 ┌────────────┐    ┌──────────────┐    ┌─────────────────┐      │
-│ RuleSource │←───│ ExtractRun   │───→│ CheckpointDraft │──────┘
+│ RuleSource │←───│ ExtractRun   │───→│ CheckpointFinal │──────┘
 └────────────┘    └──────────────┘    └─────────────────┘
-                   (管道 A 唯一)       (M0 简化：promoted)
+                   (管道 A 唯一)       (审核点库)
 
 + Comment  (仅 UI 骨架，反馈未接)
 + User     (预留，无鉴权实现)
@@ -288,7 +288,7 @@ data/.govdoc/archives/{run_id}/         ← 归档期（原封保留）
 | `AuditRun.status` | `pending → running → {draft_ready │ partial_ready │ waiting_retry │ failed} → finalized` |
 | `AuditPointRun.status` | `pending → running → {completed │ failed │ waiting_retry}` |
 | `TenderDoc.qmd_collection` | `run_{audit_run_id}_tender` — 审核开始时临时建，审完可清 |
-| `CheckpointDraft.status` | `draft │ rejected │ promoted` (M0: 总是 promoted) |
+| `CheckpointFinal.approved_by` | `system:auto-promote` / `system:import` / 人工或迁移来源 |
 | `WorkpaperFinal.case_library_entry_id` | 回灌 qmd 后的 entry id，下次审核可命中 |
 
 ### 领域 schema（pydantic，`govdoc/schemas/`）
@@ -399,11 +399,12 @@ FastAPI
 ├── 管道 A (规则 → 审核点)
 │   ├── /api/v1/rules                             GET
 │   ├── /api/v1/rules/upload                      POST    (上传指引 + 触发 run_extract)
-│   ├── /api/v1/rules/{id}/checkpoints/drafts     GET
 │   └── /api/v1/rules/{id}/extract-runs/{run_id}/status   GET    (轮询点)
 │
 ├── 审核点管理
-│   └── /api/v1/checkpoints                       GET  PUT  DELETE
+│   ├── /api/v1/checkpoints                       GET
+│   ├── /api/v1/checkpoints/import                POST
+│   └── /api/v1/checkpoints/{id}                  PUT  DELETE
 │
 ├── 管道 B (审核执行)
 │   ├── /api/v1/audit/runs                        GET POST  (POST 触发 run_audit)

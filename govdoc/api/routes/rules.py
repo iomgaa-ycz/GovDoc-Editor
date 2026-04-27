@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
-from govdoc.db.models import CheckpointDraft, ExtractRun, RuleSource
+from govdoc.db.models import ExtractRun, RuleSource
 from govdoc.runtime import get_document_store, get_libraries
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
@@ -98,12 +98,3 @@ async def get_extract_run_status(rule_id: str, run_id: str):
             "workspace_failed_path": run.workspace_failed_path,
             "error": run.error,
         }
-
-
-@router.get("/{rule_id}/checkpoints/drafts")
-async def list_checkpoint_drafts(rule_id: str):
-    with get_db_session() as session:
-        drafts = session.exec(
-            select(CheckpointDraft).where(CheckpointDraft.rule_source_id == rule_id)
-        ).all()
-        return [{"id": d.id, "status": d.status, "payload_json": d.payload_json} for d in drafts]

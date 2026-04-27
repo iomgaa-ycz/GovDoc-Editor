@@ -50,7 +50,6 @@ export interface WorkbenchContextValue {
   // Checkpoints
   checkpoints: CheckpointItem[];
   finalCheckpoints: Array<CheckpointItem & { parsed: GovCheckpointPayload }>;
-  activeRuleSourceCheckpoints: CheckpointItem[];
 
   // Extraction
   extractingRuleSourceId: string | null;
@@ -180,15 +179,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const activePointRun = pointRuns.find((pr) => pr.id === selectedPointRunId);
 
   const finalCheckpoints = checkpoints
-    .filter((c) => c.kind === "final")
     .map((c) => ({ ...c, parsed: parseCheckpointPayload(c.payload_json)! }))
     .filter((c) => c.parsed != null);
-
-  const activeRuleSourceCheckpoints = selectedRuleSourceId
-    ? checkpoints.filter(
-        (c) => c.kind === "final" || c.rule_source_id === selectedRuleSourceId,
-      )
-    : checkpoints;
 
   // ── Data fetching ──
 
@@ -562,7 +554,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setSelectedRuleSourceId,
     checkpoints,
     finalCheckpoints,
-    activeRuleSourceCheckpoints,
     extractingRuleSourceId,
     extractStatus,
     extractError,

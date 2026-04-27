@@ -1,4 +1,4 @@
-"""Checkpoints routes — 统一查看/编辑/删除审核点。"""
+"""Checkpoints routes — 统一查看/编辑/删除已入库审核点。"""
 
 from __future__ import annotations
 
@@ -10,20 +10,9 @@ from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.schemas import UpdateCheckpointRequest
-from govdoc.db.models import CheckpointDraft, CheckpointFinal
+from govdoc.db.models import CheckpointFinal
 
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
-
-
-def _serialize_draft(draft: CheckpointDraft) -> dict[str, str | None]:
-    return {
-        "id": draft.id,
-        "kind": "draft",
-        "status": draft.status,
-        "payload_json": draft.payload_json,
-        "approved_by": None,
-        "rule_source_id": draft.rule_source_id,
-    }
 
 
 def _serialize_final(final: CheckpointFinal) -> dict[str, str | None]:
@@ -39,12 +28,8 @@ def _serialize_final(final: CheckpointFinal) -> dict[str, str | None]:
 @router.get("")
 async def list_checkpoints():
     with get_db_session() as session:
-        drafts = session.exec(
-            select(CheckpointDraft).where(CheckpointDraft.status != "promoted")
-        ).all()
         finals = session.exec(select(CheckpointFinal)).all()
         payload = [_serialize_final(final) for final in finals]
-        payload.extend(_serialize_draft(draft) for draft in drafts)
         payload.sort(key=lambda item: (item["kind"] or "", item["id"] or ""))
         return payload
 
@@ -54,7 +39,7 @@ _ALLOWED_EXTENSIONS = {".xls", ".xlsx", ".csv"}
 
 @router.post("/import")
 async def import_checkpoints(file: UploadFile = File(...)):
-    """上传审查点表格（xls/xlsx/csv），批量生成 CheckpointDraft。"""
+    """上传审查点表格（xls/xlsx/csv），批量写入审核点库。"""
     filename = file.filename or ""
     suffix = Path(filename).suffix.lower()
     if suffix not in _ALLOWED_EXTENSIONS:
@@ -72,26 +57,32 @@ async def import_checkpoints(file: UploadFile = File(...)):
         from govdoc.parsers.checkpoint_import import parse_checkpoint_file
 
         checkpoints, skipped_reasons = parse_checkpoint_file(tmp_path)
+    except ModuleNotFoundError as exc:
+        missing = exc.name or "解析依赖"
+        raise HTTPException(
+            status_code=500,
+            detail=f"服务器缺少表格解析依赖: {missing}，请安装项目依赖后重试",
+        ) from exc
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    drafts: list[dict[str, str | None]] = []
+    imported: list[dict[str, str | None]] = []
     with get_db_session() as session:
         for cp in checkpoints:
-            draft = CheckpointDraft(
+            final = CheckpointFinal(
                 payload_json=cp.model_dump_json(),
-                status="draft",
+                approved_by="system:import",
             )
-            session.add(draft)
+            session.add(final)
             session.flush()
-            drafts.append(_serialize_draft(draft))
+            imported.append(_serialize_final(final))
         session.commit()
 
     return {
         "imported_count": len(checkpoints),
         "skipped_count": len(skipped_reasons),
         "skipped_reasons": skipped_reasons,
-        "drafts": drafts,
+        "checkpoints": imported,
     }
 
 
@@ -105,13 +96,6 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
             session.commit()
             return _serialize_final(final)
 
-        draft = session.get(CheckpointDraft, checkpoint_id)
-        if draft is not None:
-            draft.payload_json = payload.payload_json
-            session.add(draft)
-            session.commit()
-            return _serialize_draft(draft)
-
         raise HTTPException(status_code=404, detail="Checkpoint 不存在")
 
 
@@ -121,12 +105,6 @@ async def delete_checkpoint(checkpoint_id: str) -> Response:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
             session.delete(final)
-            session.commit()
-            return Response(status_code=204)
-
-        draft = session.get(CheckpointDraft, checkpoint_id)
-        if draft is not None:
-            session.delete(draft)
             session.commit()
             return Response(status_code=204)
 

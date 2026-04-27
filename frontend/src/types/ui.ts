@@ -53,11 +53,10 @@ export interface GovCheckpointPayload {
 
 export interface CheckpointItem {
   id: string;
-  kind: "draft" | "final";
+  kind: "final";
   status: string;
   payload_json: string; // JSON-encoded GovCheckpointPayload
   approved_by: string | null;
-  rule_source_id?: string | null;
 }
 
 // ── Findings ──

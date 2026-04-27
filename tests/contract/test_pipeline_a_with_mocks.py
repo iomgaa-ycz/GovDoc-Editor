@@ -5,7 +5,7 @@ from pathlib import Path
 from scrivai import FakeTrajectoryStore, TempWorkspaceManager
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from govdoc.db.models import CheckpointDraft, CheckpointFinal, ExtractRun, RuleSource
+from govdoc.db.models import CheckpointFinal, ExtractRun, RuleSource
 from govdoc.pipelines.extract_rules import run_extract
 
 
@@ -44,9 +44,6 @@ def test_pipeline_a_with_mock_pes_replay(monkeypatch, tmp_path):
             )
         )
 
-        drafts = session.exec(
-            select(CheckpointDraft).where(CheckpointDraft.extract_run_id == extract_run.id)
-        ).all()
         finals = session.exec(select(CheckpointFinal)).all()
         expected = json.loads(
             (fixtures_root / "checkpoints_golden.json").read_text(encoding="utf-8")
@@ -54,9 +51,8 @@ def test_pipeline_a_with_mock_pes_replay(monkeypatch, tmp_path):
 
     assert extract_run.status == "draft_ready"
     assert extract_run.workspace_archive_path is not None
-    assert len(drafts) == len(expected["checkpoints"])
     assert len(finals) == len(expected["checkpoints"])
-    assert all(item.status == "promoted" for item in drafts)
-    assert sorted(json.loads(item.payload_json)["id"] for item in drafts) == sorted(
+    assert all(item.approved_by == "system:auto-promote" for item in finals)
+    assert sorted(json.loads(item.payload_json)["id"] for item in finals) == sorted(
         checkpoint["id"] for checkpoint in expected["checkpoints"]
     )
