@@ -1,4 +1,4 @@
-"""E2E: Pipeline A — 上传法规 → 触发提取 → 轮询 → 查看草稿审核点。
+"""E2E: Pipeline A — 上传法规 → 触发提取 → 轮询 → 查看入库审核点。
 
 标记 @pytest.mark.slow：涉及真实 LLM 调用，单次约 1-5 分钟。
 """
@@ -32,7 +32,7 @@ def extract_result(api: httpx.Client, guide_docx_path: Path) -> dict:
 
 
 class TestRuleExtract:
-    """B07-B09: 法规上传 → 提取 → 查看草稿。"""
+    """B07-B09: 法规上传 → 提取 → 查看入库审核点。"""
 
     def test_upload_triggers_extraction(self, extract_result: dict):
         """B07: 上传法规返回 rule_source_id + extract_run_id。"""
@@ -66,19 +66,20 @@ class TestRuleExtract:
 
         assert status in terminal_states, f"意外状态: {status}"
 
-    def test_view_draft_checkpoints(self, api: httpx.Client, extract_result: dict):
-        """B09: 查看提取出的草稿审核点。"""
+    def test_view_checkpoints(self, api: httpx.Client, extract_result: dict):
+        """B09: 查看提取出的入库审核点。"""
         rule_id = extract_result["rule_source_id"]
         run_id = extract_result["extract_run_id"]
 
         status_resp = api.get(f"/api/v1/rules/{rule_id}/extract-runs/{run_id}/status")
         status = status_resp.json()["status"]
         if status == "failed":
-            pytest.skip(f"提取失败，跳过草稿查看: {status_resp.json().get('error')}")
+            pytest.skip(f"提取失败，跳过审核点查看: {status_resp.json().get('error')}")
 
-        resp = api.get(f"/api/v1/rules/{rule_id}/checkpoints/drafts")
+        resp = api.get("/api/v1/checkpoints")
         assert resp.status_code == 200
-        drafts = resp.json()
-        assert isinstance(drafts, list)
-        assert len(drafts) >= 1, "提取应至少产生 1 个草稿审核点"
-        assert "payload_json" in drafts[0]
+        checkpoints = resp.json()
+        assert isinstance(checkpoints, list)
+        assert len(checkpoints) >= 1, "提取应至少产生 1 个入库审核点"
+        assert checkpoints[0]["kind"] == "final"
+        assert "payload_json" in checkpoints[0]

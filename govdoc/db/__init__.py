@@ -3,7 +3,6 @@
 from govdoc.db.models import (
     AuditPointRun,
     AuditRun,
-    CheckpointDraft,
     CheckpointFinal,
     Comment,
     ExtractRun,
@@ -19,7 +18,6 @@ from govdoc.db.session import get_engine, get_session, init_db
 __all__ = [
     "AuditPointRun",
     "AuditRun",
-    "CheckpointDraft",
     "CheckpointFinal",
     "Comment",
     "ExtractRun",
