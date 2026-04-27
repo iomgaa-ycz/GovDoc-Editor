@@ -66,7 +66,10 @@ def tender_docx_path() -> Path:
 @pytest.fixture(scope="session")
 def tender_pdf_path() -> Path:
     """从化区中医医院招标文书 PDF。"""
-    p = E2E_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+    p = (
+        E2E_DATA_DIR
+        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+    )
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 

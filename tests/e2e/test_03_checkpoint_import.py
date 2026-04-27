@@ -27,7 +27,9 @@ class TestCheckpointImport:
     """B10: 批量导入审核点。"""
 
     def test_import_returns_counts(
-        self, api: httpx.Client, checkpoint_xls_path: Path,
+        self,
+        api: httpx.Client,
+        checkpoint_xls_path: Path,
     ):
         with open(checkpoint_xls_path, "rb") as f:
             resp = api.post(
