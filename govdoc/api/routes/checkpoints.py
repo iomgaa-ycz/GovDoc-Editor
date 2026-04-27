@@ -30,7 +30,7 @@ async def list_checkpoints():
     with get_db_session() as session:
         finals = session.exec(select(CheckpointFinal)).all()
         payload = [_serialize_final(final) for final in finals]
-        payload.sort(key=lambda item: (item["kind"] or "", item["id"] or ""))
+        payload.sort(key=lambda item: item["id"] or "")
         return payload
 
 
