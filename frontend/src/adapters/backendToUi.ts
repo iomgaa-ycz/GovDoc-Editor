@@ -21,7 +21,7 @@ export function parseCheckpointPayload(
 
 export function checkpointToDisplay(
   item: CheckpointItem,
-): GovCheckpointPayload & { _id: string; _kind: "draft" | "final" } {
+): GovCheckpointPayload & { _id: string; _kind: "final" } {
   const payload = parseCheckpointPayload(item.payload_json);
   return {
     ...(payload ?? {
