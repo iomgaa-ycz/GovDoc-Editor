@@ -1,5 +1,4 @@
 import type {
-  CheckpointItem,
   GovCheckpointPayload,
   GovFinding,
   WorkpaperPayload,
@@ -17,25 +16,6 @@ export function parseCheckpointPayload(
   } catch {
     return null;
   }
-}
-
-export function checkpointToDisplay(
-  item: CheckpointItem,
-): GovCheckpointPayload & { _id: string; _kind: "final" } {
-  const payload = parseCheckpointPayload(item.payload_json);
-  return {
-    ...(payload ?? {
-      id: item.id,
-      category: "其他违法违规" as const,
-      title: "(解析失败)",
-      description: "",
-      legal_basis: [],
-      severity: "minor" as const,
-      retrieval_hint: "",
-    }),
-    _id: item.id,
-    _kind: item.kind,
-  };
 }
 
 /* ── Finding display helpers ── */
