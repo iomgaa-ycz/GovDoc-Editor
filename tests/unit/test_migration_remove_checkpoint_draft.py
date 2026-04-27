@@ -13,25 +13,28 @@
 """
 
 import sqlalchemy as sa
-import pytest
 
 
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
 
+
 def _create_pre_migration_tables(engine: sa.Engine) -> None:
     """建立迁移前的 checkpointfinal + checkpointdraft 表。"""
     with engine.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE checkpointfinal (
                 id TEXT PRIMARY KEY,
                 payload_json TEXT NOT NULL,
                 approved_by TEXT NOT NULL,
                 approved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE checkpointdraft (
                 id TEXT PRIMARY KEY,
                 rule_source_id TEXT,
@@ -40,13 +43,15 @@ def _create_pre_migration_tables(engine: sa.Engine) -> None:
                 status TEXT NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
 
 
 def _run_upgrade(engine: sa.Engine) -> None:
     """执行与迁移 upgrade() 等价的 SQL。"""
     with engine.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             INSERT INTO checkpointfinal (id, payload_json, approved_by, approved_at)
             SELECT d.id, d.payload_json, 'migration:checkpoint-draft', CURRENT_TIMESTAMP
             FROM checkpointdraft AS d
@@ -54,7 +59,8 @@ def _run_upgrade(engine: sa.Engine) -> None:
               AND NOT EXISTS (
                 SELECT 1 FROM checkpointfinal AS f WHERE f.id = d.id
               )
-        """))
+        """)
+        )
         conn.execute(sa.text("DROP TABLE checkpointdraft"))
 
 
@@ -93,6 +99,7 @@ def _insert_final(
 # ---------------------------------------------------------------------------
 # 测试用例
 # ---------------------------------------------------------------------------
+
 
 class TestMigrationRemoveCheckpointDraft:
     """迁移 remove_checkpointdraft 行为验证。"""
@@ -135,8 +142,7 @@ class TestMigrationRemoveCheckpointDraft:
         with engine.connect() as conn:
             result = conn.execute(
                 sa.text(
-                    "SELECT name FROM sqlite_master"
-                    " WHERE type='table' AND name='checkpointdraft'"
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='checkpointdraft'"
                 )
             ).fetchone()
         assert result is None, "upgrade 后 checkpointdraft 表应已被删除"
@@ -197,14 +203,8 @@ class TestMigrationRemoveCheckpointDraft:
         _run_upgrade(engine)
 
         with engine.connect() as conn:
-            rows = conn.execute(
-                sa.text("SELECT id FROM checkpointfinal")
-            ).fetchall()
+            rows = conn.execute(sa.text("SELECT id FROM checkpointfinal")).fetchall()
             ids = {r[0] for r in rows}
 
-        assert "promoted-1" not in ids, (
-            "promoted 草稿不应被迁移到 checkpointfinal"
-        )
-        assert "pending-1" in ids, (
-            "pending 草稿应被迁移到 checkpointfinal"
-        )
+        assert "promoted-1" not in ids, "promoted 草稿不应被迁移到 checkpointfinal"
+        assert "pending-1" in ids, "pending 草稿应被迁移到 checkpointfinal"

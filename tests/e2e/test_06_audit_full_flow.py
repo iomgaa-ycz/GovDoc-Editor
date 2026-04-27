@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -17,7 +16,9 @@ import pytest
 pytestmark = pytest.mark.slow
 
 TENDER_DOCX_FILENAME = "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
-TENDER_PDF_FILENAME = "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+TENDER_PDF_FILENAME = (
+    "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+)
 CHECKPOINT_XLS_FILENAME = "附件9 处理处罚标准.xls"
 
 
@@ -30,10 +31,13 @@ def data_dir() -> Path:
 def setup_project(api: httpx.Client, data_dir: Path) -> dict:
     """创建项目 + 上传主文书 + 上传补充文件 + 导入审核点，返回所有 ID。"""
     # 1. 创建项目
-    resp = api.post("/api/v1/projects", json={
-        "name": f"E2E审核测试_{uuid4().hex[:8]}",
-        "created_by": "e2e-bot",
-    })
+    resp = api.post(
+        "/api/v1/projects",
+        json={
+            "name": f"E2E审核测试_{uuid4().hex[:8]}",
+            "created_by": "e2e-bot",
+        },
+    )
     assert resp.status_code == 201
     project_id = resp.json()["id"]
 
@@ -86,12 +90,15 @@ class TestAuditRun:
 
     def test_create_audit_run(self, api: httpx.Client, setup_project: dict):
         """B14: 创建含补充文件的审核运行。"""
-        resp = api.post("/api/v1/audit/runs", json={
-            "project_id": setup_project["project_id"],
-            "tender_doc_id": setup_project["main_doc_id"],
-            "supplementary_doc_ids": [setup_project["supp_doc_id"]],
-            "checkpoint_ids": setup_project["checkpoint_ids"],
-        })
+        resp = api.post(
+            "/api/v1/audit/runs",
+            json={
+                "project_id": setup_project["project_id"],
+                "tender_doc_id": setup_project["main_doc_id"],
+                "supplementary_doc_ids": [setup_project["supp_doc_id"]],
+                "checkpoint_ids": setup_project["checkpoint_ids"],
+            },
+        )
         assert resp.status_code == 202, resp.text
         data = resp.json()
         assert "audit_run_id" in data
@@ -100,22 +107,28 @@ class TestAuditRun:
 
     def test_invalid_supplementary_ids(self, api: httpx.Client, setup_project: dict):
         """B15: 非法补充文件 ID → 400。"""
-        resp = api.post("/api/v1/audit/runs", json={
-            "project_id": setup_project["project_id"],
-            "tender_doc_id": setup_project["main_doc_id"],
-            "supplementary_doc_ids": ["nonexistent_999"],
-            "checkpoint_ids": setup_project["checkpoint_ids"],
-        })
+        resp = api.post(
+            "/api/v1/audit/runs",
+            json={
+                "project_id": setup_project["project_id"],
+                "tender_doc_id": setup_project["main_doc_id"],
+                "supplementary_doc_ids": ["nonexistent_999"],
+                "checkpoint_ids": setup_project["checkpoint_ids"],
+            },
+        )
         assert resp.status_code == 400
 
     def test_duplicate_supplementary_id(self, api: httpx.Client, setup_project: dict):
         """补充文件 ID 与主文书重复 → 400。"""
-        resp = api.post("/api/v1/audit/runs", json={
-            "project_id": setup_project["project_id"],
-            "tender_doc_id": setup_project["main_doc_id"],
-            "supplementary_doc_ids": [setup_project["main_doc_id"]],
-            "checkpoint_ids": setup_project["checkpoint_ids"],
-        })
+        resp = api.post(
+            "/api/v1/audit/runs",
+            json={
+                "project_id": setup_project["project_id"],
+                "tender_doc_id": setup_project["main_doc_id"],
+                "supplementary_doc_ids": [setup_project["main_doc_id"]],
+                "checkpoint_ids": setup_project["checkpoint_ids"],
+            },
+        )
         assert resp.status_code == 400
         assert "重复" in resp.json()["detail"]
 
