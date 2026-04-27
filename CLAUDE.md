@@ -70,6 +70,23 @@ cd frontend && npx vite --host 0.0.0.0 --port 5173
 - 前端: http://localhost:5173
 - 后端 API: http://localhost:8000/docs（Swagger UI，MVP 可直接作为"前端"使用）
 
+### 2.3.1 访问部署环境（4090-server）
+
+部署目标为 4090-server (`yuchengzhang@100.83.164.94`)，通过 Tailscale 组网。
+
+> [!IMPORTANT]
+> 本地开发机需设置 **无代理** 才能直连 4090-server 的 HTTP 端口：
+> ```bash
+> export NO_PROXY=100.83.164.94
+> export no_proxy=100.83.164.94
+> ```
+> 或在 curl/httpx 命令前添加：`NO_PROXY=100.83.164.94`
+
+| 环境 | 后端 | 前端 | 用途 |
+|------|------|------|------|
+| testing | `http://100.83.164.94:8001/docs` | `http://100.83.164.94:5174` | master 分支自动部署 |
+| stable | `http://100.83.164.94:8000/docs` | `http://100.83.164.94:5175` | tag `v*` 手动发布 |
+
 ### 2.4 数据库迁移（Alembic）
 
 ```bash
