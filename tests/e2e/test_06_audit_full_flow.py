@@ -66,12 +66,12 @@ def setup_project(api: httpx.Client, data_dir: Path) -> dict:
     # 5. 获取可用的审核点
     resp = api.get("/api/v1/checkpoints")
     assert resp.status_code == 200
-    finals = [cp for cp in resp.json() if cp["kind"] == "final"]
+    all_checkpoints = resp.json()
 
-    if not finals:
+    if not all_checkpoints:
         pytest.skip("无可用审核点，跳过审核测试")
 
-    checkpoint_ids = [cp["id"] for cp in finals[:3]]
+    checkpoint_ids = [cp["id"] for cp in all_checkpoints[:3]]
 
     return {
         "project_id": project_id,
