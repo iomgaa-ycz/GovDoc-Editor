@@ -70,4 +70,4 @@ class ImportCheckpointsResponse(GovDocModel):
     imported_count: int
     skipped_count: int
     skipped_reasons: list[str] = Field(default_factory=list)
-    drafts: list[dict[str, str | None]] = Field(default_factory=list)
+    checkpoints: list[dict[str, str | None]] = Field(default_factory=list)

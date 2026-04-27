@@ -12,10 +12,13 @@ import pytest
 @pytest.fixture(scope="module")
 def project_id(api: httpx.Client) -> str:
     """创建一个测试项目，返回 ID。"""
-    resp = api.post("/api/v1/projects", json={
-        "name": f"E2E测试项目_{uuid4().hex[:8]}",
-        "created_by": "e2e-bot",
-    })
+    resp = api.post(
+        "/api/v1/projects",
+        json={
+            "name": f"E2E测试项目_{uuid4().hex[:8]}",
+            "created_by": "e2e-bot",
+        },
+    )
     assert resp.status_code == 201, resp.text
     data = resp.json()
     assert "id" in data
@@ -26,10 +29,13 @@ class TestProjectCRUD:
     """B02: 项目创建与查询。"""
 
     def test_create_project(self, api: httpx.Client):
-        resp = api.post("/api/v1/projects", json={
-            "name": f"临时项目_{uuid4().hex[:8]}",
-            "created_by": "e2e-bot",
-        })
+        resp = api.post(
+            "/api/v1/projects",
+            json={
+                "name": f"临时项目_{uuid4().hex[:8]}",
+                "created_by": "e2e-bot",
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert "id" in data
@@ -58,7 +64,10 @@ class TestTenderDocUpload:
     """B03-B06: 文书上传（DOCX / PDF / 多文件）。"""
 
     def test_upload_main_docx(
-        self, api: httpx.Client, project_id: str, tender_docx_path: Path,
+        self,
+        api: httpx.Client,
+        project_id: str,
+        tender_docx_path: Path,
     ):
         """B03: 上传主文书 DOCX。"""
         with open(tender_docx_path, "rb") as f:
@@ -73,7 +82,10 @@ class TestTenderDocUpload:
         assert data["markdown_path"] is not None
 
     def test_upload_supplementary_pdf(
-        self, api: httpx.Client, project_id: str, tender_pdf_path: Path,
+        self,
+        api: httpx.Client,
+        project_id: str,
+        tender_pdf_path: Path,
     ):
         """B04-B05: 上传 PDF 作为补充文件。"""
         with open(tender_pdf_path, "rb") as f:

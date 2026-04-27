@@ -104,12 +104,6 @@ export function getExtractRunStatus(
   return request(`/api/v1/rules/${ruleId}/extract-runs/${runId}/status`);
 }
 
-export function listCheckpointDrafts(
-  ruleId: string,
-): Promise<Array<{ id: string; status: string; payload_json: string }>> {
-  return request(`/api/v1/rules/${ruleId}/checkpoints/drafts`);
-}
-
 /* ── Checkpoints ── */
 
 export function listCheckpoints(): Promise<CheckpointItem[]> {
@@ -137,7 +131,7 @@ export function importCheckpoints(
   imported_count: number;
   skipped_count: number;
   skipped_reasons: string[];
-  drafts: Array<{ id: string; status: string; payload_json: string }>;
+  checkpoints: CheckpointItem[];
 }> {
   const form = new FormData();
   form.append("file", file);

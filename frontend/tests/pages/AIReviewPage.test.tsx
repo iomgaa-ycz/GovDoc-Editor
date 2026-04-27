@@ -63,7 +63,6 @@ function makeFinal(id: string, title: string): FinalCheckpoint {
     status: "approved",
     payload_json: JSON.stringify(payload),
     approved_by: "admin",
-    rule_source_id: null,
     parsed: payload,
   };
 }
@@ -77,7 +76,6 @@ function defaultValue(): WorkbenchContextValue {
     setSelectedRuleSourceId: vi.fn(),
     checkpoints: [],
     finalCheckpoints: [],
-    activeRuleSourceCheckpoints: [],
     extractingRuleSourceId: null,
     extractStatus: null,
     extractError: null,
