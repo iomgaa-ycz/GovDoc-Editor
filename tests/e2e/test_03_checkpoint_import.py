@@ -10,8 +10,8 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def imported_drafts(api: httpx.Client, checkpoint_xls_path: Path) -> list[dict]:
-    """导入 XLS，返回生成的 draft 列表。"""
+def imported_checkpoints(api: httpx.Client, checkpoint_xls_path: Path) -> list[dict]:
+    """导入 XLS，返回写入审核点库的列表。"""
     with open(checkpoint_xls_path, "rb") as f:
         resp = api.post(
             "/api/v1/checkpoints/import",
@@ -20,7 +20,7 @@ def imported_drafts(api: httpx.Client, checkpoint_xls_path: Path) -> list[dict]:
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["imported_count"] >= 1
-    return data["drafts"]
+    return data["checkpoints"]
 
 
 class TestCheckpointImport:
@@ -54,19 +54,19 @@ class TestCheckpointImport:
 class TestCheckpointCRUD:
     """B11-B13: 审核点查看 / 编辑 / 删除。"""
 
-    def test_list_checkpoints(self, api: httpx.Client, imported_drafts: list[dict]):
-        """B11: 列表应包含导入的 draft。"""
+    def test_list_checkpoints(self, api: httpx.Client, imported_checkpoints: list[dict]):
+        """B11: 列表应包含导入的审核点。"""
         resp = api.get("/api/v1/checkpoints")
         assert resp.status_code == 200
         items = resp.json()
         assert isinstance(items, list)
         ids = {item["id"] for item in items}
-        assert imported_drafts[0]["id"] in ids
+        assert imported_checkpoints[0]["id"] in ids
 
-    def test_update_checkpoint(self, api: httpx.Client, imported_drafts: list[dict]):
+    def test_update_checkpoint(self, api: httpx.Client, imported_checkpoints: list[dict]):
         """B12: 编辑审核点 payload。"""
-        target_id = imported_drafts[0]["id"]
-        original_payload = imported_drafts[0]["payload_json"]
+        target_id = imported_checkpoints[0]["id"]
+        original_payload = imported_checkpoints[0]["payload_json"]
         parsed = json.loads(original_payload) if original_payload else {}
         parsed["title"] = "E2E 修改后的标题"
         new_payload = json.dumps(parsed, ensure_ascii=False)
@@ -79,11 +79,11 @@ class TestCheckpointCRUD:
         data = resp.json()
         assert "E2E 修改后的标题" in data["payload_json"]
 
-    def test_delete_checkpoint(self, api: httpx.Client, imported_drafts: list[dict]):
+    def test_delete_checkpoint(self, api: httpx.Client, imported_checkpoints: list[dict]):
         """B13: 删除审核点后 404。"""
-        if len(imported_drafts) < 2:
+        if len(imported_checkpoints) < 2:
             pytest.skip("导入审核点不足 2 个，跳过删除测试")
-        target_id = imported_drafts[-1]["id"]
+        target_id = imported_checkpoints[-1]["id"]
 
         resp = api.delete(f"/api/v1/checkpoints/{target_id}")
         assert resp.status_code == 204

@@ -40,15 +40,6 @@ class RuleSource(SQLModel, table=True):
     added_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class CheckpointDraft(SQLModel, table=True):
-    id: str = Field(default_factory=uid, primary_key=True)
-    rule_source_id: str | None = Field(default=None, foreign_key="rulesource.id")
-    payload_json: str
-    extract_run_id: str | None = Field(default=None)
-    status: str = "draft"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
 class CheckpointFinal(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     payload_json: str
