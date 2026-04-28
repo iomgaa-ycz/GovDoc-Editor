@@ -87,6 +87,7 @@ export interface WorkbenchContextValue {
     supplementaryDocIds: string[],
     checkpointIds: string[],
   ) => Promise<{ audit_run_id: string }>;
+  loadAuditRunProgress: (auditRunId: string) => Promise<void>;
   auditProgress: AuditRunProgress | null;
   logs: LogEntry[];
 
@@ -103,6 +104,7 @@ export interface WorkbenchContextValue {
   workpaperSaveStatus: "idle" | "saving" | "saved" | "error";
   finalizeStatus: "idle" | "finalizing" | "finalized" | "error";
   loadWorkpaper: (auditRunId: string) => Promise<void>;
+  clearWorkpaper: () => void;
   setWorkpaperHtml: (html: string) => void;
   saveWorkpaper: () => Promise<void>;
   finalizeWorkpaper: (auditRunId: string) => Promise<void>;
@@ -343,6 +345,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // ── Audit runs ──
 
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressLoadRef = useRef(0);
+  const activeProgressRunRef = useRef<string | null>(null);
   const terminalAuditStatuses = ["draft_ready", "partial_ready", "finalized", "failed", "waiting_retry"];
 
   function syncAuditProgress(progress: AuditRunProgress) {
@@ -358,17 +362,48 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     const newLogs: LogEntry[] = [];
     for (const pr of progress.point_runs) {
       const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-      const title = cp?.parsed?.title ?? pr.checkpoint_final_id;
+      const finding = parseFindingJson(pr.finding_json);
+      const title = cp?.parsed?.title ?? finding?.checkpoint?.title ?? pr.checkpoint_final_id;
       newLogs.push(pointRunToLog(pr, title));
     }
     setLogs(newLogs);
   }
 
+  async function loadAuditRunProgress(auditRunId: string) {
+    const requestId = ++progressLoadRef.current;
+    activeProgressRunRef.current = auditRunId;
+    if (progressRef.current) {
+      clearInterval(progressRef.current);
+      progressRef.current = null;
+    }
+    setAuditProgress(null);
+    setLogs([]);
+    setSelectedPointRunId(null);
+    try {
+      const progress = await api.getAuditRunProgress(auditRunId);
+      if (requestId !== progressLoadRef.current) return;
+      syncAuditProgress(progress);
+      setSelectedPointRunId(progress.point_runs[0]?.id ?? null);
+      if (!terminalAuditStatuses.includes(progress.status)) {
+        startAuditProgressPolling(auditRunId);
+      }
+    } catch (error) {
+      if (requestId !== progressLoadRef.current) return;
+      activeProgressRunRef.current = null;
+      setAuditProgress(null);
+      setLogs([]);
+      setSelectedPointRunId(null);
+      throw error;
+    }
+  }
+
   function startAuditProgressPolling(runId: string) {
+    activeProgressRunRef.current = runId;
     if (progressRef.current) clearInterval(progressRef.current);
     progressRef.current = setInterval(async () => {
       try {
         const progress = await api.getAuditRunProgress(runId);
+        if (activeProgressRunRef.current !== runId) return;
         syncAuditProgress(progress);
         if (terminalAuditStatuses.includes(progress.status)) {
           clearInterval(progressRef.current!);
@@ -462,42 +497,87 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // ── Workpaper ──
 
   const wpRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workpaperRunRef = useRef<string | null>(null);
+  const workpaperJsonRef = useRef<WorkpaperPayload | null>(null);
+  const workpaperLoadRef = useRef(0);
+
+  function cancelPendingWorkpaperSave() {
+    if (wpRef.current) {
+      clearTimeout(wpRef.current);
+      wpRef.current = null;
+    }
+  }
+
+  function clearWorkpaper() {
+    workpaperLoadRef.current += 1;
+    cancelPendingWorkpaperSave();
+    workpaperRunRef.current = null;
+    workpaperJsonRef.current = null;
+    setWorkpaperHtml("");
+    setWorkpaperJson(null);
+    setWorkpaperSaveStatus("idle");
+  }
 
   async function loadWorkpaper(auditRunId: string) {
+    const requestId = ++workpaperLoadRef.current;
+    cancelPendingWorkpaperSave();
+    workpaperRunRef.current = auditRunId;
+    workpaperJsonRef.current = null;
+    setWorkpaperHtml("");
+    setWorkpaperJson(null);
+    setWorkpaperSaveStatus("idle");
     try {
       const draft = await api.getWorkpaperDraft(auditRunId);
+      if (requestId !== workpaperLoadRef.current) return;
       const wp = JSON.parse(draft.workpaper_json) as WorkpaperPayload;
+      workpaperJsonRef.current = wp;
       setWorkpaperJson(wp);
       const { workpaperToHtml } = await import("../adapters/backendToUi");
+      if (requestId !== workpaperLoadRef.current) return;
       setWorkpaperHtml(workpaperToHtml(wp));
-    } catch {
+    } catch (error) {
+      if (requestId !== workpaperLoadRef.current) return;
+      workpaperRunRef.current = null;
+      workpaperJsonRef.current = null;
       setWorkpaperHtml("");
       setWorkpaperJson(null);
+      throw error;
     }
   }
 
   function handleSetWorkpaperHtml(html: string) {
+    const targetRunId = workpaperRunRef.current;
     setWorkpaperHtml(html);
-    // Sync summary back to workpaperJson so saves are not lost
-    setWorkpaperJson((prev) => {
-      if (!prev) return prev;
-      const summary = extractSummaryFromHtml(html);
-      return summary ? { ...prev, summary } : prev;
-    });
+    const prev = workpaperJsonRef.current;
+    const summary = extractSummaryFromHtml(html);
+    const next = prev && summary ? { ...prev, summary } : prev;
+    workpaperJsonRef.current = next;
+    setWorkpaperJson(next);
     setWorkpaperSaveStatus("idle");
-    // Debounced save
-    if (wpRef.current) clearTimeout(wpRef.current);
-    wpRef.current = setTimeout(() => { saveWorkpaper(); }, 600);
+    cancelPendingWorkpaperSave();
+    if (targetRunId && next) {
+      wpRef.current = setTimeout(() => { saveWorkpaper(targetRunId, next); }, 600);
+    }
   }
 
-  async function saveWorkpaper() {
-    if (!activeAuditRun || !workpaperJson) return;
+  async function saveWorkpaper(targetAuditRunId?: string, targetWorkpaper?: WorkpaperPayload) {
+    if (!targetAuditRunId) {
+      cancelPendingWorkpaperSave();
+    }
+    const runId = targetAuditRunId ?? activeAuditRun?.id ?? null;
+    const payload = targetWorkpaper ?? workpaperJsonRef.current;
+    if (!runId || !payload) return;
+    if (targetAuditRunId && workpaperRunRef.current !== targetAuditRunId) return;
     setWorkpaperSaveStatus("saving");
     try {
-      await api.updateWorkpaperDraft(activeAuditRun.id, workpaperJson);
-      setWorkpaperSaveStatus("saved");
+      await api.updateWorkpaperDraft(runId, payload);
+      if (workpaperRunRef.current === runId) {
+        setWorkpaperSaveStatus("saved");
+      }
     } catch {
-      setWorkpaperSaveStatus("error");
+      if (workpaperRunRef.current === runId) {
+        setWorkpaperSaveStatus("error");
+      }
     }
   }
 
@@ -573,6 +653,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     selectedAuditRunId,
     setSelectedAuditRunId,
     createAuditRun: handleCreateAuditRun,
+    loadAuditRunProgress,
     auditProgress,
     logs,
     pointRuns,
@@ -585,6 +666,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     workpaperSaveStatus,
     finalizeStatus,
     loadWorkpaper,
+    clearWorkpaper,
     setWorkpaperHtml: handleSetWorkpaperHtml,
     saveWorkpaper,
     finalizeWorkpaper: handleFinalizeWorkpaper,

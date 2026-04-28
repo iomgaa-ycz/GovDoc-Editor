@@ -1,11 +1,15 @@
 import { Download, FileDown, Save } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 import { getWorkpaperFinalDocxUrl } from "../api/v3";
+import { formatAuditRunOptionLabel } from "../utils/auditRunLabel";
+import { AuditRunCurrentInfo } from "../components/AuditRunCurrentInfo";
 import {
   Button,
   Card,
   CardHeader,
+  EmptyState,
   InlineNotice,
   PageHero,
   SelectInput,
@@ -19,22 +23,46 @@ export function WorkpaperPage() {
     selectedAuditRunId,
     setSelectedAuditRunId,
     workpaperHtml,
+    workpaperJson,
     workpaperSaveStatus,
     finalizeStatus,
+    projects,
+    auditInputDocs,
     loadWorkpaper,
+    clearWorkpaper,
     setWorkpaperHtml,
+    saveWorkpaper,
     finalizeWorkpaper,
   } = useWorkbench();
 
-  async function handleSelectRun(id: string) {
-    setSelectedAuditRunId(id || null);
-    if (id) {
-      await loadWorkpaper(id);
+  const [loadingRunId, setLoadingRunId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [requestedRunId, setRequestedRunId] = useState<string | null>(null);
+
+  const handleSelectRun = useCallback(async (id: string) => {
+    const nextId = id || null;
+    setSelectedAuditRunId(nextId);
+    setLoadError(null);
+    setRequestedRunId(nextId);
+
+    if (!nextId) {
+      setLoadingRunId(null);
+      clearWorkpaper();
+      return;
     }
-  }
+
+    setLoadingRunId(nextId);
+    try {
+      await loadWorkpaper(nextId);
+    } catch {
+      setLoadError("该审核运行尚未生成工作底稿。");
+    } finally {
+      setLoadingRunId((current) => (current === nextId ? null : current));
+    }
+  }, [clearWorkpaper, loadWorkpaper, setSelectedAuditRunId]);
 
   async function handleSave() {
-    // Workpaper auto-saves on edit; this is a manual trigger
+    await saveWorkpaper();
   }
 
   async function handleFinalize() {
@@ -48,6 +76,27 @@ export function WorkpaperPage() {
     window.open(url, "_blank");
   }
 
+  const isLoadingSelectedRun = Boolean(selectedAuditRunId && loadingRunId === selectedAuditRunId);
+
+  useEffect(() => {
+    if (!selectedAuditRunId || !activeAuditRun) return;
+    if (
+      workpaperJson ||
+      loadingRunId === selectedAuditRunId ||
+      loadError ||
+      requestedRunId === selectedAuditRunId
+    ) return;
+    void handleSelectRun(selectedAuditRunId);
+  }, [
+    selectedAuditRunId,
+    activeAuditRun,
+    workpaperJson,
+    loadingRunId,
+    loadError,
+    requestedRunId,
+    handleSelectRun,
+  ]);
+
   return (
     <>
       <PageHero
@@ -55,16 +104,16 @@ export function WorkpaperPage() {
         title="工作底稿编辑"
         description="查看和编辑审核生成的工作底稿。"
         actions={
-          <div className="hero-side">
+          <div className="audit-run-select">
             <SelectInput
               value={selectedAuditRunId ?? ""}
               onChange={(e) => handleSelectRun(e.target.value)}
-              style={{ minWidth: 200 }}
+              style={{ minWidth: 0 }}
             >
               <option value="">选择审核运行</option>
               {auditRuns.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.id.slice(0, 8)}... ({r.status})
+                  {formatAuditRunOptionLabel({ run: r, projects, auditInputDocs })}
                 </option>
               ))}
             </SelectInput>
@@ -72,16 +121,30 @@ export function WorkpaperPage() {
         }
       />
 
+      <AuditRunCurrentInfo
+        run={activeAuditRun}
+        projects={projects}
+        auditInputDocs={auditInputDocs}
+      />
+
       <div className="document-layout">
         {/* Main: editor */}
         <div className="center-column">
           <Card>
-            {activeAuditRun ? (
-              <WorkpaperEditor value={workpaperHtml} onChange={setWorkpaperHtml} />
-            ) : (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-                请先选择一个审核运行
+            {!activeAuditRun ? (
+              <div style={{ padding: 40 }}>
+                <EmptyState title="请选择审核运行" description="选择一次审核运行后，可查看和编辑对应工作底稿。" />
               </div>
+            ) : isLoadingSelectedRun ? (
+              <div style={{ padding: 40 }}>
+                <EmptyState title="正在加载工作底稿" description="正在读取该次审核运行生成的工作底稿。" />
+              </div>
+            ) : loadError ? (
+              <div style={{ padding: 40 }}>
+                <EmptyState title="暂无工作底稿" description={loadError} />
+              </div>
+            ) : (
+              <WorkpaperEditor value={workpaperHtml} onChange={setWorkpaperHtml} />
             )}
           </Card>
         </div>
@@ -95,7 +158,7 @@ export function WorkpaperPage() {
                 tone="primary"
                 icon={Save}
                 onClick={handleSave}
-                disabled={!activeAuditRun}
+                disabled={!activeAuditRun || isLoadingSelectedRun || !workpaperJson}
                 style={{ width: "100%" }}
               >
                 保存草稿
@@ -104,7 +167,7 @@ export function WorkpaperPage() {
                 tone="secondary"
                 icon={Download}
                 onClick={handleExport}
-                disabled={!activeAuditRun || finalizeStatus !== "finalized"}
+                disabled={!activeAuditRun || isLoadingSelectedRun || finalizeStatus !== "finalized"}
                 style={{ width: "100%" }}
               >
                 导出 Word
@@ -113,7 +176,7 @@ export function WorkpaperPage() {
                 tone="secondary"
                 icon={FileDown}
                 onClick={handleFinalize}
-                disabled={!activeAuditRun || finalizeStatus === "finalizing"}
+                disabled={!activeAuditRun || isLoadingSelectedRun || Boolean(loadError) || finalizeStatus === "finalizing"}
                 style={{ width: "100%" }}
               >
                 {finalizeStatus === "finalizing" ? "定稿中..." : "定稿"}
