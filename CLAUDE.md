@@ -34,6 +34,11 @@
 > - 使用 `conda run -n govdoc-auditor-v3 <command>` 确保命令在正确环境中运行
 > - 或在命令前显式添加 `source activate govdoc-auditor-v3 &&`
 > - 敏感信息（API Key）放 `.env`，不提交 git
+> - **涉及 LLM / 本地 API 调用时必须设置 NO_PROXY**（本机有 HTTP 代理 `127.0.0.1:7892`）：
+>   ```bash
+>   export no_proxy="localhost,127.0.0.1,${no_proxy:-}"
+>   export NO_PROXY="localhost,127.0.0.1,${NO_PROXY:-}"
+>   ```
 
 ```bash
 # 激活项目环境（交互式 shell）
@@ -66,11 +71,17 @@ cd frontend && npm install && cd ..
 ```bash
 # 在 worktree 根目录执行（PROJECT_ROOT 为主仓库路径）
 ln -s "$PROJECT_ROOT/real_data" real_data
+ln -s "$PROJECT_ROOT/.env" .env
+ln -s "$PROJECT_ROOT/data" data
+ln -sf "$PROJECT_ROOT/.claude/skills" .claude/skills
 ```
 
-| 目录 | 大小 | 用途 | 依赖方 |
-|------|------|------|--------|
+| 目录/文件 | 大小 | 用途 | 依赖方 |
+|-----------|------|------|--------|
 | `real_data/` | ~171MB | 真实招标文书、审查点表格等测试数据 | `tests/unit/test_checkpoint_import.py`、`tests/e2e/conftest.py` |
+| `.env` | <1KB | API Key 等敏感配置 | `govdoc/config.py` |
+| `data/` | ~数MB | SQLite 数据库 + 文件存储 | `govdoc/db/session.py`、`govdoc/storage/` |
+| `.claude/skills/` | <1MB | Claude Code skill 定义（harness-eval 等） | `/harness-eval`、`/brainstorming` 等 skill 调用 |
 
 ### 2.3 启动服务
 
