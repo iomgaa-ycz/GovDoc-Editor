@@ -24,3 +24,6 @@ evolution:
   frontier_size: 5
   eval_dataset_path: ./data/eval/checkpoints_golden.json
 
+harness:
+  db_path: ./results/harness.db
+

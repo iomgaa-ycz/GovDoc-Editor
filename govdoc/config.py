@@ -64,6 +64,12 @@ class EvolutionConfig(BaseModel):
     eval_dataset_path: str | None = None
 
 
+class HarnessConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    db_path: str = "./results/harness.db"
+
+
 class GovDocConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -72,6 +78,7 @@ class GovDocConfig(BaseModel):
     qmd: QmdConfig
     workspace: WorkspaceConfig
     evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
+    harness: HarnessConfig = Field(default_factory=HarnessConfig)
 
     @property
     def project_root(self) -> Path:
@@ -90,6 +97,10 @@ class GovDocConfig(BaseModel):
     @property
     def qmd_db_path(self) -> Path:
         return self.resolve_path(self.qmd.db_path)
+
+    @property
+    def harness_db_path(self) -> Path:
+        return self.resolve_path(self.harness.db_path)
 
     @property
     def app_db_path(self) -> Path:

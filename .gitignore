@@ -20,6 +20,7 @@ venv/
 
 # 运行时产物（由应用写入，不入库）
 data/
+results/
 .govdoc/
 *.sqlite
 *.sqlite3
