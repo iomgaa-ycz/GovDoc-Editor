@@ -150,12 +150,15 @@ predictions/
 docs/_build/
 
 # ------------------------------
-# Research Wiki (auto-managed by skills)
-# ------------------------------
-research-wiki/
-
-# ------------------------------
 # Codex
 # ------------------------------
 .playwright-mcp/
 .playwright-cli/
+
+# ------------------------------
+# Wiki-Site
+# ------------------------------
+.wiki-site/
+tools/wiki-site/app/node_modules/
+tools/wiki-site/app/src/pages/
+tools/wiki-site/app/public/harness.db
