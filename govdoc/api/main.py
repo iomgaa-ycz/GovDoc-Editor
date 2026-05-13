@@ -30,6 +30,10 @@ def create_app() -> FastAPI:
     cfg = load_config()
     cfg.ensure_directories()
     init_db()
+
+    from govdoc.runtime import configure_logging
+
+    configure_logging()
     app = FastAPI(title="GovDoc Auditor V3", version="0.1.0")
 
     @app.get("/healthz")
