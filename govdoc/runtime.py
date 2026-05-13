@@ -64,6 +64,38 @@ def get_trajectory_store() -> TrajectoryStore:
 
 
 @lru_cache
+def get_harness_log() -> Any:
+    """获取 HarnessLog 单例（惰性初始化）。"""
+    import uuid
+
+    from govdoc.harness import HarnessLog
+
+    cfg = get_config()
+    return HarnessLog(
+        db_path=str(cfg.harness_db_path),
+        run_id=uuid.uuid4().hex,
+    )
+
+
+def configure_logging() -> None:
+    """配置 Python logging，将日志同时写入 harness.db。"""
+    import logging
+
+    from govdoc.harness.handler import SqliteHandler
+
+    cfg = get_config()
+    harness_log = get_harness_log()
+    handler = SqliteHandler(
+        db_path=str(cfg.harness_db_path),
+        run_id=harness_log._run_id,
+    )
+    root = logging.getLogger()
+    root.addHandler(handler)
+    if root.level == logging.NOTSET:
+        root.setLevel(logging.INFO)
+
+
+@lru_cache
 def get_gov_extractor_config():
     return load_pes_config(get_project_root() / "agents" / "gov-extractor.yaml")
 
