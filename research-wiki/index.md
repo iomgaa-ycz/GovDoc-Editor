@@ -23,3 +23,48 @@
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
+
+## schema (7)
+- [pipeline_runs](schemas/harness-pipeline-runs.md) `schema:harness-pipeline-runs`
+- [phase_metrics](schemas/harness-phase-metrics.md) `schema:harness-phase-metrics`
+- [extract_results](schemas/harness-extract-results.md) `schema:harness-extract-results`
+- [audit_results](schemas/harness-audit-results.md) `schema:harness-audit-results`
+- [quality_scores](schemas/harness-quality-scores.md) `schema:harness-quality-scores`
+- [api_calls](schemas/harness-api-calls.md) `schema:harness-api-calls`
+- [api_contracts](schemas/harness-api-contracts.md) `schema:harness-api-contracts`
+
+## metric (34)
+- [管道 A 成功率](metrics/pipeline-a-success.md) `metric:pipeline-a-success`
+- [管道 B 成功率](metrics/pipeline-b-success.md) `metric:pipeline-b-success`
+- [Phase 零崩溃](metrics/phase-no-crash.md) `metric:phase-no-crash`
+- [审核点产出率](metrics/extract-yield.md) `metric:extract-yield`
+- [审核点完成率](metrics/audit-completion.md) `metric:audit-completion`
+- [端到端耗时](metrics/e2e-duration.md) `metric:e2e-duration`
+- [审核点导入成功率](metrics/checkpoint-import-success.md) `metric:checkpoint-import-success`
+- [文书解析成功率](metrics/tender-parse-success.md) `metric:tender-parse-success`
+- [底稿渲染成功](metrics/workpaper-render.md) `metric:workpaper-render`
+- [DOCX 下载完整性](metrics/docx-download.md) `metric:docx-download`
+- [文档对比成功率](metrics/compare-success.md) `metric:compare-success`
+- [全端点可达](metrics/api-all-endpoints.md) `metric:api-all-endpoints`
+- [响应 Schema 契约](metrics/api-contract-pass.md) `metric:api-contract-pass`
+- [API P95 延迟](metrics/api-latency-p95.md) `metric:api-latency-p95`
+- [法条引用忠实度](metrics/extract-faithfulness.md) `metric:extract-faithfulness`
+- [审核点召回率](metrics/extract-recall.md) `metric:extract-recall`
+- [审核点精准率](metrics/extract-precision.md) `metric:extract-precision`
+- [提取幻觉检测](metrics/extract-hallucination.md) `metric:extract-hallucination`
+- [提取输出 Schema 合规](metrics/extract-json-correctness.md) `metric:extract-json-correctness`
+- [分类准确性](metrics/extract-category-accuracy.md) `metric:extract-category-accuracy`
+- [证据引用忠实度](metrics/audit-faithfulness.md) `metric:audit-faithfulness`
+- [发现相关性](metrics/audit-relevancy.md) `metric:audit-relevancy`
+- [判定推理自洽性](metrics/audit-verdict-reasoning.md) `metric:audit-verdict-reasoning`
+- [审核幻觉检测](metrics/audit-hallucination.md) `metric:audit-hallucination`
+- [审核覆盖完整性](metrics/audit-completeness.md) `metric:audit-completeness`
+- [审核输出 Schema 合规](metrics/audit-json-correctness.md) `metric:audit-json-correctness`
+- [计划质量](metrics/agent-plan-quality.md) `metric:agent-plan-quality`
+- [计划遵循度](metrics/agent-plan-adherence.md) `metric:agent-plan-adherence`
+- [步骤效率](metrics/agent-step-efficiency.md) `metric:agent-step-efficiency`
+- [任务完成度](metrics/agent-task-completion.md) `metric:agent-task-completion`
+- [摘要质量](metrics/workpaper-summarization.md) `metric:workpaper-summarization`
+- [发现覆盖率](metrics/workpaper-finding-coverage.md) `metric:workpaper-finding-coverage`
+- [格式规范性](metrics/workpaper-format-compliance.md) `metric:workpaper-format-compliance`
+- [导入保真度](metrics/checkpoint-import-fidelity.md) `metric:checkpoint-import-fidelity`
