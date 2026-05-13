@@ -373,9 +373,7 @@ if __name__ == "__main__":
     parser.add_argument("--db-path", default="results/harness.db")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
     run_id = asyncio.run(
         run_api_eval(

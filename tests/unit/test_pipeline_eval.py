@@ -13,7 +13,6 @@ from govdoc.harness.pipeline_eval import (
     record_audit_results,
     record_extract_results,
     record_pipeline_run,
-    record_quality_score,
 )
 from govdoc.harness.schemas import create_all_tables
 
@@ -156,9 +155,7 @@ class TestEvaluateDimension:
             assert result.passed is True
             assert result.score == 0.85
 
-            rows = log.query(
-                "SELECT * FROM quality_scores WHERE dimension='extract-faithfulness'"
-            )
+            rows = log.query("SELECT * FROM quality_scores WHERE dimension='extract-faithfulness'")
             assert len(rows) == 1
             assert rows[0]["score"] == 0.85
             assert rows[0]["passed"] == 1
