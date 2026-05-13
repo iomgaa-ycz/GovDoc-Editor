@@ -1,4 +1,5 @@
 """HarnessJudge：通过 LLM API 实现语义评估和诊断。"""
+
 from __future__ import annotations
 
 import json
@@ -78,7 +79,7 @@ class HarnessJudge:
                 messages=[{"role": "user", "content": prompt}],
             )
             return response.choices[0].message.content
-        raise ValueError(f'不支持的 provider: {self._provider}')
+        raise ValueError(f"不支持的 provider: {self._provider}")
 
     def _build_evaluate_prompt(
         self,
@@ -97,17 +98,19 @@ class HarnessJudge:
             完整的 prompt 字符串。
         """
         parts = [
-            '你是一个科研实验评估专家。请根据以下标准和证据进行评估。',
-            f'\n## 评判标准\n{criteria}',
-            f'\n## 证据数据\n```json\n{json.dumps(evidence, ensure_ascii=False, indent=2)}\n```',
+            "你是一个科研实验评估专家。请根据以下标准和证据进行评估。",
+            f"\n## 评判标准\n{criteria}",
+            f"\n## 证据数据\n```json\n{json.dumps(evidence, ensure_ascii=False, indent=2)}\n```",
         ]
         if rubric:
-            parts.append(f'\n## 评分维度\n```json\n{json.dumps(rubric, ensure_ascii=False, indent=2)}\n```')
+            parts.append(
+                f"\n## 评分维度\n```json\n{json.dumps(rubric, ensure_ascii=False, indent=2)}\n```"
+            )
         parts.append(
-            '\n## 输出格式\n请严格按以下 JSON 格式输出：\n'
+            "\n## 输出格式\n请严格按以下 JSON 格式输出：\n"
             '{"passed": true/false, "score": 0.0-1.0, "reasoning": "...", "suggestions": ["..."]}'
         )
-        return '\n'.join(parts)
+        return "\n".join(parts)
 
     def _build_diagnose_prompt(self, error_context: dict[str, Any]) -> str:
         """构建诊断 prompt。
@@ -119,9 +122,9 @@ class HarnessJudge:
             完整的诊断 prompt 字符串。
         """
         return (
-            '你是一个科研实验诊断专家。请分析以下错误上下文，找出根因并给出修复建议。\n\n'
-            f'## 错误上下文\n```json\n{json.dumps(error_context, ensure_ascii=False, indent=2)}\n```\n\n'
-            '## 输出格式\n请严格按以下 JSON 格式输出：\n'
+            "你是一个科研实验诊断专家。请分析以下错误上下文，找出根因并给出修复建议。\n\n"
+            f"## 错误上下文\n```json\n{json.dumps(error_context, ensure_ascii=False, indent=2)}\n```\n\n"
+            "## 输出格式\n请严格按以下 JSON 格式输出：\n"
             '{"root_cause": "...", "evidence": ["..."], "fix_suggestions": ["..."], '
             '"severity": "critical/important/minor"}'
         )
@@ -136,22 +139,22 @@ class HarnessJudge:
             解析后的 Verdict 对象。
         """
         text = raw.strip()
-        start = text.find('{')
-        end = text.rfind('}') + 1
+        start = text.find("{")
+        end = text.rfind("}") + 1
         if start == -1 or end == 0:
             return Verdict(
                 passed=False,
                 score=0.0,
-                reasoning='无法解析 LLM 回复',
+                reasoning="无法解析 LLM 回复",
                 suggestions=[],
                 raw_response=raw,
             )
         data = json.loads(text[start:end])
         return Verdict(
-            passed=bool(data.get('passed', False)),
-            score=float(data.get('score', 0.0)),
-            reasoning=str(data.get('reasoning', '')),
-            suggestions=list(data.get('suggestions', [])),
+            passed=bool(data.get("passed", False)),
+            score=float(data.get("score", 0.0)),
+            reasoning=str(data.get("reasoning", "")),
+            suggestions=list(data.get("suggestions", [])),
             raw_response=raw,
         )
 
@@ -165,21 +168,21 @@ class HarnessJudge:
             解析后的 Diagnosis 对象。
         """
         text = raw.strip()
-        start = text.find('{')
-        end = text.rfind('}') + 1
+        start = text.find("{")
+        end = text.rfind("}") + 1
         if start == -1 or end == 0:
             return Diagnosis(
-                root_cause='无法解析 LLM 回复',
+                root_cause="无法解析 LLM 回复",
                 evidence=[],
                 fix_suggestions=[],
-                severity='critical',
+                severity="critical",
             )
         data = json.loads(text[start:end])
         return Diagnosis(
-            root_cause=str(data.get('root_cause', '')),
-            evidence=list(data.get('evidence', [])),
-            fix_suggestions=list(data.get('fix_suggestions', [])),
-            severity=str(data.get('severity', 'important')),
+            root_cause=str(data.get("root_cause", "")),
+            evidence=list(data.get("evidence", [])),
+            fix_suggestions=list(data.get("fix_suggestions", [])),
+            severity=str(data.get("severity", "important")),
         )
 
     def evaluate(
@@ -220,12 +223,12 @@ class HarnessJudge:
         返回:
             Verdict 对比结果。
         """
-        baseline_data = log.query(f'SELECT * FROM {metrics_table} WHERE run_id = ?', (baseline_id,))
-        current_data = log.query(f'SELECT * FROM {metrics_table} WHERE run_id = ?', (current_id,))
-        evidence = {'baseline': baseline_data, 'current': current_data}
+        baseline_data = log.query(f"SELECT * FROM {metrics_table} WHERE run_id = ?", (baseline_id,))
+        current_data = log.query(f"SELECT * FROM {metrics_table} WHERE run_id = ?", (current_id,))
+        evidence = {"baseline": baseline_data, "current": current_data}
         criteria = (
-            f'对比 run {current_id} 相对于基线 {baseline_id} 在 {metrics_table} 表中的各项指标，'
-            '判断是否有提升或回退。'
+            f"对比 run {current_id} 相对于基线 {baseline_id} 在 {metrics_table} 表中的各项指标，"
+            "判断是否有提升或回退。"
         )
         return self.evaluate(criteria, evidence)
 
@@ -240,10 +243,10 @@ class HarnessJudge:
             Diagnosis 诊断结果。
         """
         events = log.query(
-            'SELECT * FROM _events WHERE run_id = ? ORDER BY timestamp DESC LIMIT 50',
-            (error_context.get('run_id', ''),),
+            "SELECT * FROM _events WHERE run_id = ? ORDER BY timestamp DESC LIMIT 50",
+            (error_context.get("run_id", ""),),
         )
-        error_context['recent_events'] = events
+        error_context["recent_events"] = events
         prompt = self._build_diagnose_prompt(error_context)
         raw = self._call_llm(prompt)
         return self._parse_diagnosis(raw)

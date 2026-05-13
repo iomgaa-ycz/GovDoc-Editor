@@ -59,9 +59,7 @@ class SqliteHandler(logging.Handler):
                 "location": f"{record.pathname}:{record.lineno}",
             }
             if record.exc_info and record.exc_info[1] is not None:
-                payload["exception"] = "".join(
-                    traceback.format_exception(*record.exc_info)
-                )
+                payload["exception"] = "".join(traceback.format_exception(*record.exc_info))
             self._conn.execute(
                 "INSERT INTO _events (run_id, timestamp, event_type, payload) VALUES (?, ?, ?, ?)",
                 (
