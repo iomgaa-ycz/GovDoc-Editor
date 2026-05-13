@@ -44,3 +44,6 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"govdoc/api/main.py" = ["E402"]
