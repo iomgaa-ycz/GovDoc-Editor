@@ -13,7 +13,7 @@
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (8)
+## plan (9)
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`
@@ -22,3 +22,4 @@
 - [前端契约测试基础设施计划](plans/frontend-contract-tests.md) `plan:frontend-contract-tests`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
+- [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
