@@ -9,7 +9,7 @@ import pytest
 from govdoc.parsers.checkpoint_import import parse_checkpoint_file
 from govdoc.schemas import CheckpointCategory, GovCheckpoint, Severity
 
-SAMPLE_XLS = Path("tests/e2e/data/附件9 处理处罚标准.xls")
+SAMPLE_XLS = Path("real_data/附件9 处理处罚标准.xls")
 
 
 @pytest.fixture

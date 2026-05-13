@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-E2E_DATA_DIR = Path(__file__).parent / "data"
+E2E_DATA_DIR = Path(__file__).resolve().parents[2] / "real_data"
 E2E_REPORTS_DIR = Path(__file__).parent / "reports"
 
 BACKEND_BASE = os.environ.get("E2E_BACKEND_URL", "http://100.83.164.94:8001")
