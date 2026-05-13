@@ -243,11 +243,11 @@ async def run_api_eval(
                     path="/api/v1/projects",
                     expected_status=201,
                     description="创建项目",
-                    body={"name": f"harness-test-{run_id}"},
+                    body={"name": f"harness-test-{run_id}", "created_by": "harness"},
                 ),
                 log,
             )
-            project_id = proj_data["id"] if proj_data else "unknown"
+            project_id = proj_data.get("id", "unknown") if proj_data else "unknown"
 
             await call_endpoint(
                 client,
