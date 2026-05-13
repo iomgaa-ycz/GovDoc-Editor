@@ -57,6 +57,21 @@ cd frontend && npm install && cd ..
 - **qmd-0.1.2**：自研 pypi 库，**不可修改**（如需改动先走 `工程md/INTEGRATION_ISSUES.md` 登记）
 - **scrivai-0.1.x**：基于 Claude Agent SDK 的通用 agent 编排框架，vendored + editable
 
+### 2.2.1 Worktree 软链接（未跟踪大文件）
+
+> [!CRITICAL]
+> 以下目录**未纳入 git 跟踪**（体积大 / 敏感数据），但测试和运行时依赖它们。
+> **新建 worktree 后必须创建软链接**，否则测试会因缺文件而失败。
+
+```bash
+# 在 worktree 根目录执行（PROJECT_ROOT 为主仓库路径）
+ln -s "$PROJECT_ROOT/real_data" real_data
+```
+
+| 目录 | 大小 | 用途 | 依赖方 |
+|------|------|------|--------|
+| `real_data/` | ~171MB | 真实招标文书、审查点表格等测试数据 | `tests/unit/test_checkpoint_import.py`、`tests/e2e/conftest.py` |
+
 ### 2.3 启动服务
 
 ```bash
