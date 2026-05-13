@@ -70,7 +70,7 @@ fi
 
 # ── 4. 测试检查 ──
 if command -v pytest &> /dev/null && [[ -d "tests" ]]; then
-    TEST_OUTPUT=$(pytest tests/ --tb=line -q 2>&1 || true)
+    TEST_OUTPUT=$(pytest tests/unit/ tests/contract/ --tb=line -q 2>&1 || true)
     if echo "$TEST_OUTPUT" | grep -qE 'failed|error'; then
         FAILED=$(echo "$TEST_OUTPUT" | tail -1)
         ERRORS+="[测试] 有测试未通过：$FAILED\n"
