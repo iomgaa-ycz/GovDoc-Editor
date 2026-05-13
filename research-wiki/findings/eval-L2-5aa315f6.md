@@ -80,23 +80,40 @@ tags: ["harness", "evaluation", "L2", "api"]
 3. **工作底稿端点**: 依赖审核运行完成
 4. **文档对比**: 需要至少两份 docx 文件
 
-## 5. 语义评估
+## 5. 语义评估（harness-eval Phase 4）
 
-> **未执行**: L2 层仅有 1 个语义指标（`checkpoint-import-fidelity`），需要对比导入前后数据才能评估。本次运行仅验证了导入 API 返回 200，未做数据保真度对比。
+通过 HarnessJudge（glm-5.1 at `110.42.53.85:11098`）执行语义评估。
 
-## 6. L1 管道层评估
+| 维度 | 得分 | 判定 | 说明 |
+|------|------|------|------|
+| `checkpoint-import-fidelity` | 0.0 | ❌ FAIL | 证据不足：harness 仅记录 status_code，未记录 XLS 原始数据与 DB 导入后数据的逐行对比 |
 
-> **未执行**: L1 管道评估需要 LLM 后端（glm-5.1），当前 `http://110.42.53.85:11098` 不可达。L1 的 14 个硬性指标和 19 个语义指标待 LLM 后端恢复后补充运行。
+**LLM Judge 原始回复**:
+> 当前证据数据为空，无法提供任何关于审核点数量、关键字段一致性、中文字符完整性或空值处理情况的信息。由于缺少评估所需的基础数据，无法验证导入保真度。
 
-## 7. 综合判定
+## 6. 诊断（harness-eval Phase 6）
+
+通过 HarnessJudge.diagnose() 分析失败根因。
+
+- **根因**: L2 harness 的可观测性不足。`api_eval.py` 仅记录 HTTP 状态码，未捕获导入前的 XLS 数据结构和导入后的 DB 记录内容，导致 LLM Judge 无法验证保真度。
+- **证据**:
+  - 硬性指标 5/5 通过，证明 API 连通性正常
+  - 问题聚焦在评估框架的数据采集能力，而非业务逻辑
+- **严重程度**: important（非 critical，业务逻辑本身正常）
+- **修复建议**:
+  1. 增强 `api_eval.py` 的探针能力：记录 API response body（导入后的数据）
+  2. 添加导入后 DB 状态验证：查询 CheckpointFinal 表并与原始 XLS 逐行对比
+  3. 将对比结果作为 evidence 传给 HarnessJudge
+
+## 7. 综合判定（harness-eval Phase 5）
 
 | 维度 | 结果 |
 |------|------|
 | L2 硬性指标 | ✅ 5/5 通过 |
-| L2 语义指标 | ⏳ 待评估（1 项） |
-| L1 硬性指标 | ⏳ 待运行（LLM 不可达） |
-| L1 语义指标 | ⏳ 待运行（LLM 不可达） |
-| **综合** | **部分通过** — L2 API 层基础功能验证通过，L1 管道层待 LLM 后端恢复 |
+| L2 语义指标 | ❌ 1/1 未通过（证据不足） |
+| L1 硬性指标 | ⏳ 待执行 L1 管道评估 |
+| L1 语义指标 | ⏳ 待执行 L1 管道评估 |
+| **综合** | **部分通过** — L2 硬性指标全部达标；语义指标需增强 harness 数据采集后重评 |
 
 ## 8. 发现的问题与修复
 
@@ -105,14 +122,17 @@ tags: ["harness", "evaluation", "L2", "api"]
 | 1 | `api_eval.py` POST /projects 缺少 `created_by` 字段 | ✅ 已修复 | API 要求必填字段，harness 代码已更新 |
 | 2 | `api_eval.py` `proj_data["id"]` 无防御性取值 | ✅ 已修复 | 改为 `.get("id", "unknown")` |
 | 3 | `harness_api.sh` 缺少 `NO_PROXY` 设置 | ✅ 已修复 | 本机有 HTTP 代理 `127.0.0.1:7892`，需排除 localhost |
-| 4 | 规则上传端点未覆盖 | 🔵 待修复 | manifest 中法规路径的转义引号需要调整 |
+| 4 | `openai` SDK 与 LLM 网关不兼容 | 🔵 发现 | openai SDK 返回 str 而非 ChatCompletion 对象，HarnessJudge 需改用 httpx 直调 |
+| 5 | 语义评估证据不足 | 🔵 待修复 | api_eval 需增加 response body 记录和 DB 状态验证 |
+| 6 | 规则上传端点未覆盖 | 🔵 待修复 | manifest 中法规路径的转义引号需要调整 |
 
 ## 9. 下一步建议
 
-1. **LLM 后端恢复后**: 运行 `bash scripts/harness_pipeline.sh` 执行 L1 管道评估
-2. **补充 L2 端点覆盖**: 修复规则上传、添加 CRUD 端点（PUT/DELETE checkpoints）、添加文档对比
-3. **添加 response schema 校验**: 当前只检查 status_code，应补充 Pydantic model 校验
-4. **设置基线值**: 将本次 P95 延迟（205.6ms）作为基线写入 metric 实体
+1. **增强 api_eval 数据采集**: 记录 response body + 导入后 DB 查询，使语义评估有足够 evidence
+2. **修复 HarnessJudge**: 将 openai SDK 调用改为 httpx 直调（兼容私有网关）
+3. **执行 L1 管道评估**: `bash scripts/harness_pipeline.sh`（LLM 后端已恢复可达）
+4. **补充 L2 端点覆盖**: 规则上传、CRUD、文档对比
+5. **设置基线值**: 将 P95=205.6ms 写入 metric 实体
 
 ## 10. 关联
 
