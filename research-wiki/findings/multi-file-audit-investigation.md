@@ -1,3 +1,12 @@
+---
+type: finding
+node_id: finding:multi-file-audit-investigation
+title: 多文件审核调查报告
+date: 2026-05-13
+migrated_from: docs/multi-file-audit-investigation-2026-04-26.md
+tags: ["migrated"]
+---
+
 # 多文件审核调查报告
 
 > 日期：2026-04-26

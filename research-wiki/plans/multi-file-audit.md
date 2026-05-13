@@ -1,3 +1,12 @@
+---
+type: plan
+node_id: plan:multi-file-audit
+title: 多文件审核功能实施计划
+date: 2026-05-13
+migrated_from: docs/superpowers/plans/2026-04-26-multi-file-audit-plan.md
+tags: ["migrated"]
+---
+
 # 多文件审核工程计划：主招标文书 + 附件
 
 ## 背景
