@@ -361,14 +361,12 @@ def _load_extract_output(extract_run: Any, session: Any) -> list[dict[str, Any]]
     """从 ExtractRun 加载审核点结果为 dict 列表。"""
     from govdoc.db.models import CheckpointFinal
 
-    cps = (
-        session.query(CheckpointFinal)
-        .filter_by(rule_source_id=extract_run.rule_source_id)
-        .all()
-    )
+    cps = session.query(CheckpointFinal).filter_by(rule_source_id=extract_run.rule_source_id).all()
     results = []
     for cp in cps:
-        payload = json.loads(cp.payload_json) if isinstance(cp.payload_json, str) else cp.payload_json
+        payload = (
+            json.loads(cp.payload_json) if isinstance(cp.payload_json, str) else cp.payload_json
+        )
         results.append(payload)
     return results
 
@@ -461,9 +459,7 @@ if __name__ == "__main__":
     parser.add_argument("--db-path", default="results/harness.db")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
     run_id = asyncio.run(
         run_pipeline_eval(
