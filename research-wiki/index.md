@@ -9,9 +9,10 @@
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 
-## finding (2)
+## finding (3)
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
+- [Harness 评估: L2-5aa315f6](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 
 ## plan (9)
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
