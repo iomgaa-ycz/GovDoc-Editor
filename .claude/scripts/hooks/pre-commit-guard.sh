@@ -46,8 +46,8 @@ CODE_DIR="govdoc"
 
 # ── 2. 全量代码质量检查 ──
 if [[ -d "$CODE_DIR" ]] && [[ -x "$RUFF" ]]; then
-    RUFF_OUTPUT=$("$RUFF" check "$CODE_DIR" 2>&1 || true)
-    if [[ -n "$RUFF_OUTPUT" ]]; then
+    if ! "$RUFF" check "$CODE_DIR" > /dev/null 2>&1; then
+        RUFF_OUTPUT=$("$RUFF" check "$CODE_DIR" 2>&1 || true)
         ERROR_COUNT=$(echo "$RUFF_OUTPUT" | wc -l)
         ERRORS+="[ruff] $CODE_DIR/ 中有 ${ERROR_COUNT} 个问题。运行 ruff check $CODE_DIR/ 查看详情。\n"
     fi
