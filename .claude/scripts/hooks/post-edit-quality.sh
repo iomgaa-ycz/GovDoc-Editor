@@ -17,7 +17,8 @@
 set -euo pipefail
 
 PROJ_ENV="/home/iomgaa/miniconda3/envs/govdoc-auditor-v3/bin"
-[[ -d "$PROJ_ENV" ]] && export PATH="$PROJ_ENV:$PATH"
+RUFF="$PROJ_ENV/ruff"
+RADON="$PROJ_ENV/radon"
 
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // ""')
@@ -36,16 +37,16 @@ ERRORS=""
 WARNINGS=""
 
 # ── 1. Ruff 格式 + lint 检查 ──
-if command -v ruff &> /dev/null; then
-    RUFF_OUTPUT=$(ruff check "$FILE_PATH" 2>&1 || true)
+if [[ -x "$RUFF" ]]; then
+    RUFF_OUTPUT=$("$RUFF" check "$FILE_PATH" 2>&1 || true)
     if [[ -n "$RUFF_OUTPUT" ]]; then
         ERRORS+="[ruff] 风格/lint 问题：\n$RUFF_OUTPUT\n\n"
     fi
 fi
 
 # ── 2. Radon 圈复杂度（只报告 C 级及以下） ──
-if command -v radon &> /dev/null; then
-    RADON_OUTPUT=$(radon cc "$FILE_PATH" -n C -s 2>&1 || true)
+if [[ -x "$RADON" ]]; then
+    RADON_OUTPUT=$("$RADON" cc "$FILE_PATH" -n C -s 2>&1 || true)
     if echo "$RADON_OUTPUT" | grep -qE '^\s+[FMC]\s'; then
         ERRORS+="[radon] 圈复杂度过高（≥C）：\n$RADON_OUTPUT\n\n"
     fi

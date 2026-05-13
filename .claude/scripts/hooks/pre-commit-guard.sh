@@ -17,7 +17,9 @@
 set -euo pipefail
 
 PROJ_ENV="/home/iomgaa/miniconda3/envs/govdoc-auditor-v3/bin"
-[[ -d "$PROJ_ENV" ]] && export PATH="$PROJ_ENV:$PATH"
+RUFF="$PROJ_ENV/ruff"
+RADON="$PROJ_ENV/radon"
+PYTEST="$PROJ_ENV/pytest"
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
@@ -43,16 +45,16 @@ CODE_DIR="govdoc"
 # done
 
 # ── 2. 全量代码质量检查 ──
-if [[ -d "$CODE_DIR" ]] && command -v ruff &> /dev/null; then
-    RUFF_OUTPUT=$(ruff check "$CODE_DIR" 2>&1 || true)
+if [[ -d "$CODE_DIR" ]] && [[ -x "$RUFF" ]]; then
+    RUFF_OUTPUT=$("$RUFF" check "$CODE_DIR" 2>&1 || true)
     if [[ -n "$RUFF_OUTPUT" ]]; then
         ERROR_COUNT=$(echo "$RUFF_OUTPUT" | wc -l)
         ERRORS+="[ruff] $CODE_DIR/ 中有 ${ERROR_COUNT} 个问题。运行 ruff check $CODE_DIR/ 查看详情。\n"
     fi
 fi
 
-if [[ -d "$CODE_DIR" ]] && command -v radon &> /dev/null; then
-    RADON_OUTPUT=$(radon cc "$CODE_DIR" -n C -s 2>&1 || true)
+if [[ -d "$CODE_DIR" ]] && [[ -x "$RADON" ]]; then
+    RADON_OUTPUT=$("$RADON" cc "$CODE_DIR" -n C -s 2>&1 || true)
     if echo "$RADON_OUTPUT" | grep -qE '^\s+[FMC]\s'; then
         ERRORS+="[radon] 存在圈复杂度 ≥ C 的函数：\n$RADON_OUTPUT\n"
     fi
@@ -69,8 +71,8 @@ if [[ -d "$CODE_DIR" ]]; then
 fi
 
 # ── 4. 测试检查 ──
-if command -v pytest &> /dev/null && [[ -d "tests" ]]; then
-    TEST_OUTPUT=$(pytest tests/unit/ tests/contract/ --tb=line -q 2>&1 || true)
+if [[ -x "$PYTEST" ]] && [[ -d "tests" ]]; then
+    TEST_OUTPUT=$("$PYTEST" tests/unit/ tests/contract/ --tb=line -q 2>&1 || true)
     if echo "$TEST_OUTPUT" | grep -qE 'failed|error'; then
         FAILED=$(echo "$TEST_OUTPUT" | tail -1)
         ERRORS+="[测试] 有测试未通过：$FAILED\n"
