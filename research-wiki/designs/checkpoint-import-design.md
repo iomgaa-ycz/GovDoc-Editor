@@ -1,3 +1,12 @@
+---
+type: design
+node_id: design:checkpoint-import-design
+title: 审查点表格导入设计
+date: 2026-05-13
+migrated_from: docs/superpowers/specs/2026-04-19-checkpoint-import-design.md
+tags: ["migrated"]
+---
+
 # 设计：直接导入已整理审查点（xls/xlsx/csv）
 
 > 日期：2026-04-19

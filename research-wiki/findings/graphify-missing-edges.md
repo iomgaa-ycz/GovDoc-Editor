@@ -1,3 +1,12 @@
+---
+type: finding
+node_id: finding:graphify-missing-edges
+title: "Graphify 缺失边分析"
+date: 2026-05-13
+migrated_from: docs/superpowers/specs/p2-graphify-missing-edges.md
+tags: ["migrated"]
+---
+
 # P2 副产物：graphify 漏抽边 / 合理低耦合节点 / 已消失符号
 
 本文档记录 P2 孤立节点审查的**非删除**部分：graphify 工具漏抽的真实调用边、保留的低耦合合理节点，以及因前置 P0/P1 重构已从代码库中消失的符号。

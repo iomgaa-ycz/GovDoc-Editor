@@ -1,3 +1,12 @@
+---
+type: design
+node_id: design:cicd-design
+title: "CI/CD 部署架构设计"
+date: 2026-05-13
+migrated_from: docs/superpowers/specs/2026-04-20-cicd-design.md
+tags: ["migrated"]
+---
+
 # CI/CD 设计：双轨自动部署
 
 > **日期**: 2026-04-20

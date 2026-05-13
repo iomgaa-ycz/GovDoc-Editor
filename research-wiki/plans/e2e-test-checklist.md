@@ -1,3 +1,12 @@
+---
+type: plan
+node_id: plan:e2e-test-checklist
+title: "E2E 测试清单"
+date: 2026-05-13
+migrated_from: docs/e2e-test-plan.md
+tags: ["migrated"]
+---
+
 # E2E 测试计划
 
 > 本文档为 GovDoc-Auditor 的端到端测试清单，覆盖后端 API 和前端 Playwright 两个层级。

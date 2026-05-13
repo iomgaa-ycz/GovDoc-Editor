@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": "plan:checkpoint-import-plan",
+      "label": "审查点表格导入实施计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:frontend-contract-tests",
+      "label": "前端契约测试基础设施计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:cicd-deploy",
+      "label": "CI/CD Docker 部署计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:cicd-secrets",
+      "label": "CI/CD 密钥管理计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:alembic-unify",
+      "label": "Alembic 统一数据库初始化计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:multi-file-audit",
+      "label": "多文件审核功能实施计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:checkpoint-import-design",
+      "label": "审查点表格导入设计",
+      "type": "design"
+    },
+    {
+      "id": "design:tech-debt-cleanup-design",
+      "label": "技术债务清理设计",
+      "type": "design"
+    },
+    {
+      "id": "design:cicd-design",
+      "label": "CI/CD 部署架构设计",
+      "type": "design"
+    },
+    {
+      "id": "finding:graphify-missing-edges",
+      "label": "Graphify 缺失边分析",
+      "type": "finding"
+    },
+    {
+      "id": "plan:e2e-test-checklist",
+      "label": "E2E 测试清单",
+      "type": "plan"
+    },
+    {
+      "id": "finding:multi-file-audit-investigation",
+      "label": "多文件审核调查报告",
+      "type": "finding"
+    }
+  ],
+  "links": []
+}

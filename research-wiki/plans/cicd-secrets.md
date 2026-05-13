@@ -1,3 +1,12 @@
+---
+type: plan
+node_id: plan:cicd-secrets
+title: "CI/CD 密钥管理计划"
+date: 2026-05-13
+migrated_from: docs/superpowers/plans/2026-04-21-cicd-secrets.md
+tags: ["migrated"]
+---
+
 # CI/CD 密钥管理：GitHub Secrets 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -1,3 +1,12 @@
+---
+type: plan
+node_id: plan:cicd-deploy
+title: "CI/CD Docker 部署计划"
+date: 2026-05-13
+migrated_from: docs/superpowers/plans/2026-04-20-cicd-deploy.md
+tags: ["migrated"]
+---
+
 # CI/CD 双轨自动部署 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

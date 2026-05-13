@@ -1,3 +1,12 @@
+---
+type: plan
+node_id: plan:frontend-contract-tests
+title: 前端契约测试基础设施计划
+date: 2026-05-13
+migrated_from: docs/superpowers/plans/2026-04-19-p1c-v3-contract-tests.md
+tags: ["migrated"]
+---
+
 # P1c · v3.ts 契约测试 + 前端测试基建 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans.

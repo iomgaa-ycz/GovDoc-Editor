@@ -1,3 +1,12 @@
+---
+type: design
+node_id: design:tech-debt-cleanup-design
+title: 技术债务清理设计
+date: 2026-05-13
+migrated_from: docs/superpowers/specs/2026-04-19-govdoc-tech-debt-cleanup-design.md
+tags: ["migrated"]
+---
+
 # GovDoc_AuditorV3 技术债整理 · Umbrella Spec
 
 **日期**：2026-04-19

@@ -1,0 +1,22 @@
+# 变更日志
+- [2026-05-13 08:16 UTC] 迁移 plan: 审查点表格导入实施计划 (docs/superpowers/plans/2026-04-19-checkpoint-import.md → research-wiki/plans/checkpoint-import-plan.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: 前端契约测试基础设施计划 (docs/superpowers/plans/2026-04-19-p1c-v3-contract-tests.md → research-wiki/plans/frontend-contract-tests.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: CI/CD Docker 部署计划 (docs/superpowers/plans/2026-04-20-cicd-deploy.md → research-wiki/plans/cicd-deploy.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: CI/CD 密钥管理计划 (docs/superpowers/plans/2026-04-21-cicd-secrets.md → research-wiki/plans/cicd-secrets.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: Alembic 统一数据库初始化计划 (docs/superpowers/plans/2026-04-21-init-db-alembic-unify.md → research-wiki/plans/alembic-unify.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: 多文件审核功能实施计划 (docs/superpowers/plans/2026-04-26-multi-file-audit-plan.md → research-wiki/plans/multi-file-audit.md)
+- [2026-05-13 08:16 UTC] 迁移 design: 审查点表格导入设计 (docs/superpowers/specs/2026-04-19-checkpoint-import-design.md → research-wiki/designs/checkpoint-import-design.md)
+- [2026-05-13 08:16 UTC] 迁移 design: 技术债务清理设计 (docs/superpowers/specs/2026-04-19-govdoc-tech-debt-cleanup-design.md → research-wiki/designs/tech-debt-cleanup-design.md)
+- [2026-05-13 08:16 UTC] 迁移 design: CI/CD 部署架构设计 (docs/superpowers/specs/2026-04-20-cicd-design.md → research-wiki/designs/cicd-design.md)
+- [2026-05-13 08:16 UTC] 迁移 finding: Graphify 缺失边分析 (docs/superpowers/specs/p2-graphify-missing-edges.md → research-wiki/findings/graphify-missing-edges.md)
+- [2026-05-13 08:16 UTC] 迁移 plan: E2E 测试清单 (docs/e2e-test-plan.md → research-wiki/plans/e2e-test-checklist.md)
+- [2026-05-13 08:16 UTC] 迁移 finding: 多文件审核调查报告 (docs/multi-file-audit-investigation-2026-04-26.md → research-wiki/findings/multi-file-audit-investigation.md)
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-19-govdoc-tech-debt-cleanup-index.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-19-p0-run-audit-split.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-19-p1a-aireview-split.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-19-p1b-output-utils-json5.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-19-p2-isolated-nodes-audit.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/plans/2026-04-27-remove-checkpoint-drafts.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p1a-aireview-responsibility-map.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p1a-smoke-status.md
+- [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p2-isolated-nodes-audit.csv

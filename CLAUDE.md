@@ -138,7 +138,7 @@ conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report
 
 ### Phase 1: 规划与设计 (Planning)
 1. **查阅规格 (Read Specs) & 讨论**:
-   - **必须**先读 `docs/design.md`（唯一架构基线）、`docs/TD.md`（唯一任务基线）、`docs/v2-lessons-design-amendment.md`（V2 经验，P0/P1/P2 分层）
+   - **必须**先查阅 `research-wiki/` 中相关的 designs / plans / findings，了解已有设计决策
    - **必须**用 GitNexus MCP (`gitnexus://repo/Explicit-Lora/context` 入口，见 `graphify-out/`) 理解最新代码结构
    - 对不清楚的设计意图，**必须**与人类多轮讨论，确保对齐
 2. **计划 (Plan)**: 正式编码前，**必须**使用 plan 模式输出开发计划，严格包含：
@@ -159,7 +159,7 @@ conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report
    - 失败 → 回到编码修复；成功 → 进入 Phase 3
 
 ### Phase 3: 收尾与交付 (Finalization)
-1. **文档同步**: 若变更影响架构或契约，同步更新 `docs/design.md` / `docs/TD.md`；跨项目议题登记到 `工程md/INTEGRATION_ISSUES.md`
+1. **文档同步**: 若变更影响架构或契约，同步更新 `research-wiki/` 中对应的 design / plan 实体
 2. **提交**: 按 Conventional Commits 规范（`feat:`/`fix:`/`docs:`/`refactor:`/`test:`）
    - **严禁** commit message 中添加 AI 标识
 
@@ -168,7 +168,7 @@ conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report
 ### 4.1 架构约束（不可违反）
 
 > [!CRITICAL]
-> 本项目是三层架构中的业务层，**依赖方向恒定朝下**。以下约束来自 `docs/design.md` §3：
+> 本项目是三层架构中的业务层，**依赖方向恒定朝下**。以下约束不可违反：
 
 | 约束 | 说明 |
 |---|---|
@@ -259,17 +259,9 @@ conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report
 | 需求 | 文档路径 | 说明 |
 |------|----------|------|
 | 项目目标与背景 | `README.md` | 三层架构 + 启动说明 + 核心概念 |
-| 架构基线（权威） | `docs/design.md` | 唯一架构基线（10 表 / 管道 A/B / Web API / runtime / EvoSkill） |
-| 任务分解（权威） | `docs/TD.md` | M0-M3 任务清单 + DoD 对齐 design |
-| V2 经验增补 | `docs/v2-lessons-design-amendment.md` | V2 坑位 → V3 修复 chain（P0/P1/P2） |
-| 数据流 | `docs/data-flow.md` | 管道 A/B 的数据与状态流 |
-| 漂移审计 | `docs/v3-drift-review-2026-04-19.md` | V3 相对 design 的漂移检查 |
 | Agent 规约 | `AGENTS.md` | Claude Code Agent 实施约束摘要 |
-| 跨项目议题 | `工程md/INTEGRATION_ISSUES.md` | 三项目协调板（P0/P1 议题） |
-| 项目速读（人类版） | `工程md/GOVDOC_OVERVIEW(1).md` | 10-15 分钟三项目速读 |
-| GovDoc 设计详版 | `工程md/GovDoc-Auditor/` | 早期设计稿（权威在 `docs/`） |
-| qmd 设计 | `工程md/qmd/` | 底层检索库设计 |
-| scrivai 设计 | `工程md/scrivai/` | 中层 agent 框架设计 |
+| 知识库（唯一来源） | `research-wiki/` | 所有设计、计划、发现、调查的统一存储 |
+| 知识库索引 | `research-wiki/index.md` | 所有实体的分类索引 |
 
 ### 5.2 GitNexus MCP 索引
 
@@ -319,7 +311,7 @@ conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report
 | **Workspace** | 一次 agent 运行的独立沙箱目录；含 skills 快照、data 快照、output、logs、meta.json |
 | **Skill** | Claude Code 能力单元（SKILL.md），指导 agent 做某类事 |
 | **Library** | Scrivai 对 qmd 的封装；固定 collection 名 `rules` / `cases` / `templates` |
-| **AuditRun / AuditPointRun** | 管道 B 的编排层 vs 单审核点执行；V2 教训：单 JSON 汇总 → V3 拆细（见 v2-lessons §P0） |
+| **AuditRun / AuditPointRun** | 管道 B 的编排层 vs 单审核点执行；V2 教训：单 JSON 汇总 → V3 拆细 |
 | **EvoSkill** | 基于 trajectory 迭代 skill 的进化机制；至少 2 类指标同向提升才 promote（M2 启用）|
 
 ### 5.5 里程碑对照
