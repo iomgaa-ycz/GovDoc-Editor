@@ -20,3 +20,8 @@
 - [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p1a-aireview-responsibility-map.md
 - [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p1a-smoke-status.md
 - [2026-05-13 08:16 UTC] 删除: docs/superpowers/specs/p2-isolated-nodes-audit.csv
+- [2026-05-13 08:41 UTC] 新增 design: Wiki-Site 渲染站点搭建 (design:wiki-site-setup)
+- [2026-05-13 08:42 UTC] 重建索引: 13 篇页面
+- [2026-05-13 08:44 UTC] 新增 plan: Wiki-Site 渲染站点搭建实施计划 (plan:wiki-site-setup-impl)
+- [2026-05-13 08:44 UTC] 新增边: plan:wiki-site-setup-impl --implements--> design:wiki-site-setup
+- [2026-05-13 08:45 UTC] 重建索引: 14 篇页面

@@ -59,7 +59,25 @@
       "id": "finding:multi-file-audit-investigation",
       "label": "多文件审核调查报告",
       "type": "finding"
+    },
+    {
+      "id": "design:wiki-site-setup",
+      "label": "Wiki-Site 渲染站点搭建",
+      "type": "design"
+    },
+    {
+      "id": "plan:wiki-site-setup-impl",
+      "label": "Wiki-Site 渲染站点搭建实施计划",
+      "type": "plan"
     }
   ],
-  "links": []
+  "links": [
+    {
+      "source": "plan:wiki-site-setup-impl",
+      "target": "design:wiki-site-setup",
+      "relation": "implements",
+      "evidence": "实施 wiki-site-setup 设计方案",
+      "added": "2026-05-13T08:44:05.970746+00:00"
+    }
+  ]
 }
