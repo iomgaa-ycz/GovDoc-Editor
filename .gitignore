@@ -44,6 +44,7 @@ graphify-out/converted/
 
 # 测试产物
 tests/outputs/
+tests/e2e/reports/
 
 # IDE / 编辑器
 .vscode/
