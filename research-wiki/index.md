@@ -2,11 +2,12 @@
 
 > 自动生成，更新时间：2026-05-13 08:45 UTC
 
-## design (4)
+## design (5)
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
+- [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 
 ## finding (2)
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
