@@ -47,9 +47,7 @@ class TestHarnessLog:
                 raise RuntimeError("boom")
 
         conn = sqlite3.connect(db_path)
-        row = conn.execute(
-            "SELECT status FROM _runs WHERE run_id = ?", ("run-003",)
-        ).fetchone()
+        row = conn.execute("SELECT status FROM _runs WHERE run_id = ?", ("run-003",)).fetchone()
         conn.close()
         assert row[0] == "failed"
 
@@ -57,9 +55,7 @@ class TestHarnessLog:
         """log_event 应写入 _events 表。"""
         with HarnessLog(db_path=db_path, run_id="run-004", git_sha="abc") as log:
             log.log_event("pipeline_start", {"pipeline": "extract_rules"})
-            events = log.query(
-                "SELECT * FROM _events WHERE run_id = ?", ("run-004",)
-            )
+            events = log.query("SELECT * FROM _events WHERE run_id = ?", ("run-004",))
             assert len(events) == 1
             assert events[0]["event_type"] == "pipeline_start"
             payload = json.loads(events[0]["payload"])
@@ -70,9 +66,7 @@ class TestHarnessLog:
         with HarnessLog(db_path=db_path, run_id="run-005", git_sha="abc") as log:
             log.create_table("audit_metrics", {"accuracy": "REAL", "recall": "REAL"})
             log.insert("audit_metrics", {"accuracy": 0.85, "recall": 0.72})
-            rows = log.query(
-                "SELECT * FROM audit_metrics WHERE run_id = ?", ("run-005",)
-            )
+            rows = log.query("SELECT * FROM audit_metrics WHERE run_id = ?", ("run-005",))
             assert len(rows) == 1
             assert rows[0]["accuracy"] == 0.85
             assert rows[0]["recall"] == 0.72

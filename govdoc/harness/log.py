@@ -1,4 +1,5 @@
 """HarnessLog：SQLite 薄包装，提供灵活的结构化日志能力。"""
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,9 @@ def _get_git_sha() -> str | None:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -198,11 +201,16 @@ class HarnessLog:
             table_name = table_row["name"]
             subprocess.run(
                 [
-                    "python3", ".claude/tools/research_wiki.py",
-                    "add_entity", wiki_dir,
-                    "--type", "schema",
-                    "--id", table_name,
-                    "--title", f"表结构: {table_name}",
+                    "python3",
+                    ".claude/tools/research_wiki.py",
+                    "add_entity",
+                    wiki_dir,
+                    "--type",
+                    "schema",
+                    "--id",
+                    table_name,
+                    "--title",
+                    f"表结构: {table_name}",
                 ],
                 check=True,
             )

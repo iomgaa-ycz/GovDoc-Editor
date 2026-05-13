@@ -75,9 +75,7 @@ class TestSqliteHandler:
         conn = sqlite3.connect(db_path)
         tables = [
             r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         ]
         conn.close()
         h.close()
