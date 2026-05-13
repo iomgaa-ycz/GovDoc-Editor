@@ -1,0 +1,17 @@
+projects:
+  - name: "从化医院采购"
+    tender_doc: "real_data/从化区中医医院手术室设备及附件、病房护理及医院设备采购/从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
+    supplementary_docs:
+      - "real_data/从化区中医医院手术室设备及附件、病房护理及医院设备采购/3、从化区中医医院手术室设备及附件、病房护理及医院设备采购/从化区中医医院手术室设备及附件、病房护理及医院设备采购的合同.pdf"
+
+  - name: "汕头河道项目"
+    tender_doc: "real_data/2023年度汕头市潮阳区流域面积50km²以下 河道管理范围划界工作服务项目/2023年度汕头市潮阳区流域面积50km²以下 河道管理范围划界工作服务项目.docx"
+    supplementary_docs: []
+
+rules:
+  - name: "四类违法违规指引"
+    path: "real_data/2025年政府采购领域\"四类\"违法违规行为专项整治工作指引.doc"
+
+checkpoints:
+  - name: "处罚标准表"
+    path: "real_data/附件9 处理处罚标准.xls"
