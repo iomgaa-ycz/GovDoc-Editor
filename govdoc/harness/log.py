@@ -68,6 +68,7 @@ class HarnessLog:
                 git_sha TEXT,
                 started_at TEXT,
                 finished_at TEXT,
+                heartbeat_at TEXT,
                 config JSON,
                 status TEXT DEFAULT 'running'
             )
@@ -175,6 +176,11 @@ class HarnessLog:
         )
         self._conn.commit()
 
+    def heartbeat(self, phase: str = "") -> None:
+        """更新 _runs 行的 heartbeat 时间戳，用于检测 hang。"""
+        self._conn.execute("UPDATE _runs SET heartbeat_at=? WHERE run_id=?", (_now_iso(), self._run_id))
+        self._conn.commit()
+
     def close(self, status: str = "completed") -> None:
         """更新运行状态并关闭连接。
 
@@ -220,4 +226,8 @@ class HarnessLog:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         status = "failed" if exc_type is not None else "completed"
-        self.close(status=status)
+        try:
+            self.close(status=status)
+        except Exception:
+            if exc_type is None:
+                raise
