@@ -76,7 +76,7 @@ class HarnessJudge:
                 "model": self._model,
                 "messages": [{"role": "user", "content": prompt}],
             }
-            resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
+            resp = httpx.post(url, json=body, headers=headers, timeout=300.0)
             resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]["content"]

@@ -239,12 +239,15 @@ async def run_pipeline_eval(
             try:
                 from govdoc.pipelines.extract_rules import run_extract
                 from govdoc.db.session import get_session
+                from govdoc.runtime import get_trajectory_store
 
+                traj_store = get_trajectory_store()
                 session = next(get_session())
                 extract_run = await run_extract(
                     rule_source_id=_ensure_rule_source(rule, session),
                     session=session,
                     project_root=project_root,
+                    trajectory_store=traj_store,
                 )
                 duration = time.time() - t0
                 usage = json.loads(extract_run.total_usage_json or "{}")
@@ -295,12 +298,15 @@ async def run_pipeline_eval(
             try:
                 from govdoc.pipelines.audit_tender import run_audit
                 from govdoc.db.session import get_session
+                from govdoc.runtime import get_trajectory_store
 
+                traj_store = get_trajectory_store()
                 session = next(get_session())
                 audit_run = await run_audit(
-                    audit_run_id=_ensure_audit_run(proj, session),
+                    audit_run_id=_ensure_audit_run(proj, session, manifest),
                     session=session,
                     project_root=project_root,
+                    trajectory_store=traj_store,
                 )
                 duration = time.time() - t0
 
@@ -368,9 +374,10 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
     return rs.id
 
 
-def _ensure_audit_run(proj: Any, session: Any) -> str:
-    """确保审核运行已创建，返回 audit_run_id。"""
-    from govdoc.db.models import AuditRun, Project, TenderDoc
+def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
+    """确保审核运行已创建（含金标准审核点导入），返回 audit_run_id。"""
+    from govdoc.db.models import AuditRun, CheckpointFinal, Project, TenderDoc
+    from govdoc.parsers.checkpoint_import import parse_checkpoint_file
 
     project = session.query(Project).filter_by(name=proj.name).first()
     if not project:
@@ -392,15 +399,38 @@ def _ensure_audit_run(proj: Any, session: Any) -> str:
         session.commit()
         session.refresh(tender_doc)
 
+    cp_ids: list[str] = []
+    existing_cps = session.query(CheckpointFinal).limit(1).first()
+    if existing_cps:
+        all_cps = session.query(CheckpointFinal).all()
+        cp_ids = [c.id for c in all_cps]
+    else:
+        for cp_fixture in manifest.checkpoints:
+            cp_path = Path(cp_fixture.path)
+            if not cp_path.exists():
+                logger.warning("审核点文件不存在: %s", cp_path)
+                continue
+            checkpoints, skipped = parse_checkpoint_file(cp_path)
+            logger.info("导入审核点: %s → %d 条, 跳过 %d 行", cp_fixture.name, len(checkpoints), len(skipped))
+            for gov_cp in checkpoints:
+                cf = CheckpointFinal(
+                    payload_json=gov_cp.model_dump_json(),
+                    approved_by="harness:golden-standard",
+                )
+                session.add(cf)
+                cp_ids.append(cf.id)
+            session.commit()
+
     audit_run = AuditRun(
         project_id=project.id,
         tender_doc_id=tender_doc.id,
-        checkpoint_final_ids="[]",
+        checkpoint_final_ids=json.dumps(cp_ids),
         status="pending",
     )
     session.add(audit_run)
     session.commit()
     session.refresh(audit_run)
+    logger.info("AuditRun %s 创建完成, %d 个审核点", audit_run.id, len(cp_ids))
     return audit_run.id
 
 
@@ -455,6 +485,32 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
     extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
     audit_rows = log.query("SELECT * FROM audit_results WHERE run_id=?", (log._run_id,))
 
+    trajectory_evidence: dict[str, Any] | None = None
+    try:
+        from govdoc.runtime import get_trajectory_store
+
+        traj_store = get_trajectory_store()
+        traj_runs = traj_store.list_runs()
+        if traj_runs:
+            latest = traj_runs[-1]
+            run_data = traj_store.get_run(latest.run_id)
+            trajectory_evidence = {
+                "run_id": run_data.run_id,
+                "status": run_data.status,
+                "phases": [
+                    {
+                        "name": p.phase,
+                        "started_at": str(p.started_at) if p.started_at else None,
+                        "ended_at": str(p.ended_at) if p.ended_at else None,
+                        "error": p.error,
+                    }
+                    for p in (run_data.phases or [])
+                ],
+            }
+            logger.info("读取 trajectory: run_id=%s, %d phases", run_data.run_id, len(run_data.phases or []))
+    except Exception:
+        logger.warning("读取 trajectory 失败，agent-* 维度将缺少 trajectory evidence")
+
     dimensions = [
         "extract-faithfulness",
         "extract-recall",
@@ -485,6 +541,8 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                 "audit_results": audit_rows,
                 "dimension": dim,
             }
+            if dim.startswith("agent-") and trajectory_evidence:
+                evidence["trajectory"] = trajectory_evidence
             evaluate_dimension(
                 log=log,
                 judge=judge,
