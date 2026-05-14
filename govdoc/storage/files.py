@@ -101,7 +101,7 @@ class DocumentStore:
             return prepared
 
         if suffix in _SCRIVAI_SUFFIXES:
-            prepared = self._convert(raw, prepared, warnings_stack)
+            prepared = self._convert(raw, prepared)
         else:
             msg = f"不支持的文档格式: {suffix}，尝试作为纯文本处理"
             if warnings_stack is not None:
@@ -123,7 +123,8 @@ class DocumentStore:
                 continue
         return manifests
 
-    def _convert(self, raw: Path, target: Path, warnings_stack: list[str] | None) -> Path:
+    def _convert(self, raw: Path, target: Path) -> Path:
+        """调用 scrivai.to_markdown 将原始文件转换为 markdown。"""
         md = _scrivai_to_markdown(raw, ocr_base_url=self._ocr_base_url)
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")
