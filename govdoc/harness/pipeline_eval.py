@@ -398,14 +398,15 @@ def _load_audit_findings(audit_run: Any, session: Any) -> list[dict[str, Any]]:
 
 def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: str) -> None:
     """运行全部语义评估维度。"""
-    from govdoc.runtime import get_config
+    import os
+    from dotenv import load_dotenv
 
-    config = get_config()
+    load_dotenv()
     judge = HarnessJudge(
-        provider=config.model.provider,
-        model=config.model.model,
-        base_url=config.model.base_url,
-        api_key=config.model.api_key,
+        provider="openai",
+        model=os.environ.get("HARNESS_JUDGE_MODEL", "qwen3.6-plus"),
+        base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "http://110.42.53.85:11098"),
+        api_key=os.environ.get("HARNESS_JUDGE_API_KEY", ""),
     )
 
     extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
