@@ -257,6 +257,7 @@ async def run_api_eval(
     base_url: str = "http://localhost:8000",
     manifest_path: str,
     project_root: str,
+    rubric_dir: str = "scripts/rubrics",
     db_path: str = "results/harness.db",
 ) -> str:
     """L2 API 评估主入口。
@@ -265,6 +266,7 @@ async def run_api_eval(
         base_url: FastAPI 服务地址。
         manifest_path: harness_manifest.yaml 路径。
         project_root: 项目根目录。
+        rubric_dir: 语义评估 rubrics 目录。
         db_path: harness.db 路径。
 
     返回:
@@ -555,7 +557,12 @@ async def run_api_eval(
                 if findings:
                     record_audit_results(log, findings)
 
-            # Phase 10: P95 延迟
+            # Phase 10: 语义评估（复用 L1）
+            from govdoc.harness.pipeline_eval import _run_semantic_evaluations
+            logger.info("开始语义评估")
+            _run_semantic_evaluations(log, rubric_dir, project_root)
+
+            # Phase 11: P95 延迟
             sync_calls = log.query(
                 "SELECT duration_ms FROM api_calls WHERE run_id=? AND status_code > 0 "
                 "ORDER BY duration_ms",
@@ -581,6 +588,7 @@ if __name__ == "__main__":
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--manifest", default="scripts/fixtures/harness_manifest.yaml")
     parser.add_argument("--project-root", default=".")
+    parser.add_argument("--rubric-dir", default="scripts/rubrics")
     parser.add_argument("--db-path", default="results/harness.db")
     args = parser.parse_args()
 
@@ -591,6 +599,7 @@ if __name__ == "__main__":
             base_url=args.base_url,
             manifest_path=args.manifest,
             project_root=args.project_root,
+            rubric_dir=args.rubric_dir,
             db_path=args.db_path,
         )
     )
