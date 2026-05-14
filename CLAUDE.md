@@ -69,7 +69,9 @@ cd frontend && npm install && cd ..
 
 > [!CRITICAL]
 > 以下目录**未纳入 git 跟踪**（体积大 / 敏感数据），但测试和运行时依赖它们。
-> **禁止使用 git worktree**：本项目使用 `pip install -e .` editable install，worktree 中的代码修改不会被 Python 加载（editable finder 硬编码指向主仓库路径）。所有开发直接在主分支进行。
+> **Worktree 已通过 hook 自动适配**：`WorktreeCreate` hook 自动完成：
+> 1. 创建 symlink 指向主仓库的未跟踪目录（`real_data/`、`data/`、`.env`）
+> 2. 重新执行 `pip install -e .` + `pip install -e ./vendor/scrivai-src`，让 editable finder 指向 worktree 路径
 
 | 目录/文件 | 大小 | 用途 | 依赖方 |
 |-----------|------|------|--------|

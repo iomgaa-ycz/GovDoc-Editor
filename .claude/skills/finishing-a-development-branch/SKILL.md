@@ -5,7 +5,7 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 # Finishing a Development Branch
 
-> **本项目注意：** 禁止使用 git worktree，所有 worktree 相关的清理步骤（Step 6）跳过。直接在主分支工作。
+> **本项目注意：** Worktree 已通过 `WorktreeCreate` hook 自动适配（symlink + pip install -e）。
 
 ## Overview
 

@@ -21,6 +21,17 @@
           }
         ]
       }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/hooks/worktree-setup.sh",
+            "timeout": 120
+          }
+        ]
+      }
     ]
   }
 }
