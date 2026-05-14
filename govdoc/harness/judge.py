@@ -48,39 +48,41 @@ class HarnessJudge:
         self._base_url = base_url
         self._api_key = api_key
 
-    def _call_llm(self, prompt: str) -> str:
-        """调用 LLM API 获取回复。
+    def _call_llm(self, prompt: str, *, max_retries: int = 2) -> str:
+        """调用 LLM API 获取回复，带简单重试。"""
+        import time as _time
 
-        参数:
-            prompt: 发送给模型的完整 prompt。
+        last_exc: Exception | None = None
+        for attempt in range(1 + max_retries):
+            try:
+                if self._provider == "anthropic":
+                    import anthropic
 
-        返回:
-            模型的文本回复。
-        """
-        if self._provider == "anthropic":
-            import anthropic
+                    client = anthropic.Anthropic(api_key=self._api_key)
+                    response = client.messages.create(
+                        model=self._model,
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return response.content[0].text
+                if self._provider == "openai":
+                    import httpx
 
-            client = anthropic.Anthropic(api_key=self._api_key)
-            response = client.messages.create(
-                model=self._model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
-        if self._provider == "openai":
-            import httpx
-
-            url = f"{self._base_url}/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {self._api_key}"}
-            body = {
-                "model": self._model,
-                "messages": [{"role": "user", "content": prompt}],
-            }
-            resp = httpx.post(url, json=body, headers=headers, timeout=300.0)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        raise ValueError(f"不支持的 provider: {self._provider}")
+                    url = f"{self._base_url}/v1/chat/completions"
+                    headers = {"Authorization": f"Bearer {self._api_key}"}
+                    body = {"model": self._model, "messages": [{"role": "user", "content": prompt}]}
+                    resp = httpx.post(url, json=body, headers=headers, timeout=300.0)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+                raise ValueError(f"不支持的 provider: {self._provider}")
+            except ValueError:
+                raise
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    _time.sleep(2 ** attempt)
+        raise last_exc  # type: ignore[misc]
 
     def _build_evaluate_prompt(
         self,

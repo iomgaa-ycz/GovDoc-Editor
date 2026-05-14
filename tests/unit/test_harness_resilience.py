@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from govdoc.harness.log import HarnessLog
+from govdoc.harness.judge import HarnessJudge
 from govdoc.harness.pipeline_eval import _run_semantic_evaluations, run_pipeline_eval
 from govdoc.harness.schemas import create_all_tables
 
@@ -116,3 +117,32 @@ class TestJudgeInitFailure:
                 "AND event_type='semantic_eval_fatal'"
             )
             assert len(events) == 1
+
+
+class TestCallLlmRetry:
+    """P10: _call_llm 瞬时失败应重试。"""
+
+    def test_retries_on_transient_error(self) -> None:
+        judge = HarnessJudge(provider="openai", model="test", base_url="http://fake", api_key="key")
+        call_count = 0
+
+        def mock_post(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ConnectionError(f"模拟失败 #{call_count}")
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json.return_value = {"choices": [{"message": {"content": '{"passed": true}'}}]}
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        with patch("httpx.post", side_effect=mock_post), patch("time.sleep"):
+            result = judge._call_llm("test prompt")
+        assert call_count == 3
+        assert "passed" in result
+
+    def test_no_retry_on_value_error(self) -> None:
+        judge = HarnessJudge(provider="unknown", model="x")
+        with pytest.raises(ValueError, match="不支持的 provider"):
+            judge._call_llm("test")
