@@ -34,3 +34,42 @@ class TestHeartbeat:
             conn.close()
             assert row is not None
             assert row[0] is not None
+
+
+class TestPipelineTimeout:
+    def test_timeout_recorded_in_pipeline_runs(self, tmp_path: Path) -> None:
+        import asyncio
+        import os
+        import sqlite3
+        from unittest.mock import MagicMock, patch
+
+        from govdoc.harness.pipeline_eval import run_pipeline_eval
+
+        db_path = str(tmp_path / "timeout.db")
+        manifest_path = str(tmp_path / "manifest.yaml")
+        (tmp_path / "manifest.yaml").write_text(
+            "projects: []\nrules:\n  - name: slow\n    path: fake.doc\ncheckpoints: []\n",
+            encoding="utf-8",
+        )
+
+        async def slow_extract(**kwargs):
+            await asyncio.sleep(9999)
+
+        with patch.dict(os.environ, {"HARNESS_PIPELINE_TIMEOUT": "1"}), \
+             patch("govdoc.harness.pipeline_eval._ensure_rule_source", return_value="rs-1"), \
+             patch("govdoc.pipelines.extract_rules.run_extract", new=slow_extract), \
+             patch("govdoc.db.session.get_session", return_value=iter([MagicMock()])), \
+             patch("govdoc.runtime.get_trajectory_store", return_value=MagicMock()):
+            asyncio.run(
+                run_pipeline_eval(
+                    manifest_path=manifest_path,
+                    project_root=str(tmp_path),
+                    rubric_dir=str(tmp_path),
+                    db_path=db_path,
+                )
+            )
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute("SELECT status, error FROM pipeline_runs").fetchall()
+        conn.close()
+        assert len(rows) >= 1 and rows[0][0] == "failed"
+        assert "Timeout" in (rows[0][1] or "") or "timeout" in (rows[0][1] or "").lower()

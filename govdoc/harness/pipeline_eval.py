@@ -240,22 +240,30 @@ async def run_pipeline_eval(
             "config": config_snapshot,
         })
 
+        pipeline_timeout = int(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800"))
+
         # Phase 1: 管道 A
         for rule in manifest.rules:
             logger.info("管道 A: 处理法规 %s", rule.name)
             t0 = time.time()
+            session_gen = None
             try:
                 from govdoc.pipelines.extract_rules import run_extract
                 from govdoc.db.session import get_session
                 from govdoc.runtime import get_trajectory_store
 
                 traj_store = get_trajectory_store()
-                session = next(get_session())
-                extract_run = await run_extract(
-                    rule_source_id=_ensure_rule_source(rule, session),
-                    session=session,
-                    project_root=project_root,
-                    trajectory_store=traj_store,
+                session_gen = get_session()
+                session = next(session_gen)
+                log.heartbeat("pipeline_A")
+                extract_run = await asyncio.wait_for(
+                    run_extract(
+                        rule_source_id=_ensure_rule_source(rule, session),
+                        session=session,
+                        project_root=project_root,
+                        trajectory_store=traj_store,
+                    ),
+                    timeout=pipeline_timeout,
                 )
                 duration = time.time() - t0
                 usage = json.loads(extract_run.total_usage_json or "{}")
@@ -275,6 +283,25 @@ async def run_pipeline_eval(
                 if extract_run.status in ("draft_ready", "completed"):
                     checkpoints = _load_extract_output(extract_run, session)
                     record_extract_results(log, checkpoints)
+            except asyncio.TimeoutError:
+                duration = time.time() - t0
+                record_pipeline_run(
+                    log,
+                    pipeline="A",
+                    project_name=rule.name,
+                    input_file=rule.path,
+                    status="failed",
+                    duration_s=duration,
+                    total_tokens=0,
+                    error="TimeoutError",
+                )
+                log.log_event("pipeline_error", {
+                    "pipeline": "A",
+                    "project_name": rule.name,
+                    "error_type": "TimeoutError",
+                    "error_message": "TimeoutError",
+                })
+                logger.error("管道 A 超时: %s", rule.name)
             except Exception as exc:
                 import traceback
 
@@ -298,23 +325,34 @@ async def run_pipeline_eval(
                     "traceback": tb,
                 })
                 logger.error("管道 A 失败: %s\n%s", rule.name, tb)
+            finally:
+                if session_gen:
+                    close = getattr(session_gen, "close", None)
+                    if close:
+                        close()
 
         # Phase 2: 管道 B
         for proj in manifest.projects:
             logger.info("管道 B: 处理项目 %s", proj.name)
             t0 = time.time()
+            session_gen = None
             try:
                 from govdoc.pipelines.audit_tender import run_audit
                 from govdoc.db.session import get_session
                 from govdoc.runtime import get_trajectory_store
 
                 traj_store = get_trajectory_store()
-                session = next(get_session())
-                audit_run = await run_audit(
-                    audit_run_id=_ensure_audit_run(proj, session, manifest),
-                    session=session,
-                    project_root=project_root,
-                    trajectory_store=traj_store,
+                session_gen = get_session()
+                session = next(session_gen)
+                log.heartbeat("pipeline_B")
+                audit_run = await asyncio.wait_for(
+                    run_audit(
+                        audit_run_id=_ensure_audit_run(proj, session, manifest),
+                        session=session,
+                        project_root=project_root,
+                        trajectory_store=traj_store,
+                    ),
+                    timeout=pipeline_timeout,
                 )
                 duration = time.time() - t0
 
@@ -331,6 +369,25 @@ async def run_pipeline_eval(
                 if audit_run.status in ("draft_ready", "partial_ready", "completed"):
                     findings = _load_audit_findings(audit_run, session)
                     record_audit_results(log, findings)
+            except asyncio.TimeoutError:
+                duration = time.time() - t0
+                record_pipeline_run(
+                    log,
+                    pipeline="B",
+                    project_name=proj.name,
+                    input_file=proj.tender_doc,
+                    status="failed",
+                    duration_s=duration,
+                    total_tokens=0,
+                    error="TimeoutError",
+                )
+                log.log_event("pipeline_error", {
+                    "pipeline": "B",
+                    "project_name": proj.name,
+                    "error_type": "TimeoutError",
+                    "error_message": "TimeoutError",
+                })
+                logger.error("管道 B 超时: %s", proj.name)
             except Exception as exc:
                 import traceback
 
@@ -354,6 +411,11 @@ async def run_pipeline_eval(
                     "traceback": tb,
                 })
                 logger.error("管道 B 失败: %s\n%s", proj.name, tb)
+            finally:
+                if session_gen:
+                    close = getattr(session_gen, "close", None)
+                    if close:
+                        close()
 
         # Phase 3: 语义评估
         logger.info("开始语义评估")
