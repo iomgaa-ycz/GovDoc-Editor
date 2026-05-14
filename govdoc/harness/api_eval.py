@@ -329,10 +329,11 @@ async def run_api_eval(
             )
 
             # Phase 3: 文书上传
+            tender_doc_ids: list[str] = []
             for proj in manifest.projects:
                 tender_path = Path(proj.tender_doc)
                 if tender_path.exists():
-                    await call_endpoint(
+                    status, resp = await call_endpoint(
                         client,
                         EndpointSpec(
                             method="POST",
@@ -344,6 +345,8 @@ async def run_api_eval(
                         ),
                         log,
                     )
+                    if resp:
+                        tender_doc_ids.append(resp.get("id", ""))
 
             # Phase 4: 规则上传
             rule_upload_results: list[dict[str, Any]] = []
@@ -423,10 +426,11 @@ async def run_api_eval(
                             record_extract_results(log, extract_cps)
 
             # Phase 6: 审核点导入
+            imported_checkpoint_ids: list[str] = []
             for cp in manifest.checkpoints:
                 cp_path = Path(cp.path)
                 if cp_path.exists():
-                    await call_endpoint(
+                    status, resp = await call_endpoint(
                         client,
                         EndpointSpec(
                             method="POST",
@@ -437,6 +441,13 @@ async def run_api_eval(
                         ),
                         log,
                     )
+                    if resp:
+                        max_cp = int(os.environ.get("HARNESS_MAX_CHECKPOINTS", "0"))
+                        cps = resp.get("checkpoints", [])
+                        ids = [c["id"] for c in cps if c.get("id")]
+                        if max_cp > 0:
+                            ids = ids[:max_cp]
+                        imported_checkpoint_ids.extend(ids)
 
             # Phase 7: 列出端点
             await call_endpoint(
@@ -460,7 +471,91 @@ async def run_api_eval(
                 log,
             )
 
-            # Phase 8: P95 延迟
+            # Phase 8: 创建 Audit Run + 等待 Pipeline B 完成
+            from govdoc.harness.pipeline_eval import record_audit_results
+
+            audit_terminal = {"draft_ready", "completed", "partial_ready", "failed", "waiting_retry"}
+            completed_audit_run_ids: list[str] = []
+
+            for idx, proj in enumerate(manifest.projects):
+                if idx >= len(tender_doc_ids) or not imported_checkpoint_ids:
+                    continue
+
+                t0 = time.time()
+                status, audit_resp = await call_endpoint(
+                    client,
+                    EndpointSpec(
+                        method="POST",
+                        path="/api/v1/audit/runs",
+                        expected_status=202,
+                        description=f"创建审核: {proj.name}",
+                        body={
+                            "project_id": project_id,
+                            "tender_doc_id": tender_doc_ids[idx],
+                            "checkpoint_ids": imported_checkpoint_ids,
+                        },
+                    ),
+                    log,
+                )
+
+                if not audit_resp:
+                    continue
+                audit_run_id = audit_resp.get("audit_run_id", "")
+
+                final = await _poll_until_done(
+                    client,
+                    f"/api/v1/audit/runs/{audit_run_id}/progress",
+                    status_field="status",
+                    terminal_statuses=audit_terminal,
+                    log=log,
+                    poll_interval=10.0,
+                    timeout_s=pipeline_timeout,
+                )
+
+                audit_status = final["status"] if final else "timeout"
+                record_pipeline_run(
+                    log,
+                    pipeline="B",
+                    project_name=proj.name,
+                    input_file=str(proj.tender_doc),
+                    status=audit_status,
+                    duration_s=time.time() - t0,
+                    total_tokens=0,
+                    error=None if audit_status in ("draft_ready", "completed") else audit_status,
+                )
+
+                if final and audit_status in ("draft_ready", "completed", "partial_ready"):
+                    completed_audit_run_ids.append(audit_run_id)
+
+            # Phase 9: 记录审核发现
+            for arid in completed_audit_run_ids:
+                _, progress = await call_endpoint(
+                    client,
+                    EndpointSpec(
+                        method="GET",
+                        path=f"/api/v1/audit/runs/{arid}/progress",
+                        expected_status=200,
+                        description="获取审核进度",
+                    ),
+                    log,
+                )
+                if not progress:
+                    continue
+                findings: list[dict[str, Any]] = []
+                for pr in progress.get("point_runs", []):
+                    if pr.get("status") != "completed" or not pr.get("finding_json"):
+                        continue
+                    finding_raw = pr["finding_json"]
+                    finding = json.loads(finding_raw) if isinstance(finding_raw, str) else finding_raw
+                    finding["point_run_id"] = pr.get("id", "")
+                    finding["checkpoint_id"] = pr.get("checkpoint_final_id", "")
+                    finding["status"] = pr.get("status", "unknown")
+                    finding["duration_s"] = 0.0
+                    findings.append(finding)
+                if findings:
+                    record_audit_results(log, findings)
+
+            # Phase 10: P95 延迟
             sync_calls = log.query(
                 "SELECT duration_ms FROM api_calls WHERE run_id=? AND status_code > 0 "
                 "ORDER BY duration_ms",
