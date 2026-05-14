@@ -258,6 +258,7 @@ async def run_pipeline_eval(
                     status=extract_run.status,
                     duration_s=duration,
                     total_tokens=total_tokens,
+                    error=getattr(extract_run, "error", None),
                 )
 
                 if extract_run.status in ("draft_ready", "completed"):
@@ -394,6 +395,7 @@ def _ensure_audit_run(proj: Any, session: Any) -> str:
     audit_run = AuditRun(
         project_id=project.id,
         tender_doc_id=tender_doc.id,
+        checkpoint_final_ids="[]",
         status="pending",
     )
     session.add(audit_run)
