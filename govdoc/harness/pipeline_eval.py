@@ -427,9 +427,11 @@ async def run_pipeline_eval(
 
 def _ensure_rule_source(rule: Any, session: Any) -> str:
     """确保法规已入库，返回 rule_source_id。"""
+    from sqlmodel import select
+
     from govdoc.db.models import RuleSource
 
-    existing = session.query(RuleSource).filter_by(title=rule.name).first()
+    existing = session.exec(select(RuleSource).where(RuleSource.title == rule.name)).first()
     if existing:
         return existing.id
 
@@ -446,17 +448,19 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
 
 def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
     """确保审核运行已创建（含金标准审核点导入），返回 audit_run_id。"""
+    from sqlmodel import select
+
     from govdoc.db.models import AuditRun, CheckpointFinal, Project, TenderDoc
     from govdoc.parsers.checkpoint_import import parse_checkpoint_file
 
-    project = session.query(Project).filter_by(name=proj.name).first()
+    project = session.exec(select(Project).where(Project.name == proj.name)).first()
     if not project:
         project = Project(name=proj.name, created_by="harness")
         session.add(project)
         session.commit()
         session.refresh(project)
 
-    tender_doc = session.query(TenderDoc).filter_by(project_id=project.id).first()
+    tender_doc = session.exec(select(TenderDoc).where(TenderDoc.project_id == project.id)).first()
     if not tender_doc:
         tender_doc = TenderDoc(
             project_id=project.id,
@@ -470,9 +474,9 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
         session.refresh(tender_doc)
 
     cp_ids: list[str] = []
-    existing_cps = session.query(CheckpointFinal).limit(1).first()
+    existing_cps = session.exec(select(CheckpointFinal).limit(1)).first()
     if existing_cps:
-        all_cps = session.query(CheckpointFinal).all()
+        all_cps = session.exec(select(CheckpointFinal)).all()
         cp_ids = [c.id for c in all_cps]
     else:
         for cp_fixture in manifest.checkpoints:
@@ -506,9 +510,13 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
 
 def _load_extract_output(extract_run: Any, session: Any) -> list[dict[str, Any]]:
     """从 ExtractRun 加载审核点结果为 dict 列表。"""
+    from sqlmodel import select
+
     from govdoc.db.models import CheckpointFinal
 
-    cps = session.query(CheckpointFinal).filter_by(rule_source_id=extract_run.rule_source_id).all()
+    cps = session.exec(
+        select(CheckpointFinal).where(CheckpointFinal.rule_source_id == extract_run.rule_source_id)
+    ).all()
     results = []
     for cp in cps:
         payload = (
@@ -520,9 +528,13 @@ def _load_extract_output(extract_run: Any, session: Any) -> list[dict[str, Any]]
 
 def _load_audit_findings(audit_run: Any, session: Any) -> list[dict[str, Any]]:
     """从 AuditRun 加载审核发现为 dict 列表。"""
+    from sqlmodel import select
+
     from govdoc.db.models import AuditPointRun
 
-    point_runs = session.query(AuditPointRun).filter_by(audit_run_id=audit_run.id).all()
+    point_runs = session.exec(
+        select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
+    ).all()
     results = []
     for pr in point_runs:
         if pr.finding_json:
