@@ -209,9 +209,28 @@ async def run_pipeline_eval(
     run_id = f"L1-{uuid.uuid4().hex[:8]}"
     manifest = load_manifest(manifest_path, project_root=project_root)
 
-    with HarnessLog(db_path=db_path, run_id=run_id) as log:
+    import os
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    config_snapshot = {
+        "manifest_path": manifest_path,
+        "project_root": project_root,
+        "rubric_dir": rubric_dir,
+        "db_path": db_path,
+        "judge_model": os.environ.get("HARNESS_JUDGE_MODEL", ""),
+        "judge_base_url": os.environ.get("HARNESS_JUDGE_BASE_URL", ""),
+        "projects": [p.name for p in manifest.projects],
+        "rules": [r.name for r in manifest.rules],
+        "checkpoints": [c.name for c in manifest.checkpoints],
+    }
+
+    with HarnessLog(db_path=db_path, run_id=run_id, config_snapshot=config_snapshot) as log:
         create_all_tables(log)
-        log.log_event("pipeline_eval_start", {"manifest": manifest_path})
+        log.log_event("pipeline_eval_start", {
+            "manifest": manifest_path,
+            "config": config_snapshot,
+        })
 
         # Phase 1: 管道 A
         for rule in manifest.rules:
@@ -245,7 +264,10 @@ async def run_pipeline_eval(
                     checkpoints = _load_extract_output(extract_run, session)
                     record_extract_results(log, checkpoints)
             except Exception as exc:
+                import traceback
+
                 duration = time.time() - t0
+                tb = traceback.format_exc()
                 record_pipeline_run(
                     log,
                     pipeline="A",
@@ -254,9 +276,16 @@ async def run_pipeline_eval(
                     status="failed",
                     duration_s=duration,
                     total_tokens=0,
-                    error=str(exc),
+                    error=f"{type(exc).__name__}: {exc}",
                 )
-                logger.exception("管道 A 失败: %s", rule.name)
+                log.log_event("pipeline_error", {
+                    "pipeline": "A",
+                    "project_name": rule.name,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "traceback": tb,
+                })
+                logger.error("管道 A 失败: %s\n%s", rule.name, tb)
 
         # Phase 2: 管道 B
         for proj in manifest.projects:
@@ -288,7 +317,10 @@ async def run_pipeline_eval(
                     findings = _load_audit_findings(audit_run, session)
                     record_audit_results(log, findings)
             except Exception as exc:
+                import traceback
+
                 duration = time.time() - t0
+                tb = traceback.format_exc()
                 record_pipeline_run(
                     log,
                     pipeline="B",
@@ -297,9 +329,16 @@ async def run_pipeline_eval(
                     status="failed",
                     duration_s=duration,
                     total_tokens=0,
-                    error=str(exc),
+                    error=f"{type(exc).__name__}: {exc}",
                 )
-                logger.exception("管道 B 失败: %s", proj.name)
+                log.log_event("pipeline_error", {
+                    "pipeline": "B",
+                    "project_name": proj.name,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "traceback": tb,
+                })
+                logger.error("管道 B 失败: %s\n%s", proj.name, tb)
 
         # Phase 3: 语义评估
         logger.info("开始语义评估")
@@ -451,9 +490,19 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             )
             logger.info("语义评估 %s 完成", dim)
         except FileNotFoundError:
+            log.log_event("semantic_eval_skip", {"dimension": dim, "reason": "rubric 文件缺失"})
             logger.warning("跳过 %s: rubric 文件缺失", dim)
-        except Exception:
-            logger.exception("语义评估 %s 失败", dim)
+        except Exception as exc:
+            import traceback
+
+            tb = traceback.format_exc()
+            log.log_event("semantic_eval_error", {
+                "dimension": dim,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+                "traceback": tb,
+            })
+            logger.error("语义评估 %s 失败:\n%s", dim, tb)
 
 
 if __name__ == "__main__":
