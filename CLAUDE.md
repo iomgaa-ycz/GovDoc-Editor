@@ -34,11 +34,14 @@
 > - 使用 `conda run -n govdoc-auditor-v3 <command>` 确保命令在正确环境中运行
 > - 或在命令前显式添加 `source activate govdoc-auditor-v3 &&`
 > - 敏感信息（API Key）放 `.env`，不提交 git
-> - **涉及 LLM / 本地 API 调用时必须设置 NO_PROXY**（本机有 HTTP 代理 `127.0.0.1:7892`）：
+> - **涉及任何 HTTP 调用时必须设置 NO_PROXY**（本机有 HTTP 代理 `127.0.0.1:7892`，会拦截所有未豁免的外部请求）：
 >   ```bash
->   export no_proxy="localhost,127.0.0.1,${no_proxy:-}"
->   export NO_PROXY="localhost,127.0.0.1,${NO_PROXY:-}"
+>   export no_proxy="110.42.53.85,localhost,127.0.0.1,${no_proxy:-}"
+>   export NO_PROXY="110.42.53.85,localhost,127.0.0.1,${NO_PROXY:-}"
 >   ```
+>   - `110.42.53.85` = LLM 私有网关（glm-5.1），**必须**包含，否则请求被代理拦截返回 502
+>   - 编写 shell 脚本、启动服务、执行测试时，**每个入口点都必须设置 NO_PROXY**，不能假设上层已设置
+>   - 新增外部服务地址时，同步更新此处和 `.env` 中的 NO_PROXY 列表
 
 ```bash
 # 激活项目环境（交互式 shell）

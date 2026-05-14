@@ -221,12 +221,12 @@ async def run_pipeline_eval(
                 from govdoc.pipelines.extract_rules import run_extract
                 from govdoc.db.session import get_session
 
-                with get_session() as session:
-                    extract_run = await run_extract(
-                        rule_source_id=_ensure_rule_source(rule, session),
-                        session=session,
-                        project_root=project_root,
-                    )
+                session = next(get_session())
+                extract_run = await run_extract(
+                    rule_source_id=_ensure_rule_source(rule, session),
+                    session=session,
+                    project_root=project_root,
+                )
                 duration = time.time() - t0
                 usage = json.loads(extract_run.total_usage_json or "{}")
                 total_tokens = sum(usage.values()) if usage else 0
@@ -266,12 +266,12 @@ async def run_pipeline_eval(
                 from govdoc.pipelines.audit_tender import run_audit
                 from govdoc.db.session import get_session
 
-                with get_session() as session:
-                    audit_run = await run_audit(
-                        audit_run_id=_ensure_audit_run(proj, session),
-                        session=session,
-                        project_root=project_root,
-                    )
+                session = next(get_session())
+                audit_run = await run_audit(
+                    audit_run_id=_ensure_audit_run(proj, session),
+                    session=session,
+                    project_root=project_root,
+                )
                 duration = time.time() - t0
 
                 record_pipeline_run(
@@ -394,7 +394,7 @@ def _load_audit_findings(audit_run: Any, session: Any) -> list[dict[str, Any]]:
 
 def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: str) -> None:
     """运行全部语义评估维度。"""
-    from govdoc.config import get_config
+    from govdoc.runtime import get_config
 
     config = get_config()
     judge = HarnessJudge(

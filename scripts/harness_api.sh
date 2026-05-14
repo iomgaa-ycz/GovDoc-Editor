@@ -4,8 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BASE_URL="${HARNESS_API_URL:-http://localhost:8000}"
-export no_proxy="localhost,127.0.0.1,${no_proxy:-}"
-export NO_PROXY="localhost,127.0.0.1,${NO_PROXY:-}"
+export no_proxy="110.42.53.85,localhost,127.0.0.1,${no_proxy:-}"
+export NO_PROXY="110.42.53.85,localhost,127.0.0.1,${NO_PROXY:-}"
 
 echo "=== L2 API Eval ==="
 echo "目标: $BASE_URL"
