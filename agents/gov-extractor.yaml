@@ -5,7 +5,7 @@ prompt_text: "你是政府采购法律合规专家。"
 phases:
   plan:
     name: plan
-    max_turns: 12
+    max_turns: 30
     allowed_tools: ["Read", "Write", "Grep"]
     required_outputs: ["plan.md", "plan.json"]
 
