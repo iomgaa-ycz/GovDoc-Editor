@@ -510,7 +510,7 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
     session.refresh(project)
 
     cfg = get_config()
-    store = DocumentStore(cfg.storage_root)
+    store = DocumentStore(cfg.storage_root, ocr_base_url=cfg.app.ocr_base_url)
     tender_path = Path(proj.tender_doc).expanduser().resolve()
     warnings_stack: list[str] = []
     md_path = store.get_or_convert(tender_path, warnings_stack=warnings_stack)
