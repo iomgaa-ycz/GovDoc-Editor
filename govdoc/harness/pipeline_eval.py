@@ -274,7 +274,10 @@ async def run_pipeline_eval(
                 )
                 duration = time.time() - t0
                 usage = json.loads(extract_run.total_usage_json or "{}")
-                total_tokens = sum(usage.values()) if usage else 0
+                total_tokens = sum(
+                    v for phase in usage.values() if isinstance(phase, dict)
+                    for v in phase.values() if isinstance(v, int)
+                )
 
                 record_pipeline_run(
                     log,
