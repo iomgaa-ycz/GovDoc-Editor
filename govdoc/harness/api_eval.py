@@ -200,6 +200,57 @@ async def call_endpoint(
         return 0, None
 
 
+async def _poll_until_done(
+    client: Any,
+    path: str,
+    *,
+    status_field: str = "status",
+    terminal_statuses: set[str],
+    log: HarnessLog,
+    poll_interval: float = 5.0,
+    timeout_s: float = 600.0,
+) -> dict[str, Any] | None:
+    """轮询 GET 端点直到状态进入终态或超时。
+
+    参数:
+        client: httpx.AsyncClient。
+        path: 轮询的 GET 路径。
+        status_field: 响应 JSON 中的状态字段名。
+        terminal_statuses: 终态值集合。
+        log: HarnessLog（记录每次轮询到 api_calls）。
+        poll_interval: 轮询间隔秒数。
+        timeout_s: 超时秒数。
+
+    返回:
+        终态响应 JSON，超时返回 None。
+    """
+    t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        try:
+            resp = await client.get(path)
+            content_type = resp.headers.get("content-type", "")
+            data = resp.json() if content_type.startswith("application/json") else None
+
+            record_api_call(
+                log,
+                method="GET",
+                path=path,
+                status_code=resp.status_code,
+                duration_ms=(time.time() - t0) * 1000,
+                response_size=len(resp.content),
+            )
+
+            if data and data.get(status_field) in terminal_statuses:
+                return data
+        except Exception:
+            pass
+
+        await asyncio.sleep(poll_interval)
+
+    logger.warning("轮询超时: %s (%.0fs)", path, timeout_s)
+    return None
+
+
 async def run_api_eval(
     *,
     base_url: str = "http://localhost:8000",
