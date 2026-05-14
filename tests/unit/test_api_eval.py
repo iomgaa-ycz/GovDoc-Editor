@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from govdoc.harness.api_eval import (
     EndpointSpec,
+    _poll_until_done,
     call_endpoint,
     check_response_schema,
     record_api_call,
@@ -153,3 +154,78 @@ class TestCallEndpointMixedForm:
         assert "data" in call_kwargs.kwargs
         assert "files" in call_kwargs.kwargs
         assert call_kwargs.kwargs["data"]["title"] == "测试法规"
+
+
+class TestPollUntilDone:
+    """测试通用轮询。"""
+
+    def test_polls_until_terminal(self, tmp_path: Path) -> None:
+        """轮询直到状态变为终态。"""
+        db_path = str(tmp_path / "h.db")
+        call_count = 0
+
+        async def mock_get(path: str):
+            nonlocal call_count
+            call_count += 1
+            resp = MagicMock()
+            resp.headers = {"content-type": "application/json"}
+            resp.content = b"{}"
+            if call_count < 3:
+                resp.status_code = 200
+                resp.json.return_value = {"status": "running"}
+            else:
+                resp.status_code = 200
+                resp.json.return_value = {"status": "draft_ready", "id": "run1"}
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = mock_get
+
+        with HarnessLog(db_path=db_path, run_id="poll-1") as log:
+            create_all_tables(log)
+            result = asyncio.run(
+                _poll_until_done(
+                    mock_client,
+                    "/api/v1/audit/runs/run1",
+                    status_field="status",
+                    terminal_statuses={"draft_ready", "completed", "failed", "waiting_retry"},
+                    log=log,
+                    poll_interval=0.01,
+                    timeout_s=5.0,
+                )
+            )
+
+        assert result is not None
+        assert result["status"] == "draft_ready"
+        assert call_count == 3
+
+    def test_returns_none_on_timeout(self, tmp_path: Path) -> None:
+        """超时返回 None。"""
+        db_path = str(tmp_path / "h.db")
+
+        async def mock_get(path: str):
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {"content-type": "application/json"}
+            resp.content = b"{}"
+            resp.json.return_value = {"status": "running"}
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = mock_get
+
+        with HarnessLog(db_path=db_path, run_id="poll-2") as log:
+            create_all_tables(log)
+            result = asyncio.run(
+                _poll_until_done(
+                    mock_client,
+                    "/some/path",
+                    status_field="status",
+                    terminal_statuses={"done"},
+                    log=log,
+                    poll_interval=0.01,
+                    timeout_s=0.05,
+                )
+            )
+
+        assert result is None
