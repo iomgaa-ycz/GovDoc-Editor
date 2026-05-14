@@ -294,21 +294,25 @@ async def run_api_eval(
                     )
 
             # Phase 4: 规则上传
+            rule_upload_results: list[dict[str, Any]] = []
             for rule in manifest.rules:
                 rule_path = Path(rule.path)
                 if rule_path.exists():
-                    await call_endpoint(
+                    status, resp_data = await call_endpoint(
                         client,
                         EndpointSpec(
                             method="POST",
                             path="/api/v1/rules/upload",
                             expected_status=202,
                             description=f"上传法规: {rule.name}",
+                            form_data={"title": rule.name},
                             files={"file": (rule_path.name, rule_path.read_bytes())},
                             is_async=True,
                         ),
                         log,
                     )
+                    if resp_data:
+                        rule_upload_results.append(resp_data)
 
             # Phase 5: 审核点导入
             for cp in manifest.checkpoints:
