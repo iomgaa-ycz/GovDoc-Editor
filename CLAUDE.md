@@ -69,9 +69,10 @@ cd frontend && npm install && cd ..
 
 > [!CRITICAL]
 > 以下目录**未纳入 git 跟踪**（体积大 / 敏感数据），但测试和运行时依赖它们。
-> **Worktree 已通过 hook 自动适配**：`WorktreeCreate` hook 自动完成：
-> 1. 创建 symlink 指向主仓库的未跟踪目录（`real_data/`、`data/`、`.env`）
-> 2. 重新执行 `pip install -e .` + `pip install -e ./vendor/scrivai-src`，让 editable finder 指向 worktree 路径
+> **Worktree + Codex 已通过 hook 自动适配**：
+> - `WorktreeCreate` hook：创建 symlink（`real_data/`、`data/`、`.env`）+ `pip install -e` 重指向
+> - `SessionStart` hook：patch Codex companion sandbox 为 `danger-full-access`（允许 git commit）
+> - `.claude/agents/codex-rescue.md`：传 `--cwd "$(pwd)"` 让 Codex 在 worktree 中操作
 
 | 目录/文件 | 大小 | 用途 | 依赖方 |
 |-----------|------|------|--------|
