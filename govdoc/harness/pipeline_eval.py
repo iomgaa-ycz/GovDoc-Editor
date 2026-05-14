@@ -35,7 +35,7 @@ def record_pipeline_run(
         {
             "pipeline": pipeline,
             "project_name": project_name,
-            "input_file": input_file,
+            "input_file": str(input_file),
             "status": status,
             "duration_s": duration_s,
             "total_tokens": total_tokens,
@@ -317,7 +317,7 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
     if existing:
         return existing.id
 
-    rs = RuleSource(title=rule.name, source_path=rule.path)
+    rs = RuleSource(title=rule.name, source_path=str(rule.path))
     session.add(rs)
     session.commit()
     session.refresh(rs)
@@ -340,7 +340,7 @@ def _ensure_audit_run(proj: Any, session: Any) -> str:
         tender_doc = TenderDoc(
             project_id=project.id,
             filename=Path(proj.tender_doc).name,
-            storage_path=proj.tender_doc,
+            storage_path=str(proj.tender_doc),
         )
         session.add(tender_doc)
         session.commit()
