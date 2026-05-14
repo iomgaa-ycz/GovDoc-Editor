@@ -103,14 +103,20 @@ def record_audit_results(
 ) -> None:
     """记录管道 B 审核发现到 audit_results 表。"""
     for f in findings:
-        quotes = f.get("evidence_quotes", [])
+        verdict_obj = f.get("verdict", {})
+        if isinstance(verdict_obj, dict):
+            verdict_str = verdict_obj.get("verdict", "")
+            quotes = verdict_obj.get("evidence_quotes", [])
+        else:
+            verdict_str = str(verdict_obj)
+            quotes = []
         refs = f.get("evidence_refs", [])
         log.insert(
             "audit_results",
             {
                 "point_run_id": f.get("point_run_id", ""),
                 "checkpoint_id": f.get("checkpoint_id", ""),
-                "verdict": f.get("verdict", ""),
+                "verdict": verdict_str,
                 "has_evidence": 1 if (quotes or refs) else 0,
                 "evidence_count": len(quotes) + len(refs),
                 "has_case_refs": 1 if f.get("case_refs") else 0,
@@ -233,6 +239,15 @@ async def run_pipeline_eval(
     with HarnessLog(db_path=db_path, run_id=run_id, config_snapshot=config_snapshot) as log:
         create_all_tables(log)
 
+        # 清除上次 harness 残留，确保干净起跑
+        from govdoc.db.session import get_session as _get_session
+        _sg = _get_session()
+        _clean_session = next(_sg)
+        try:
+            _clean_harness_state(_clean_session)
+        finally:
+            _sg.close()
+
         manifest = load_manifest(manifest_path, project_root=project_root)
         config_snapshot["projects"] = [p.name for p in manifest.projects]
         config_snapshot["rules"] = [r.name for r in manifest.rules]
@@ -335,11 +350,21 @@ async def run_pipeline_eval(
                 from govdoc.runtime import get_trajectory_store
 
                 traj_store = get_trajectory_store()
+
+                # 用独立 session 执行数据准备（创建 Project/TenderDoc/AuditRun/AuditPointRun）
+                setup_gen = get_session()
+                setup_session = next(setup_gen)
+                try:
+                    audit_run_id = _ensure_audit_run(proj, setup_session, manifest)
+                finally:
+                    setup_gen.close()
+
+                # 用全新 session 执行 run_audit，避免 identity map 残留导致 StaleDataError
                 session_gen = get_session()
                 session = next(session_gen)
                 audit_run = await asyncio.wait_for(
                     run_audit(
-                        audit_run_id=_ensure_audit_run(proj, session, manifest),
+                        audit_run_id=audit_run_id,
                         session=session,
                         project_root=project_root,
                         trajectory_store=traj_store,
@@ -399,13 +424,67 @@ async def run_pipeline_eval(
     return run_id
 
 
+def _clean_harness_state(session: Any) -> None:
+    """清除 app DB 中上次 harness 运行残留的实体，确保干净起跑。"""
+    from govdoc.db.models import (
+        AuditPointRun,
+        AuditRun,
+        CheckpointFinal,
+        ExtractRun,
+        Project,
+        RuleSource,
+        TenderDoc,
+        WorkpaperDraft,
+    )
+
+    harness_projects = session.exec(
+        select(Project).where(Project.created_by == "harness")
+    ).all()
+    for proj in harness_projects:
+        audit_runs = session.exec(
+            select(AuditRun).where(AuditRun.project_id == proj.id)
+        ).all()
+        for ar in audit_runs:
+            for apr in session.exec(
+                select(AuditPointRun).where(AuditPointRun.audit_run_id == ar.id)
+            ).all():
+                session.delete(apr)
+            for wd in session.exec(
+                select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == ar.id)
+            ).all():
+                session.delete(wd)
+            session.delete(ar)
+        for td in session.exec(
+            select(TenderDoc).where(TenderDoc.project_id == proj.id)
+        ).all():
+            session.delete(td)
+        session.delete(proj)
+
+    for rs in session.exec(
+        select(RuleSource).where(RuleSource.rule_library_entry_id == "harness-fixture")
+    ).all():
+        for er in session.exec(
+            select(ExtractRun).where(ExtractRun.rule_source_id == rs.id)
+        ).all():
+            session.delete(er)
+        session.delete(rs)
+
+    for cf in session.exec(
+        select(CheckpointFinal).where(
+            CheckpointFinal.approved_by.in_(
+                ["harness:golden-standard", "system:auto-promote"]
+            )
+        )
+    ).all():
+        session.delete(cf)
+
+    session.commit()
+    logger.info("已清除上次 harness 残留数据")
+
+
 def _ensure_rule_source(rule: Any, session: Any) -> str:
     """确保法规已入库，返回 rule_source_id。"""
     from govdoc.db.models import RuleSource
-
-    existing = session.exec(select(RuleSource).where(RuleSource.title == rule.name)).first()
-    if existing:
-        return existing.id
 
     rs = RuleSource(
         title=rule.name,
@@ -419,71 +498,99 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
 
 
 def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
-    """确保审核运行已创建（含金标准审核点导入），返回 audit_run_id。"""
-    from govdoc.db.models import AuditRun, CheckpointFinal, Project, TenderDoc
+    """确保审核运行已创建（含金标准审核点导入 + AuditPointRun），返回 audit_run_id。"""
+    from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
     from govdoc.parsers.checkpoint_import import parse_checkpoint_file
+    from govdoc.storage.files import DocumentStore
+    from govdoc.runtime import get_config
 
-    project = session.exec(select(Project).where(Project.name == proj.name)).first()
-    if not project:
-        project = Project(name=proj.name, created_by="harness")
-        session.add(project)
-        session.commit()
-        session.refresh(project)
+    project = Project(name=proj.name, created_by="harness")
+    session.add(project)
+    session.commit()
+    session.refresh(project)
 
-    tender_doc = session.exec(select(TenderDoc).where(TenderDoc.project_id == project.id)).first()
-    if not tender_doc:
-        tender_doc = TenderDoc(
-            project_id=project.id,
-            filename=Path(proj.tender_doc).name,
-            storage_path=str(proj.tender_doc),
-            markdown_path="",
-            qmd_collection="",
-        )
-        session.add(tender_doc)
-        session.commit()
-        session.refresh(tender_doc)
+    cfg = get_config()
+    store = DocumentStore(cfg.storage_root)
+    tender_path = Path(proj.tender_doc).expanduser().resolve()
+    warnings_stack: list[str] = []
+    md_path = store.get_or_convert(tender_path, warnings_stack=warnings_stack)
+    if warnings_stack:
+        logger.warning("文书转换警告: %s", warnings_stack)
+
+    tender_doc = TenderDoc(
+        project_id=project.id,
+        filename=tender_path.name,
+        storage_path=str(tender_path),
+        markdown_path=str(md_path),
+        qmd_collection="",
+    )
+    session.add(tender_doc)
+    session.commit()
+    session.refresh(tender_doc)
+
+    max_checkpoints = int(os.environ.get("HARNESS_MAX_CHECKPOINTS", "0"))
 
     cp_ids: list[str] = []
-    existing_cps = session.exec(select(CheckpointFinal).limit(1)).first()
-    if existing_cps:
-        all_cps = session.exec(select(CheckpointFinal)).all()
-        cp_ids = [c.id for c in all_cps]
-    else:
-        for cp_fixture in manifest.checkpoints:
-            cp_path = Path(cp_fixture.path)
-            if not cp_path.exists():
-                logger.warning("审核点文件不存在: %s", cp_path)
-                continue
-            checkpoints, skipped = parse_checkpoint_file(cp_path)
-            logger.info("导入审核点: %s → %d 条, 跳过 %d 行", cp_fixture.name, len(checkpoints), len(skipped))
-            for gov_cp in checkpoints:
-                cf = CheckpointFinal(
-                    payload_json=gov_cp.model_dump_json(),
-                    approved_by="harness:golden-standard",
-                )
-                session.add(cf)
-                cp_ids.append(cf.id)
-            session.commit()
+    for cp_fixture in manifest.checkpoints:
+        cp_path = Path(cp_fixture.path)
+        if not cp_path.exists():
+            logger.warning("审核点文件不存在: %s", cp_path)
+            continue
+        checkpoints, skipped = parse_checkpoint_file(cp_path)
+        if max_checkpoints > 0:
+            checkpoints = checkpoints[:max_checkpoints]
+        logger.info(
+            "导入审核点: %s → %d 条, 跳过 %d 行",
+            cp_fixture.name,
+            len(checkpoints),
+            len(skipped),
+        )
+        for gov_cp in checkpoints:
+            cf = CheckpointFinal(
+                payload_json=gov_cp.model_dump_json(),
+                approved_by="harness:golden-standard",
+            )
+            session.add(cf)
+            cp_ids.append(cf.id)
+    session.commit()
 
     audit_run = AuditRun(
         project_id=project.id,
         tender_doc_id=tender_doc.id,
         checkpoint_final_ids=json.dumps(cp_ids),
+        total_count=len(cp_ids),
         status="pending",
     )
     session.add(audit_run)
     session.commit()
     session.refresh(audit_run)
-    logger.info("AuditRun %s 创建完成, %d 个审核点", audit_run.id, len(cp_ids))
+
+    for cp_id in cp_ids:
+        session.add(
+            AuditPointRun(
+                audit_run_id=audit_run.id,
+                checkpoint_final_id=cp_id,
+            )
+        )
+    session.commit()
+
+    logger.info("AuditRun %s 创建完成, %d 个审核点, %d 个 AuditPointRun",
+                audit_run.id, len(cp_ids), len(cp_ids))
     return audit_run.id
 
 
 def _load_extract_output(extract_run: Any, session: Any) -> list[dict[str, Any]]:
-    """从 ExtractRun 加载审核点结果为 dict 列表。"""
+    """从 ExtractRun 产出的 CheckpointFinal 加载审核点。
+
+    策略：查询 approved_by='system:auto-promote' 且 approved_at >= extract_run.created_at。
+    """
     from govdoc.db.models import CheckpointFinal
 
     cps = session.exec(
-        select(CheckpointFinal).where(CheckpointFinal.rule_source_id == extract_run.rule_source_id)
+        select(CheckpointFinal).where(
+            CheckpointFinal.approved_by == "system:auto-promote",
+            CheckpointFinal.approved_at >= extract_run.created_at,
+        )
     ).all()
     results = []
     for cp in cps:

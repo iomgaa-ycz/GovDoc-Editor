@@ -82,10 +82,13 @@ class TestPipelineTimeout:
         async def slow_extract(**kwargs):
             await asyncio.sleep(9999)
 
+        def _mock_get_session():
+            yield MagicMock()
+
         with patch.dict(os.environ, {"HARNESS_PIPELINE_TIMEOUT": "1"}), \
              patch("govdoc.harness.pipeline_eval._ensure_rule_source", return_value="rs-1"), \
              patch("govdoc.pipelines.extract_rules.run_extract", new=slow_extract), \
-             patch("govdoc.db.session.get_session", return_value=iter([MagicMock()])), \
+             patch("govdoc.db.session.get_session", side_effect=_mock_get_session), \
              patch("govdoc.runtime.get_trajectory_store", return_value=MagicMock()):
             asyncio.run(run_pipeline_eval(
                 manifest_path=manifest_path, project_root=str(tmp_path),
