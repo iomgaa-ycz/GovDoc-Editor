@@ -96,3 +96,37 @@ class TestJudgeInitFailure:
                 "WHERE run_id='judge-fail' AND event_type='semantic_eval_fatal'"
             )
             assert len(events) == 1
+
+
+class TestCallLlmRetry:
+    def test_retries_on_transient_error(self) -> None:
+        import time
+        from unittest.mock import MagicMock, patch
+
+        from govdoc.harness.judge import HarnessJudge
+
+        judge = HarnessJudge(provider="openai", model="test", base_url="http://fake", api_key="key")
+        call_count = 0
+
+        def mock_post(*a, **kw):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ConnectionError(f"fail #{call_count}")
+            r = MagicMock()
+            r.status_code = 200
+            r.json.return_value = {"choices": [{"message": {"content": '{"passed":true}'}}]}
+            r.raise_for_status = MagicMock()
+            return r
+
+        with patch("httpx.post", side_effect=mock_post), patch("time.sleep"):
+            result = judge._call_llm("test")
+        assert call_count == 3 and "passed" in result
+
+    def test_no_retry_on_value_error(self) -> None:
+        import pytest
+
+        from govdoc.harness.judge import HarnessJudge
+
+        with pytest.raises(ValueError):
+            HarnessJudge(provider="unknown", model="x")._call_llm("t")
