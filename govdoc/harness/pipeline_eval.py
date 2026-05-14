@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
-import asyncio
 import argparse
+import asyncio
 import json
 import logging
+import os
+import signal
+import sqlite3
+import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from types import FrameType
+from typing import Any, NoReturn
 
+from govdoc.harness.handler import SqliteHandler
 from govdoc.harness.judge import HarnessJudge, Verdict
-from govdoc.harness.log import HarnessLog
+from govdoc.harness.log import HarnessLog, _now_iso
 from govdoc.harness.schemas import create_all_tables
 
 logger = logging.getLogger(__name__)
@@ -192,6 +198,7 @@ async def run_pipeline_eval(
     project_root: str,
     rubric_dir: str,
     db_path: str = "results/harness.db",
+    run_id: str | None = None,
 ) -> str:
     """L1 管道评估主入口。
 
@@ -200,16 +207,16 @@ async def run_pipeline_eval(
         project_root: 项目根目录。
         rubric_dir: rubric 文件目录。
         db_path: harness.db 输出路径。
+        run_id: 可选的运行 ID；为空时自动生成。
 
     返回:
         本次运行的 run_id。
     """
     from govdoc.harness.manifest import load_manifest
 
-    run_id = f"L1-{uuid.uuid4().hex[:8]}"
+    run_id = run_id or f"L1-{uuid.uuid4().hex[:8]}"
     manifest = load_manifest(manifest_path, project_root=project_root)
 
-    import os
     from dotenv import load_dotenv
 
     load_dotenv()
@@ -567,22 +574,99 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             logger.error("语义评估 %s 失败:\n%s", dim, tb)
 
 
-if __name__ == "__main__":
+def _init_run_tables(conn: sqlite3.Connection) -> None:
+    """初始化 CLI 异常处理所需的固定表。"""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS _runs (
+            run_id TEXT PRIMARY KEY,
+            git_sha TEXT,
+            started_at TEXT,
+            finished_at TEXT,
+            heartbeat_at TEXT,
+            config JSON,
+            status TEXT DEFAULT 'running'
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS _events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id TEXT,
+            timestamp TEXT,
+            event_type TEXT,
+            payload JSON
+        )
+    """)
+    conn.commit()
+
+
+def _update_run_status(db_path: str, run_id: str, status: str) -> None:
+    """确保运行记录存在，并更新最终状态。"""
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        _init_run_tables(conn)
+        now = _now_iso()
+        conn.execute(
+            "INSERT OR IGNORE INTO _runs (run_id, started_at, status) VALUES (?, ?, ?)",
+            (run_id, now, "running"),
+        )
+        conn.execute(
+            "UPDATE _runs SET finished_at = ?, status = ? WHERE run_id = ?",
+            (now, status, run_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _parse_args() -> argparse.Namespace:
+    """解析 L1 管道评估 CLI 参数。"""
     parser = argparse.ArgumentParser(description="L1 管道 harness 评估")
     parser.add_argument("--manifest", default="scripts/fixtures/harness_manifest.yaml")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--rubric-dir", default="scripts/rubrics")
     parser.add_argument("--db-path", default="results/harness.db")
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def main() -> None:
+    """运行 L1 管道评估 CLI，并记录致命异常与中断信号。"""
+    args = _parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-    run_id = asyncio.run(
-        run_pipeline_eval(
-            manifest_path=args.manifest,
-            project_root=args.project_root,
-            rubric_dir=args.rubric_dir,
-            db_path=args.db_path,
+    run_id = f"L1-{uuid.uuid4().hex[:8]}"
+    root_logger = logging.getLogger()
+    sqlite_handler = SqliteHandler(db_path=args.db_path, run_id=run_id)
+    root_logger.addHandler(sqlite_handler)
+
+    def _handle_signal(signum: int, frame: FrameType | None) -> NoReturn:
+        """将进程中断写入运行记录后退出。"""
+        del frame
+        _update_run_status(args.db_path, run_id, "interrupted")
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
+    try:
+        completed_run_id = asyncio.run(
+            run_pipeline_eval(
+                manifest_path=args.manifest,
+                project_root=args.project_root,
+                rubric_dir=args.rubric_dir,
+                db_path=args.db_path,
+                run_id=run_id,
+            )
         )
-    )
-    logger.info("L1 完成, run_id=%s", run_id)
+        logger.info("L1 完成, run_id=%s", completed_run_id)
+    except Exception:
+        logger.critical("L1 管道评估发生致命异常", exc_info=True)
+        _update_run_status(args.db_path, run_id, "crashed")
+        sys.exit(1)
+    finally:
+        root_logger.removeHandler(sqlite_handler)
+        sqlite_handler.close()
+
+
+if __name__ == "__main__":
+    main()
