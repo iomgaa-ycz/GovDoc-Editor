@@ -6,13 +6,10 @@ import json
 import logging
 import sqlite3
 import traceback
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from govdoc.harness.log import _now_iso
 
 
 class SqliteHandler(logging.Handler):
@@ -35,6 +32,7 @@ class SqliteHandler(logging.Handler):
                 git_sha TEXT,
                 started_at TEXT,
                 finished_at TEXT,
+                heartbeat_at TEXT,
                 config JSON,
                 status TEXT DEFAULT 'running'
             )
