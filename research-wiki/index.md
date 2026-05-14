@@ -2,19 +2,23 @@
 
 > 自动生成，更新时间：2026-05-13 08:45 UTC
 
-## design (5)
+## design (6)
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
+- [统一文档转 Markdown 路径](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
 
 ## finding (3)
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 - [Harness 评估: L2-5aa315f6](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 
-## plan (9)
+## plan (12)
+- [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
+- [L2 API 评估升级计划](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:l2-api-eval-upgrade`
+- [Harness L1 韧性增强计划](plans/2026-05-13-harness-resilience.md) `plan:harness-resilience`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`

@@ -31,15 +31,16 @@
 
 > [!CRITICAL]
 > **所有 Python 相关命令必须在 govdoc-auditor-v3 环境中执行**
-> - 使用 `conda run -n govdoc-auditor-v3 <command>` 确保命令在正确环境中运行
-> - 或在命令前显式添加 `source activate govdoc-auditor-v3 &&`
+> - 使用 `source activate govdoc-auditor-v3 && <command>` 确保命令在正确环境中运行
+> - **禁止** 使用 `conda run`（会吞掉失败退出码和运行中断信号）
 > - 敏感信息（API Key）放 `.env`，不提交 git
 > - **涉及任何 HTTP 调用时必须设置 NO_PROXY**（本机有 HTTP 代理 `127.0.0.1:7892`，会拦截所有未豁免的外部请求）：
 >   ```bash
->   export no_proxy="110.42.53.85,localhost,127.0.0.1,${no_proxy:-}"
->   export NO_PROXY="110.42.53.85,localhost,127.0.0.1,${NO_PROXY:-}"
+>   export no_proxy="110.42.53.85,100.81.95.44,localhost,127.0.0.1,${no_proxy:-}"
+>   export NO_PROXY="110.42.53.85,100.81.95.44,localhost,127.0.0.1,${NO_PROXY:-}"
 >   ```
 >   - `110.42.53.85` = LLM 私有网关（glm-5.1），**必须**包含，否则请求被代理拦截返回 502
+>   - `100.81.95.44` = MonkeyOCR 文档转换服务（Tailscale），Scrivai `to_markdown` 依赖
 >   - 编写 shell 脚本、启动服务、执行测试时，**每个入口点都必须设置 NO_PROXY**，不能假设上层已设置
 >   - 新增外部服务地址时，同步更新此处和 `.env` 中的 NO_PROXY 列表
 
@@ -47,10 +48,9 @@
 # 激活项目环境（交互式 shell）
 conda activate govdoc-auditor-v3
 
-# 推荐：使用 conda run 执行命令（自动使用正确环境）
-conda run -n govdoc-auditor-v3 pip install xxx
-conda run -n govdoc-auditor-v3 python -m pytest tests/unit/ -v
-# 注意：不能 `conda run -n govdoc-auditor-v3 pytest`，这样不会调用环境内的 pytest
+# 推荐：使用 source activate 执行命令（确保退出码和信号正确传递）
+source activate govdoc-auditor-v3 && pip install xxx
+source activate govdoc-auditor-v3 && python -m pytest tests/unit/ -v
 ```
 
 ### 2.2 安装依赖（首次）
@@ -85,7 +85,7 @@ cd frontend && npm install && cd ..
 
 ```bash
 # 后端（FastAPI）
-conda run -n govdoc-auditor-v3 uvicorn govdoc.api.main:app --host 0.0.0.0 --port 8000
+source activate govdoc-auditor-v3 && uvicorn govdoc.api.main:app --host 0.0.0.0 --port 8000
 
 # 前端（新终端，Vite 开发服务器）
 cd frontend && npx vite --host 0.0.0.0 --port 5173
@@ -115,10 +115,10 @@ cd frontend && npx vite --host 0.0.0.0 --port 5173
 
 ```bash
 # 创建新迁移
-conda run -n govdoc-auditor-v3 alembic revision --autogenerate -m "<msg>"
+source activate govdoc-auditor-v3 && alembic revision --autogenerate -m "<msg>"
 
 # 应用迁移
-conda run -n govdoc-auditor-v3 alembic upgrade head
+source activate govdoc-auditor-v3 && alembic upgrade head
 ```
 
 迁移脚本位于 `govdoc/db/migrations/`；sqlite 落盘 `./data/app.sqlite`。
@@ -126,7 +126,7 @@ conda run -n govdoc-auditor-v3 alembic upgrade head
 ### 2.5 业务 CLI（govdoc-cli）
 
 ```bash
-conda run -n govdoc-auditor-v3 govdoc-cli <subcommand> [args...]
+source activate govdoc-auditor-v3 && govdoc-cli <subcommand> [args...]
 # 常用：parse-tender / locate-section / validate-checkpoint / render-workpaper
 ```
 
@@ -134,26 +134,26 @@ conda run -n govdoc-auditor-v3 govdoc-cli <subcommand> [args...]
 
 ```bash
 # 代码格式化
-conda run -n govdoc-auditor-v3 ruff format .
+source activate govdoc-auditor-v3 && ruff format .
 
 # 代码检查并自动修复
-conda run -n govdoc-auditor-v3 ruff check . --fix
+source activate govdoc-auditor-v3 && ruff check . --fix
 ```
 
 ### 2.7 测试
 
 ```bash
 # 单元测试
-conda run -n govdoc-auditor-v3 python -m pytest tests/unit/ -v
+source activate govdoc-auditor-v3 && python -m pytest tests/unit/ -v
 
 # 契约测试（与 Scrivai/qmd 的契约）
-conda run -n govdoc-auditor-v3 python -m pytest tests/contract/ -v
+source activate govdoc-auditor-v3 && python -m pytest tests/contract/ -v
 
 # 集成测试（真 SDK + 真 qmd + fixture）
-conda run -n govdoc-auditor-v3 python -m pytest tests/integration/ -v
+source activate govdoc-auditor-v3 && python -m pytest tests/integration/ -v
 
 # 覆盖率
-conda run -n govdoc-auditor-v3 python -m pytest tests/ --cov=govdoc --cov-report=term-missing
+source activate govdoc-auditor-v3 && python -m pytest tests/ --cov=govdoc --cov-report=term-missing
 ```
 
 ## 3. 标准作业程序 (Standard Operating Procedure)
