@@ -29,6 +29,7 @@ class AppConfig(BaseModel):
     port: int = 8000
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
+    ocr_base_url: str | None = None
 
 
 class ModelServiceConfig(BaseModel):
