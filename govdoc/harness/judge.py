@@ -57,30 +57,51 @@ class HarnessJudge:
         返回:
             模型的文本回复。
         """
-        if self._provider == "anthropic":
-            import anthropic
+        import time
 
-            client = anthropic.Anthropic(api_key=self._api_key)
-            response = client.messages.create(
-                model=self._model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
-        if self._provider == "openai":
-            import httpx
+        max_retries = 2
+        last_exc: Exception | None = None
 
-            url = f"{self._base_url}/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {self._api_key}"}
-            body = {
-                "model": self._model,
-                "messages": [{"role": "user", "content": prompt}],
-            }
-            resp = httpx.post(url, json=body, headers=headers, timeout=300.0)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        raise ValueError(f"不支持的 provider: {self._provider}")
+        def call_once() -> str:
+            if self._provider == "anthropic":
+                import anthropic
+
+                client = anthropic.Anthropic(api_key=self._api_key)
+                response = client.messages.create(
+                    model=self._model,
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.content[0].text
+            if self._provider == "openai":
+                import httpx
+
+                url = f"{self._base_url}/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {self._api_key}"}
+                body = {
+                    "model": self._model,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                resp = httpx.post(url, json=body, headers=headers, timeout=300.0)
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+            raise ValueError(f"不支持的 provider: {self._provider}")
+
+        for attempt in range(max_retries + 1):
+            try:
+                return call_once()
+            except ValueError:
+                raise
+            except Exception as exc:
+                last_exc = exc
+                if attempt >= max_retries:
+                    raise
+                time.sleep(2 ** attempt)
+
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("LLM 调用未返回结果")
 
     def _build_evaluate_prompt(
         self,
