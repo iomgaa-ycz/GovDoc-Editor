@@ -373,7 +373,7 @@ def _ensure_audit_run(proj: Any, session: Any) -> str:
 
     project = session.query(Project).filter_by(name=proj.name).first()
     if not project:
-        project = Project(name=proj.name)
+        project = Project(name=proj.name, created_by="harness")
         session.add(project)
         session.commit()
         session.refresh(project)
@@ -384,6 +384,8 @@ def _ensure_audit_run(proj: Any, session: Any) -> str:
             project_id=project.id,
             filename=Path(proj.tender_doc).name,
             storage_path=str(proj.tender_doc),
+            markdown_path="",
+            qmd_collection="",
         )
         session.add(tender_doc)
         session.commit()
