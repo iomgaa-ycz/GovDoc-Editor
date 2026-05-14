@@ -3,6 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+export no_proxy="110.42.53.85,localhost,127.0.0.1,${no_proxy:-}"
+export NO_PROXY="110.42.53.85,localhost,127.0.0.1,${NO_PROXY:-}"
+
 echo "=== L1 Pipeline Eval ==="
 echo "开始时间: $(date)"
 

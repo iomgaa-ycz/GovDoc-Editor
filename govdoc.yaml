@@ -6,6 +6,7 @@ app:
 
 model:
   model: glm-5.1
+  provider: openai
   base_url: "http://110.42.53.85:11098"
   api_key: ${ANTHROPIC_API_KEY}
   fallback_model: glm-5.1
