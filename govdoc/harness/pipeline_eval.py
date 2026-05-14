@@ -204,10 +204,7 @@ async def run_pipeline_eval(
     返回:
         本次运行的 run_id。
     """
-    from govdoc.harness.manifest import load_manifest
-
     run_id = f"L1-{uuid.uuid4().hex[:8]}"
-    manifest = load_manifest(manifest_path, project_root=project_root)
 
     import os
     from dotenv import load_dotenv
@@ -220,13 +217,24 @@ async def run_pipeline_eval(
         "db_path": db_path,
         "judge_model": os.environ.get("HARNESS_JUDGE_MODEL", ""),
         "judge_base_url": os.environ.get("HARNESS_JUDGE_BASE_URL", ""),
-        "projects": [p.name for p in manifest.projects],
-        "rules": [r.name for r in manifest.rules],
-        "checkpoints": [c.name for c in manifest.checkpoints],
     }
 
     with HarnessLog(db_path=db_path, run_id=run_id, config_snapshot=config_snapshot) as log:
         create_all_tables(log)
+        from govdoc.harness.manifest import load_manifest
+
+        manifest = load_manifest(manifest_path, project_root=project_root)
+        config_snapshot.update(
+            {
+                "projects": [p.name for p in manifest.projects],
+                "rules": [r.name for r in manifest.rules],
+                "checkpoints": [c.name for c in manifest.checkpoints],
+            }
+        )
+        log.execute(
+            "UPDATE _runs SET config=? WHERE run_id=?",
+            (json.dumps(config_snapshot, ensure_ascii=False), run_id),
+        )
         log.log_event("pipeline_eval_start", {
             "manifest": manifest_path,
             "config": config_snapshot,
