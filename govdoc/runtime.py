@@ -36,7 +36,8 @@ def get_project_root() -> Path:
 
 @lru_cache
 def get_document_store() -> DocumentStore:
-    return DocumentStore(get_config().storage_root)
+    cfg = get_config()
+    return DocumentStore(cfg.storage_root, ocr_base_url=cfg.app.ocr_base_url)
 
 
 @lru_cache
