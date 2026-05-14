@@ -65,19 +65,11 @@ cd frontend && npm install && cd ..
 - **qmd-0.1.2**：自研 pypi 库，**不可修改**（如需改动先走 `工程md/INTEGRATION_ISSUES.md` 登记）
 - **scrivai-0.1.x**：基于 Claude Agent SDK 的通用 agent 编排框架，vendored + editable
 
-### 2.2.1 Worktree 软链接（未跟踪大文件）
+### 2.2.1 未跟踪大文件
 
 > [!CRITICAL]
 > 以下目录**未纳入 git 跟踪**（体积大 / 敏感数据），但测试和运行时依赖它们。
-> **新建 worktree 后必须创建软链接**，否则测试会因缺文件而失败。
-
-```bash
-# 在 worktree 根目录执行（PROJECT_ROOT 为主仓库路径）
-ln -s "$PROJECT_ROOT/real_data" real_data
-ln -s "$PROJECT_ROOT/.env" .env
-ln -s "$PROJECT_ROOT/data" data
-ln -sf "$PROJECT_ROOT/.claude/skills" .claude/skills
-```
+> **禁止使用 git worktree**：本项目使用 `pip install -e .` editable install，worktree 中的代码修改不会被 Python 加载（editable finder 硬编码指向主仓库路径）。所有开发直接在主分支进行。
 
 | 目录/文件 | 大小 | 用途 | 依赖方 |
 |-----------|------|------|--------|
