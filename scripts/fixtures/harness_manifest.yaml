@@ -10,7 +10,7 @@ projects:
 
 rules:
   - name: "四类违法违规指引"
-    path: "real_data/2025年政府采购领域\"四类\"违法违规行为专项整治工作指引.doc"
+    path: "real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc"
 
 checkpoints:
   - name: "处罚标准表"
