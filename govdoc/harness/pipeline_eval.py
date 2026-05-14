@@ -545,12 +545,16 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
     from dotenv import load_dotenv
 
     load_dotenv()
-    judge = HarnessJudge(
-        provider="openai",
-        model=os.environ.get("HARNESS_JUDGE_MODEL", "qwen3.6-plus"),
-        base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "http://110.42.53.85:11098"),
-        api_key=os.environ.get("HARNESS_JUDGE_API_KEY", ""),
-    )
+    try:
+        judge = HarnessJudge(
+            provider="openai",
+            model=os.environ.get("HARNESS_JUDGE_MODEL", "qwen3.6-plus"),
+            base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "http://110.42.53.85:11098"),
+            api_key=os.environ.get("HARNESS_JUDGE_API_KEY", ""),
+        )
+    except Exception as exc:
+        log.log_event("semantic_eval_fatal", {"error": str(exc)})
+        return
 
     extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
     audit_rows = log.query("SELECT * FROM audit_results WHERE run_id=?", (log._run_id,))

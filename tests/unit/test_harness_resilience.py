@@ -73,3 +73,26 @@ class TestPipelineTimeout:
         conn.close()
         assert len(rows) >= 1 and rows[0][0] == "failed"
         assert "Timeout" in (rows[0][1] or "") or "timeout" in (rows[0][1] or "").lower()
+
+
+class TestJudgeInitFailure:
+    def test_judge_failure_logged_not_raised(self, tmp_path: Path) -> None:
+        from unittest.mock import patch
+
+        from govdoc.harness.log import HarnessLog
+        from govdoc.harness.pipeline_eval import _run_semantic_evaluations
+        from govdoc.harness.schemas import create_all_tables
+
+        db_path = str(tmp_path / "judge.db")
+        with HarnessLog(db_path=db_path, run_id="judge-fail") as log:
+            create_all_tables(log)
+            with patch(
+                "govdoc.harness.pipeline_eval.HarnessJudge",
+                side_effect=ConnectionError("模拟失败"),
+            ):
+                _run_semantic_evaluations(log, str(tmp_path), str(tmp_path))
+            events = log.query(
+                "SELECT event_type FROM _events "
+                "WHERE run_id='judge-fail' AND event_type='semantic_eval_fatal'"
+            )
+            assert len(events) == 1
