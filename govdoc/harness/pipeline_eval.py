@@ -317,7 +317,11 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
     if existing:
         return existing.id
 
-    rs = RuleSource(title=rule.name, source_path=str(rule.path))
+    rs = RuleSource(
+        title=rule.name,
+        source_path=str(rule.path),
+        rule_library_entry_id="harness-fixture",
+    )
     session.add(rs)
     session.commit()
     session.refresh(rs)

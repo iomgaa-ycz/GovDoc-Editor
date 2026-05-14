@@ -68,17 +68,18 @@ class HarnessJudge:
             )
             return response.content[0].text
         if self._provider == "openai":
-            import openai
+            import httpx
 
-            client = openai.OpenAI(
-                base_url=self._base_url,
-                api_key=self._api_key,
-            )
-            response = client.chat.completions.create(
-                model=self._model,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.choices[0].message.content
+            url = f"{self._base_url}/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {self._api_key}"}
+            body = {
+                "model": self._model,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
         raise ValueError(f"不支持的 provider: {self._provider}")
 
     def _build_evaluate_prompt(
