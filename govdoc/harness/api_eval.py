@@ -30,6 +30,7 @@ class EndpointSpec:
         expected_status: 预期状态码。
         description: 端点描述。
         body: 请求体 JSON。
+        form_data: 表单数据。
         files: 上传文件字典。
         response_model: 响应 Pydantic 模型（可选）。
         is_async: 是否为异步端点。
@@ -41,6 +42,7 @@ class EndpointSpec:
     expected_status: int
     description: str
     body: dict[str, Any] | None = None
+    form_data: dict[str, Any] | None = None
     files: dict[str, Any] | None = None
     response_model: Type[BaseModel] | None = None
     is_async: bool = False
@@ -138,9 +140,11 @@ async def call_endpoint(
             resp = await client.get(path)
         elif spec.method == "POST":
             if spec.files:
-                resp = await client.post(path, files=spec.files)
-            else:
+                resp = await client.post(path, files=spec.files, data=spec.form_data or {})
+            elif spec.body:
                 resp = await client.post(path, json=spec.body)
+            else:
+                resp = await client.post(path)
         elif spec.method == "PUT":
             resp = await client.put(path, json=spec.body)
         elif spec.method == "DELETE":
