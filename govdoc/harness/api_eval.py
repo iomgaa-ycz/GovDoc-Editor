@@ -6,6 +6,7 @@ import asyncio
 import argparse
 import json
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -365,7 +366,63 @@ async def run_api_eval(
                     if resp_data:
                         rule_upload_results.append(resp_data)
 
-            # Phase 5: 审核点导入
+            # Phase 5: 等待 Pipeline A 完成 + 记录
+            from govdoc.harness.pipeline_eval import record_pipeline_run, record_extract_results
+
+            pipeline_timeout = float(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800"))
+            for upload_resp in rule_upload_results:
+                rule_source_id = upload_resp.get("rule_source_id", "")
+                extract_run_id = upload_resp.get("extract_run_id", "")
+                if not extract_run_id:
+                    continue
+
+                t0 = time.time()
+                poll_path = f"/api/v1/rules/{rule_source_id}/extract-runs/{extract_run_id}/status"
+                final = await _poll_until_done(
+                    client,
+                    poll_path,
+                    status_field="status",
+                    terminal_statuses={"draft_ready", "completed", "failed"},
+                    log=log,
+                    poll_interval=10.0,
+                    timeout_s=pipeline_timeout,
+                )
+
+                status = final["status"] if final else "timeout"
+                error = (final.get("error") if final else "Pipeline A 超时") or None
+                record_pipeline_run(
+                    log,
+                    pipeline="A",
+                    project_name=upload_resp.get("rule_source_id", ""),
+                    input_file="via API",
+                    status=status,
+                    duration_s=time.time() - t0,
+                    total_tokens=0,
+                    error=error,
+                )
+
+                # 通过 checkpoints API 获取 auto-promote 的审核点
+                if status in ("draft_ready", "completed"):
+                    _, cp_list = await call_endpoint(
+                        client,
+                        EndpointSpec(
+                            method="GET",
+                            path="/api/v1/checkpoints",
+                            expected_status=200,
+                            description="获取抽取审核点",
+                        ),
+                        log,
+                    )
+                    if cp_list:
+                        extract_cps = []
+                        for cp in cp_list:
+                            if cp.get("approved_by") == "system:auto-promote":
+                                payload = json.loads(cp.get("payload_json", "{}"))
+                                extract_cps.append(payload)
+                        if extract_cps:
+                            record_extract_results(log, extract_cps)
+
+            # Phase 6: 审核点导入
             for cp in manifest.checkpoints:
                 cp_path = Path(cp.path)
                 if cp_path.exists():
@@ -381,7 +438,7 @@ async def run_api_eval(
                         log,
                     )
 
-            # Phase 6: 列出端点
+            # Phase 7: 列出端点
             await call_endpoint(
                 client,
                 EndpointSpec(
@@ -403,7 +460,7 @@ async def run_api_eval(
                 log,
             )
 
-            # Phase 7: P95 延迟
+            # Phase 8: P95 延迟
             sync_calls = log.query(
                 "SELECT duration_ms FROM api_calls WHERE run_id=? AND status_code > 0 "
                 "ORDER BY duration_ms",
