@@ -109,8 +109,12 @@ class TestRecordAuditResults:
                 {
                     "point_run_id": "pr_001",
                     "checkpoint_id": "cp_001",
-                    "verdict": "不合规",
-                    "evidence_quotes": ["文书第3页提到..."],
+                    "verdict": {
+                        "verdict": "不合规",
+                        "rationale": "发现违规证据",
+                        "evidence_quotes": ["文书第3页提到..."],
+                        "suggestion": "",
+                    },
                     "evidence_refs": ["chunk_001"],
                     "case_refs": [],
                     "duration_s": 45.2,
