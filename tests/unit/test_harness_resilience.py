@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from govdoc.harness.log import HarnessLog
-from govdoc.harness.pipeline_eval import run_pipeline_eval
+from govdoc.harness.pipeline_eval import _run_semantic_evaluations, run_pipeline_eval
 from govdoc.harness.schemas import create_all_tables
 
 
@@ -97,3 +97,22 @@ class TestPipelineTimeout:
         assert len(rows) >= 1
         assert rows[0][0] == "failed"
         assert "Timeout" in (rows[0][1] or "") or "timeout" in (rows[0][1] or "").lower()
+
+
+class TestJudgeInitFailure:
+    """P8: judge 初始化失败不应让整个 run 崩溃。"""
+
+    def test_judge_failure_logged_not_raised(self, tmp_path: Path) -> None:
+        db_path = str(tmp_path / "judge.db")
+        with HarnessLog(db_path=db_path, run_id="judge-fail") as log:
+            create_all_tables(log)
+            with patch(
+                "govdoc.harness.pipeline_eval.HarnessJudge",
+                side_effect=ConnectionError("模拟失败"),
+            ):
+                _run_semantic_evaluations(log, str(tmp_path), str(tmp_path))
+            events = log.query(
+                "SELECT event_type FROM _events WHERE run_id='judge-fail' "
+                "AND event_type='semantic_eval_fatal'"
+            )
+            assert len(events) == 1
