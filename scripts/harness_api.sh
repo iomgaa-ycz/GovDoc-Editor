@@ -14,7 +14,8 @@ LOG_FILE="$LOG_DIR/harness_api_$(date +%Y%m%d_%H%M%S).log"
 echo "=== L2 API Eval ===" | tee "$LOG_FILE"
 echo "目标: $BASE_URL" | tee -a "$LOG_FILE"
 echo "开始时间: $(date)" | tee -a "$LOG_FILE"
-echo "HARNESS_MAX_CHECKPOINTS=${HARNESS_MAX_CHECKPOINTS:-5}" | tee -a "$LOG_FILE"
+echo "HARNESS_MAX_CHECKPOINTS=${HARNESS_MAX_CHECKPOINTS:-0 (全量)}" | tee -a "$LOG_FILE"
+echo "HARNESS_PIPELINE_TIMEOUT=${HARNESS_PIPELINE_TIMEOUT:-7200}" | tee -a "$LOG_FILE"
 
 # 检查服务是否可达
 if ! curl -sf "${BASE_URL}/healthz" > /dev/null 2>&1; then
