@@ -393,7 +393,7 @@ async def run_api_eval(
                     client,
                     poll_path,
                     status_field="status",
-                    terminal_statuses={"draft_ready", "completed", "failed", "interrupted"},
+                    terminal_statuses={"draft_ready", "completed", "failed", "interrupted", "cancelled"},
                     log=log,
                     poll_interval=10.0,
                     timeout_s=pipeline_timeout,
