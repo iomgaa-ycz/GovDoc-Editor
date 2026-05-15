@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,9 @@ async def run_extract(
         raise ValueError(f"未找到 RuleSource: {rule_source_id}")
 
     if extract_run_id is None:
-        extract_run = ExtractRun(rule_source_id=rule_source_id, status="running")
+        extract_run = ExtractRun(
+            rule_source_id=rule_source_id, status="running", heartbeat_at=datetime.utcnow()
+        )
         session.add(extract_run)
         session.commit()
         session.refresh(extract_run)
@@ -49,6 +52,7 @@ async def run_extract(
         if extract_run.rule_source_id != rule_source_id:
             raise ValueError(f"ExtractRun {extract_run_id} 不属于 RuleSource {rule_source_id}")
         extract_run.status = "running"
+        extract_run.heartbeat_at = datetime.utcnow()
         extract_run.error = None
         extract_run.workspace_archive_path = None
         extract_run.workspace_failed_path = None
@@ -92,6 +96,7 @@ async def run_extract(
 
         result = await pes.run(task_prompt="抽取 data/guide.md 中的所有审核点。")
         attach_workspace_output(result, workspace.working_dir)
+        extract_run.heartbeat_at = datetime.utcnow()
         extract_run.total_usage_json = dump_phase_usage(result.phase_results)
 
         if result.status == "completed":
