@@ -29,8 +29,9 @@
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
+- [Harness 证据完整性修复](plans/2026-05-15-harness-evidence-completeness.md) `plan:harness-evidence-completeness`
 
-## schema (7)
+## schema (8)
 - [pipeline_runs](schemas/harness-pipeline-runs.md) `schema:harness-pipeline-runs`
 - [phase_metrics](schemas/harness-phase-metrics.md) `schema:harness-phase-metrics`
 - [extract_results](schemas/harness-extract-results.md) `schema:harness-extract-results`
@@ -38,6 +39,7 @@
 - [quality_scores](schemas/harness-quality-scores.md) `schema:harness-quality-scores`
 - [api_calls](schemas/harness-api-calls.md) `schema:harness-api-calls`
 - [api_contracts](schemas/harness-api-contracts.md) `schema:harness-api-contracts`
+- [agent_trajectories](schemas/harness-agent-trajectories.md) `schema:harness-agent-trajectories`
 
 ## metric (34)
 - [管道 A 成功率](metrics/pipeline-a-success.md) `metric:pipeline-a-success`
