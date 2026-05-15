@@ -435,6 +435,24 @@ async def run_api_eval(
                         ]
                         if extract_cps:
                             record_extract_results(log, extract_cps)
+                            # 收集 agent 轨迹证据
+                            from govdoc.harness.pipeline_eval import (
+                                collect_workspace_evidence,
+                                record_agent_trajectory,
+                            )
+
+                            ws_evidence = collect_workspace_evidence(
+                                workspace_dir=Path(f"data/.govdoc/workspaces/{extract_run_id}"),
+                            )
+                            if ws_evidence["plan_json"]:
+                                record_agent_trajectory(
+                                    log,
+                                    pipeline="A",
+                                    run_id=extract_run_id,
+                                    plan_json=ws_evidence["plan_json"],
+                                    workspace_files=ws_evidence["workspace_files"],
+                                    phase_details=[],
+                                )
 
             # ── Phase 3: 导入金标准审核点 ──
             imported_checkpoint_ids: list[str] = []
@@ -733,6 +751,28 @@ async def run_api_eval(
                         findings.append(finding)
                     if findings:
                         record_audit_results(log, findings)
+                        # 收集各 point_run 的 workspace 证据
+                        from govdoc.harness.pipeline_eval import (
+                            collect_workspace_evidence,
+                            record_agent_trajectory,
+                        )
+
+                        for pr in progress.get("point_runs", []):
+                            pr_id = pr.get("id", "")
+                            if not pr_id:
+                                continue
+                            ws_evidence = collect_workspace_evidence(
+                                workspace_dir=Path(f"data/.govdoc/workspaces/{pr_id}"),
+                            )
+                            if ws_evidence["plan_json"]:
+                                record_agent_trajectory(
+                                    log,
+                                    pipeline="B",
+                                    run_id=pr_id,
+                                    plan_json=ws_evidence["plan_json"],
+                                    workspace_files=ws_evidence["workspace_files"],
+                                    phase_details=[],
+                                )
 
                 # 5j: 获取工作底稿草稿
                 _, draft_resp = await call_endpoint(
