@@ -738,17 +738,30 @@ async def run_api_eval(
                 if progress:
                     findings: list[dict[str, Any]] = []
                     for pr in progress.get("point_runs", []):
-                        if pr.get("status") != "completed" or not pr.get("finding_json"):
-                            continue
-                        finding_raw = pr["finding_json"]
-                        finding = (
-                            json.loads(finding_raw) if isinstance(finding_raw, str) else finding_raw
-                        )
-                        finding["point_run_id"] = pr.get("id", "")
-                        finding["checkpoint_id"] = pr.get("checkpoint_final_id", "")
-                        finding["status"] = pr.get("status", "unknown")
-                        finding["duration_s"] = 0.0
-                        findings.append(finding)
+                        if pr.get("status") == "completed" and pr.get("finding_json"):
+                            finding_raw = pr["finding_json"]
+                            finding = (
+                                json.loads(finding_raw)
+                                if isinstance(finding_raw, str)
+                                else finding_raw
+                            )
+                            finding["point_run_id"] = pr.get("id", "")
+                            finding["checkpoint_id"] = pr.get("checkpoint_final_id", "")
+                            finding["status"] = pr.get("status", "unknown")
+                            finding["duration_s"] = 0.0
+                            findings.append(finding)
+                        else:
+                            findings.append(
+                                {
+                                    "point_run_id": pr.get("id", ""),
+                                    "checkpoint_id": pr.get("checkpoint_final_id", ""),
+                                    "status": pr.get("status", "pending"),
+                                    "duration_s": 0.0,
+                                    "verdict": {},
+                                    "evidence_refs": [],
+                                    "case_refs": [],
+                                }
+                            )
                     if findings:
                         record_audit_results(log, findings)
                         # 收集各 point_run 的 workspace 证据
