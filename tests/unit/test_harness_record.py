@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from govdoc.harness.log import HarnessLog
+from govdoc.harness.pipeline_eval import collect_workspace_evidence
 from govdoc.harness.pipeline_eval import record_agent_trajectory
 from govdoc.harness.pipeline_eval import record_audit_results
 from govdoc.harness.pipeline_eval import record_extract_results
@@ -136,3 +137,23 @@ def test_record_agent_trajectory_stores_plan_and_files(tmp_path):
     phases = json.loads(row["phase_details_json"])
     assert len(phases) == 3
     assert phases[0]["phase"] == "plan"
+
+
+def test_collect_workspace_evidence_from_directory(tmp_path):
+    """从 workspace 目录结构中读取 plan.json 和 findings。"""
+    working = tmp_path / "working"
+    working.mkdir()
+    plan = {"items_to_extract": [{"id": "cp_01"}]}
+    (working / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    (working / "plan.md").write_text("# Plan", encoding="utf-8")
+    findings_dir = working / "findings"
+    findings_dir.mkdir()
+    (findings_dir / "cp_01.json").write_text('{"title":"test"}', encoding="utf-8")
+
+    evidence = collect_workspace_evidence(workspace_dir=tmp_path)
+    assert evidence["plan_json"] != ""
+    parsed = json.loads(evidence["plan_json"])
+    assert parsed["items_to_extract"][0]["id"] == "cp_01"
+    assert "plan.json" in evidence["workspace_files"]
+    assert "findings/cp_01.json" in evidence["workspace_files"]
+    assert "cp_01" in evidence["findings"]
