@@ -8,10 +8,10 @@ from govdoc.harness.schemas import create_all_tables
 
 
 class TestCreateAllTables:
-    """测试 create_all_tables 创建全部 7 张表。"""
+    """测试 create_all_tables 创建全部 8 张表。"""
 
-    def test_creates_all_seven_tables(self, tmp_path: Path) -> None:
-        """创建后应有 7 张自定义表 + 2 张固定表。"""
+    def test_creates_all_eight_tables(self, tmp_path: Path) -> None:
+        """创建后应有 8 张自定义表 + 2 张固定表。"""
         db_path = str(tmp_path / "test.db")
         log = HarnessLog(db_path=db_path, run_id="test-001")
         create_all_tables(log)
@@ -29,6 +29,7 @@ class TestCreateAllTables:
         expected = [
             "_events",
             "_runs",
+            "agent_trajectories",
             "api_calls",
             "api_contracts",
             "audit_results",

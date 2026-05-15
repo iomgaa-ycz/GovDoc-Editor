@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from govdoc.harness.log import HarnessLog
+from govdoc.harness.pipeline_eval import record_agent_trajectory
 from govdoc.harness.pipeline_eval import record_audit_results
 from govdoc.harness.pipeline_eval import record_extract_results
 from govdoc.harness.schemas import create_all_tables
@@ -105,3 +106,33 @@ def test_record_audit_results_stores_full_verdict_and_evidence(tmp_path):
     evidence_detail = json.loads(row["evidence_json"])
     assert len(evidence_detail) == 1
     assert evidence_detail[0]["chunk_id"] == "c1"
+
+
+def test_record_agent_trajectory_stores_plan_and_files(tmp_path):
+    """agent_trajectories 应存 plan_json、workspace_files、phase_details。"""
+    log = _make_log(tmp_path)
+    record_agent_trajectory(
+        log,
+        pipeline="A",
+        run_id="extract-run-001",
+        plan_json=json.dumps({"items_to_extract": [{"id": "cp_01", "title": "测试"}]}, ensure_ascii=False),
+        workspace_files=["plan.json", "plan.md", "findings/cp_01.json"],
+        phase_details=[
+            {"phase": "plan", "status": "completed", "duration_s": 12.3},
+            {"phase": "execute", "status": "completed", "duration_s": 45.0},
+            {"phase": "summarize", "status": "completed", "duration_s": 8.1},
+        ],
+    )
+
+    rows = log.query("SELECT * FROM agent_trajectories WHERE run_id=?", ("test-run",))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["pipeline"] == "A"
+    assert row["source_run_id"] == "extract-run-001"
+    plan = json.loads(row["plan_json"])
+    assert plan["items_to_extract"][0]["id"] == "cp_01"
+    files = json.loads(row["workspace_files_json"])
+    assert "findings/cp_01.json" in files
+    phases = json.loads(row["phase_details_json"])
+    assert len(phases) == 3
+    assert phases[0]["phase"] == "plan"
