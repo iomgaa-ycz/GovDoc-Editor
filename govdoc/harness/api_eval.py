@@ -290,8 +290,8 @@ async def run_api_eval(
     load_dotenv()
     run_id = run_id or f"L2-{uuid.uuid4().hex[:8]}"
     manifest = load_manifest(manifest_path, project_root=project_root)
-    max_checkpoints = int(os.environ.get("HARNESS_MAX_CHECKPOINTS", "5"))
-    pipeline_timeout = float(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800"))
+    max_checkpoints = int(os.environ.get("HARNESS_MAX_CHECKPOINTS", "0"))
+    pipeline_timeout = float(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "7200"))
 
     config_snapshot: dict[str, Any] = {
         "base_url": base_url,
