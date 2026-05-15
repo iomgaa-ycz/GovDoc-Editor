@@ -50,12 +50,14 @@ class CheckpointFinal(SQLModel, table=True):
 class ExtractRun(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     rule_source_id: str = Field(foreign_key="rulesource.id")
+    # pending / running / draft_ready / completed / failed / interrupted
     status: str = "pending"
     workspace_archive_path: str | None = None
     workspace_failed_path: str | None = None
     total_usage_json: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    heartbeat_at: datetime | None = None
 
 
 class AuditRun(SQLModel, table=True):
@@ -66,7 +68,7 @@ class AuditRun(SQLModel, table=True):
     tender_doc_id: str = Field(foreign_key="tenderdoc.id")
     supplementary_doc_ids: str | None = None  # JSON list[str]，附件文书 ID
     checkpoint_final_ids: str  # JSON list[str]
-    # pending / running / partial_ready / draft_ready / finalized / failed / waiting_retry
+    # pending / running / partial_ready / draft_ready / finalized / failed / waiting_retry / cancelled / interrupted
     status: str = "pending"
     processed_count: int = 0
     total_count: int = 0
@@ -75,6 +77,7 @@ class AuditRun(SQLModel, table=True):
     total_usage_json: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    heartbeat_at: datetime | None = None
 
 
 class AuditPointRun(SQLModel, table=True):
