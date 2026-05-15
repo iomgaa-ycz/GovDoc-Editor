@@ -765,6 +765,33 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             if dim == "audit-completeness":
                 evidence["audit_checkpoint_inventory"] = audit_rows
                 evidence["note"] = "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
+            if dim == "audit-json-correctness" and audit_rows:
+                assembled_findings = []
+                for ar in audit_rows:
+                    verdict_json = ar.get("verdict_json", "{}")
+                    try:
+                        verdict_obj = json.loads(verdict_json) if isinstance(verdict_json, str) else verdict_json
+                    except (json.JSONDecodeError, TypeError):
+                        verdict_obj = {"verdict": ar.get("verdict", "")}
+                    evidence_json = ar.get("evidence_json", "[]")
+                    try:
+                        evidence_refs = json.loads(evidence_json) if isinstance(evidence_json, str) else evidence_json
+                    except (json.JSONDecodeError, TypeError):
+                        evidence_refs = []
+                    assembled_findings.append(
+                        {
+                            "checkpoint": {"id": ar.get("checkpoint_id", "")},
+                            "verdict": verdict_obj,
+                            "evidence_refs": evidence_refs,
+                            "case_refs": [],
+                        }
+                    )
+                completed_count = sum(1 for ar in audit_rows if ar.get("status") == "completed")
+                total_count = len(audit_rows)
+                evidence["output_json"] = {
+                    "findings": assembled_findings,
+                    "summary": f"共审核 {total_count} 个审核点，已完成 {completed_count} 项。",
+                }
             evaluate_dimension(
                 log=log,
                 judge=judge,
