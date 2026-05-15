@@ -72,6 +72,14 @@ API_CONTRACTS_COLUMNS: dict[str, str] = {
     "detail": "TEXT",
 }
 
+AGENT_TRAJECTORIES_COLUMNS: dict[str, str] = {
+    "pipeline": "TEXT",
+    "source_run_id": "TEXT",
+    "plan_json": "TEXT",
+    "workspace_files_json": "TEXT",
+    "phase_details_json": "TEXT",
+}
+
 ALL_TABLES: dict[str, dict[str, str]] = {
     "pipeline_runs": PIPELINE_RUNS_COLUMNS,
     "phase_metrics": PHASE_METRICS_COLUMNS,
@@ -80,11 +88,12 @@ ALL_TABLES: dict[str, dict[str, str]] = {
     "quality_scores": QUALITY_SCORES_COLUMNS,
     "api_calls": API_CALLS_COLUMNS,
     "api_contracts": API_CONTRACTS_COLUMNS,
+    "agent_trajectories": AGENT_TRAJECTORIES_COLUMNS,
 }
 
 
 def create_all_tables(log: HarnessLog) -> None:
-    """在 harness.db 中创建全部 7 张自定义表。
+    """在 harness.db 中创建全部 8 张自定义表。
 
     参数:
         log: 已初始化的 HarnessLog 实例。

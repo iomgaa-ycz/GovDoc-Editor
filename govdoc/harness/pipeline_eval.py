@@ -131,6 +131,28 @@ def record_audit_results(
         )
 
 
+def record_agent_trajectory(
+    log: HarnessLog,
+    *,
+    pipeline: str,
+    run_id: str,
+    plan_json: str,
+    workspace_files: list[str],
+    phase_details: list[dict[str, Any]],
+) -> None:
+    """记录 PES agent 轨迹到 agent_trajectories 表。"""
+    log.insert(
+        "agent_trajectories",
+        {
+            "pipeline": pipeline,
+            "source_run_id": run_id,
+            "plan_json": plan_json,
+            "workspace_files_json": json.dumps(workspace_files, ensure_ascii=False),
+            "phase_details_json": json.dumps(phase_details, ensure_ascii=False),
+        },
+    )
+
+
 def record_quality_score(
     log: HarnessLog,
     *,
