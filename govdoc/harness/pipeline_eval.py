@@ -762,6 +762,9 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             }
             if dim.startswith("agent-") and trajectory_rows:
                 evidence["trajectory"] = trajectory_rows
+            if dim == "audit-completeness":
+                evidence["audit_checkpoint_inventory"] = audit_rows
+                evidence["note"] = "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
             evaluate_dimension(
                 log=log,
                 judge=judge,
