@@ -91,8 +91,11 @@ def record_extract_results(
                 "checkpoint_id": cp["id"],
                 "title": cp.get("title", ""),
                 "category": cp.get("category", ""),
+                "description": cp.get("description", ""),
+                "severity": cp.get("severity", ""),
                 "has_legal_basis": 1 if bases else 0,
                 "legal_basis_count": len(bases),
+                "legal_basis_json": json.dumps(bases, ensure_ascii=False),
             },
         )
 

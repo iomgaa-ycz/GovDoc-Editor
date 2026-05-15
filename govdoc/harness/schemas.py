@@ -28,8 +28,11 @@ EXTRACT_RESULTS_COLUMNS: dict[str, str] = {
     "checkpoint_id": "TEXT",
     "title": "TEXT",
     "category": "TEXT",
+    "description": "TEXT",
+    "severity": "TEXT",
     "has_legal_basis": "INTEGER",
     "legal_basis_count": "INTEGER",
+    "legal_basis_json": "TEXT",
 }
 
 AUDIT_RESULTS_COLUMNS: dict[str, str] = {

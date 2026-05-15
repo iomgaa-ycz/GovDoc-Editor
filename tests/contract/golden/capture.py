@@ -27,6 +27,7 @@ UNSTABLE_FIELDS = {
     "created_at",
     "updated_at",
     "completed_at",
+    "heartbeat_at",
     # 绝对/相对路径字段（每次 tmp_path 不同）
     "workspace_archive_path",
     "workspace_failed_path",
