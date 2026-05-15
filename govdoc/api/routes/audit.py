@@ -95,6 +95,21 @@ async def create_audit_run(
                 await run_audit(audit_run.id, s)
             except Exception:
                 logger.exception("后台审核执行失败: %s", audit_run.id)
+                try:
+                    ar = s.get(AuditRun, audit_run.id)
+                    if ar is not None and ar.status not in (
+                        "draft_ready",
+                        "completed",
+                        "partial_ready",
+                        "failed",
+                        "waiting_retry",
+                    ):
+                        ar.status = "failed"
+                        ar.error = "后台任务异常退出"
+                        s.add(ar)
+                        s.commit()
+                except Exception:
+                    pass
 
     background_tasks.add_task(_run_audit)
     return result
