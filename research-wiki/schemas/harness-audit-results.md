@@ -16,8 +16,10 @@ Layer 1 审核结果表。管道 B 每个审核点运行（AuditPointRun）记�
 | point_run_id | TEXT | AuditPointRun ID |
 | checkpoint_id | TEXT | 审核点 ID |
 | verdict | TEXT | 判定结果（pass / fail / uncertain） |
+| verdict_json | TEXT | 完整判定 JSON（含 verdict/rationale/evidence_quotes） |
 | has_evidence | INTEGER | 是否包含证据（0/1） |
 | evidence_count | INTEGER | 证据条数 |
+| evidence_json | TEXT | 证据引用 JSON 数组（含 chunk_id/text/score） |
 | has_case_refs | INTEGER | 是否包含案例引用（0/1） |
 | duration_s | REAL | 单审核点耗时（秒） |
 | status | TEXT | completed / failed |
