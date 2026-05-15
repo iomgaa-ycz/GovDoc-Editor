@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 import shutil
 import sqlite3
 from collections.abc import Sequence
@@ -93,6 +95,13 @@ def count_processed_points(session: Session, audit_run_id: str) -> int:
         )
     ).all()
     return len(runs)
+
+
+def _update_heartbeat(audit_run: AuditRun, session: Session) -> None:
+    """更新 AuditRun 心跳时间。"""
+    audit_run.heartbeat_at = datetime.utcnow()
+    session.add(audit_run)
+    session.commit()
 
 
 def generate_summary(findings: list[GovFinding]) -> str:
@@ -640,9 +649,15 @@ async def run_audit(
         replay=replay_dir is not None,
     )
 
+    point_timeout_s = int(os.environ.get("GOVDOC_POINT_TIMEOUT", "900"))
+
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace
         for point_run in point_runs_to_run:
+            session.refresh(audit_run)
+            if audit_run.status == "cancelled":
+                break
+
             checkpoint_row = session.get(CheckpointFinal, point_run.checkpoint_final_id)
             if checkpoint_row is None:
                 point_run.status = "failed"
@@ -660,21 +675,28 @@ async def run_audit(
             result = None
 
             try:
-                workspace, result = await _run_single_point(
-                    point_run,
-                    checkpoint,
-                    tender_doc,
-                    supplementary_docs=supplementary_docs,
-                    audit_run=audit_run,
-                    tender_collection=tender_collection,
-                    manager=manager,
-                    store=store,
-                    cfg=cfg,
-                    repo_root=repo_root,
-                    replay_dir=replay_dir,
+                workspace, result = await asyncio.wait_for(
+                    _run_single_point(
+                        point_run,
+                        checkpoint,
+                        tender_doc,
+                        supplementary_docs=supplementary_docs,
+                        audit_run=audit_run,
+                        tender_collection=tender_collection,
+                        manager=manager,
+                        store=store,
+                        cfg=cfg,
+                        repo_root=repo_root,
+                        replay_dir=replay_dir,
+                    ),
+                    timeout=point_timeout_s,
                 )
 
                 _persist_point_result(point_run, result, workspace, checkpoint, manager)
+
+            except asyncio.TimeoutError:
+                point_run.status = "failed"
+                point_run.error = f"Point audit timeout after {point_timeout_s} seconds"
 
             except Exception as exc:
                 point_run.status = "failed"
@@ -694,9 +716,11 @@ async def run_audit(
             audit_run.processed_count = count_processed_points(session, audit_run.id)
             session.add(point_run)
             session.add(audit_run)
+            _update_heartbeat(audit_run, session)
             session.commit()
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
+        if audit_run.status != "cancelled":
+            _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
 
         session.add(audit_run)
         session.commit()
