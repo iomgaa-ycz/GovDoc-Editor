@@ -728,32 +728,7 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
 
     extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
     audit_rows = log.query("SELECT * FROM audit_results WHERE run_id=?", (log._run_id,))
-
-    trajectory_evidence: dict[str, Any] | None = None
-    try:
-        from govdoc.runtime import get_trajectory_store
-
-        traj_store = get_trajectory_store()
-        traj_runs = traj_store.list_runs()
-        if traj_runs:
-            latest = traj_runs[-1]
-            run_data = traj_store.get_run(latest.run_id)
-            trajectory_evidence = {
-                "run_id": run_data.run_id,
-                "status": run_data.status,
-                "phases": [
-                    {
-                        "name": p.phase,
-                        "started_at": str(p.started_at) if p.started_at else None,
-                        "ended_at": str(p.ended_at) if p.ended_at else None,
-                        "error": p.error,
-                    }
-                    for p in (run_data.phases or [])
-                ],
-            }
-            logger.info("读取 trajectory: run_id=%s, %d phases", run_data.run_id, len(run_data.phases or []))
-    except Exception:
-        logger.warning("读取 trajectory 失败，agent-* 维度将缺少 trajectory evidence")
+    trajectory_rows = log.query("SELECT * FROM agent_trajectories WHERE run_id=?", (log._run_id,))
 
     dimensions = [
         "extract-faithfulness",
@@ -785,8 +760,8 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                 "audit_results": audit_rows,
                 "dimension": dim,
             }
-            if dim.startswith("agent-") and trajectory_evidence:
-                evidence["trajectory"] = trajectory_evidence
+            if dim.startswith("agent-") and trajectory_rows:
+                evidence["trajectory"] = trajectory_rows
             evaluate_dimension(
                 log=log,
                 judge=judge,
