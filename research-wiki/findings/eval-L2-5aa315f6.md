@@ -122,14 +122,14 @@ tags: ["harness", "evaluation", "L2", "api"]
 | 1 | `api_eval.py` POST /projects 缺少 `created_by` 字段 | ✅ 已修复 | API 要求必填字段，harness 代码已更新 |
 | 2 | `api_eval.py` `proj_data["id"]` 无防御性取值 | ✅ 已修复 | 改为 `.get("id", "unknown")` |
 | 3 | `harness_api.sh` 缺少 `NO_PROXY` 设置 | ✅ 已修复 | 本机有 HTTP 代理 `127.0.0.1:7892`，需排除 localhost |
-| 4 | `openai` SDK 与 LLM 网关不兼容 | 🔵 发现 | openai SDK 返回 str 而非 ChatCompletion 对象，HarnessJudge 需改用 httpx 直调 |
+| 4 | `openai` SDK 与 LLM 网关不兼容 | ⚪ 已失效 | 仅 glm-5.1 存在此问题；Judge 已切换为 qwen3.6-plus（兼容 openai SDK），不再需要 httpx 直调 |
 | 5 | 语义评估证据不足 | 🔵 待修复 | api_eval 需增加 response body 记录和 DB 状态验证 |
 | 6 | 规则上传端点未覆盖 | 🔵 待修复 | manifest 中法规路径的转义引号需要调整 |
 
 ## 9. 下一步建议
 
 1. **增强 api_eval 数据采集**: 记录 response body + 导入后 DB 查询，使语义评估有足够 evidence
-2. **修复 HarnessJudge**: 将 openai SDK 调用改为 httpx 直调（兼容私有网关）
+2. ~~**修复 HarnessJudge**: 将 openai SDK 调用改为 httpx 直调（兼容私有网关）~~ — 已失效：Judge 已切换 qwen3.6-plus，兼容 openai SDK
 3. **执行 L1 管道评估**: `bash scripts/harness_pipeline.sh`（LLM 后端已恢复可达）
 4. **补充 L2 端点覆盖**: 规则上传、CRUD、文档对比
 5. **设置基线值**: 将 P95=205.6ms 写入 metric 实体

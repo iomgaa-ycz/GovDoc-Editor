@@ -15,7 +15,8 @@
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 - [Harness 评估: L2-5aa315f6](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 
-## plan (12)
+## plan (13)
+- [API 后台任务健壮性 + L2 评估重写](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:api-robustness-and-l2-rewrite`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
 - [L2 API 评估升级计划](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:l2-api-eval-upgrade`
 - [Harness L1 韧性增强计划](plans/2026-05-13-harness-resilience.md) `plan:harness-resilience`
