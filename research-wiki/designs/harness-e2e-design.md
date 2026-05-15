@@ -59,6 +59,8 @@ tags: ["harness", "testing", "evaluation"]
 - **Layer 1（管道层）**：直接调用 `run_extract()` / `run_audit()` / `finalize_workpaper()`，含真 LLM 调用，用 HarnessLog 精细记录，用 HarnessJudge 做 16 维语义评估
 - **Layer 2（API 层）**：httpx 调用全部 20 个 FastAPI 端点，验证契约正确性、功能完整性、性能指标
 
+> **演进方向（2026-05-15 更新）：** L2 将逐步覆盖 L1 全部能力（完整业务证据记录 + 语义评估），成为唯一评估层。L1 保留为过渡期兼容，最终废弃。
+
 ## 3. Schema 设计（harness.db 表结构）
 
 除 HarnessLog 固定的 `_runs` / `_events` 表外，自定义以下表：
@@ -99,8 +101,11 @@ tags: ["harness", "testing", "evaluation"]
 | checkpoint_id | TEXT | 审核点 ID |
 | title | TEXT | 审核点标题 |
 | category | TEXT | 分类（四类之一） |
+| description | TEXT | 审核点描述 |
+| severity | TEXT | 严重程度（critical/major/minor） |
 | has_legal_basis | INTEGER | 是否有法条引用 (0/1) |
 | legal_basis_count | INTEGER | 法条引用数量 |
+| legal_basis_json | TEXT | 完整法条引用 JSON 数组 |
 
 #### `audit_results` — 管道 B 逐审核点输出
 
@@ -110,11 +115,24 @@ tags: ["harness", "testing", "evaluation"]
 | point_run_id | TEXT | AuditPointRun ID |
 | checkpoint_id | TEXT | 对应审核点 |
 | verdict | TEXT | 合规 / 不合规 / 存疑 |
+| verdict_json | TEXT | 完整判定 JSON（含 rationale + evidence_quotes） |
 | has_evidence | INTEGER | 是否有证据 (0/1) |
 | evidence_count | INTEGER | 证据引用数 |
+| evidence_json | TEXT | 证据引用 JSON 数组（含 chunk_id/text/score） |
 | has_case_refs | INTEGER | 是否有案例引用 (0/1) |
 | duration_s | REAL | 单点耗时 |
 | status | TEXT | completed / failed |
+
+#### `agent_trajectories` — PES agent 运行轨迹
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| run_id | TEXT | FK → _runs.run_id |
+| pipeline | TEXT | "A" 或 "B" |
+| source_run_id | TEXT | ExtractRun.id 或 AuditPointRun.id |
+| plan_json | TEXT | PES plan 阶段产出的完整 JSON |
+| workspace_files_json | TEXT | workspace 中所有文件路径的 JSON 数组 |
+| phase_details_json | TEXT | 各 phase 的详细状态 JSON 数组 |
 
 #### `quality_scores` — HarnessJudge 语义评估结果
 
@@ -386,7 +404,8 @@ checkpoints:
 | harness-eval 职责 | 聚合判定 + 诊断 | 读取已有 quality_scores，不重复调 HarnessJudge |
 | rubric 管理 | 独立 .md 文件 | 修改评判标准不需改代码 |
 | DB 共享 | 两层共写一个 harness.db | harness-eval 统一查询，不需跨 DB |
-| 真实 LLM 调用 | L1 用真 LLM，L2 不涉及 LLM | L1 评估输出质量必须真跑；L2 只验 API 契约 |
+| 评估分层 | L2 全栈评估（API 契约 + 完整业务证据 + 语义评估） | L2 覆盖 L1 全部能力，L1 保留为过渡兼容 |
+| harness.db 数据粒度 | 存完整运行证据（legal_basis 明细、verdict 详情、plan.json 内容） | judge 需要完整数据才能做深度语义评估 |
 
 ## 7. 新增文件清单
 

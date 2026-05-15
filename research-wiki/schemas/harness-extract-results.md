@@ -16,5 +16,8 @@ Layer 1 审核点提取结果表。管道 A 每个产出的审核点记录一行
 | checkpoint_id | TEXT | 审核点 ID |
 | title | TEXT | 审核点标题 |
 | category | TEXT | 审核点分类 |
+| description | TEXT | 审核点描述 |
+| severity | TEXT | 严重程度 |
 | has_legal_basis | INTEGER | 是否包含法条依据（0/1） |
 | legal_basis_count | INTEGER | 法条引用数量 |
+| legal_basis_json | TEXT | 完整法条引用 JSON 数组（含 law_name/article/quote） |
