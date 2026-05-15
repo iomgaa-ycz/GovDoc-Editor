@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from sqlmodel import select
 
@@ -10,6 +12,7 @@ from govdoc.db.models import ExtractRun, RuleSource
 from govdoc.runtime import get_document_store, get_libraries
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("")
@@ -79,7 +82,16 @@ async def upload_rule(
             try:
                 await run_extract(rule_source.id, s, extract_run_id=extract_run.id)
             except Exception:
-                pass
+                logger.exception("后台提取执行失败: %s", extract_run.id)
+                try:
+                    er = s.get(ExtractRun, extract_run.id)
+                    if er is not None and er.status not in ("draft_ready", "completed", "failed"):
+                        er.status = "failed"
+                        er.error = "后台任务异常退出"
+                        s.add(er)
+                        s.commit()
+                except Exception:
+                    pass
 
     background_tasks.add_task(_run_extract)
     return result
