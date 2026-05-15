@@ -463,25 +463,59 @@ async def run_api_eval(
                 logger.info("审核点截断为 %d 个", max_checkpoints)
 
             # ── Phase 4: Checkpoint CRUD 测试 ──
+            # 用合法数据测试 PUT + DELETE，不影响 imported 列表
             if imported_checkpoint_ids:
                 test_cp_id = imported_checkpoint_ids[-1]
+                # 先读取原始数据，测试后恢复
+                _, original_cp_list = await call_endpoint(
+                    client,
+                    EndpointSpec(
+                        method="GET",
+                        path="/api/v1/checkpoints",
+                        expected_status=200,
+                        description="读取审核点（CRUD 前备份）",
+                    ),
+                    log,
+                )
+                original_payload = None
+                if original_cp_list:
+                    for cp in original_cp_list:
+                        if cp.get("id") == test_cp_id:
+                            original_payload = cp.get("payload_json")
+                            break
+
+                # PUT 用合法枚举值
                 await call_endpoint(
                     client,
                     EndpointSpec(
                         method="PUT",
                         path="/api/v1/checkpoints/{checkpoint_id}",
                         expected_status=200,
-                        description="更新审核点",
+                        description="更新审核点（CRUD 测试）",
                         path_params={"checkpoint_id": test_cp_id},
                         body={
-                            "payload_json": '{"id":"test","category":"测试","title":"CRUD 测试","description":"","legal_basis":[],"severity":"minor","retrieval_hint":""}'
+                            "payload_json": '{"id":"crud-test","category":"其他违法违规","title":"CRUD 测试","description":"临时测试数据","legal_basis":[],"severity":"minor","retrieval_hint":""}'
                         },
                     ),
                     log,
                 )
 
-                # 不真的删除——从列表中移除即可保证审核时不用
-                # 但要测试端点可达性：用一个额外导入的审核点做删除测试
+                # 恢复原始数据
+                if original_payload:
+                    await call_endpoint(
+                        client,
+                        EndpointSpec(
+                            method="PUT",
+                            path="/api/v1/checkpoints/{checkpoint_id}",
+                            expected_status=200,
+                            description="恢复审核点原始数据",
+                            path_params={"checkpoint_id": test_cp_id},
+                            body={"payload_json": original_payload},
+                        ),
+                        log,
+                    )
+
+                # DELETE 测试：找一个不在 imported 列表中的审核点
                 _, extra_resp = await call_endpoint(
                     client,
                     EndpointSpec(
@@ -492,7 +526,6 @@ async def run_api_eval(
                     ),
                     log,
                 )
-                # 找一个不在 imported 列表中的审核点来删除（避免影响后续审核）
                 if extra_resp:
                     all_ids = {c["id"] for c in extra_resp if c.get("id")}
                     deletable = all_ids - set(imported_checkpoint_ids)
