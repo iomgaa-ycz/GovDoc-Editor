@@ -185,6 +185,21 @@ async def get_audit_run_progress(audit_run_id: str):
         )
 
 
+@router.post("/runs/{audit_run_id}/cancel", status_code=200)
+async def cancel_audit_run(audit_run_id: str):
+    """取消一个正在运行的审核。后台任务会在下一个审核点开始前检查并停止。"""
+    with get_db_session() as session:
+        run = session.get(AuditRun, audit_run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        if run.status not in ("pending", "running"):
+            raise HTTPException(status_code=400, detail=f"状态 {run.status} 不可取消")
+        run.status = "cancelled"
+        session.add(run)
+        session.commit()
+        return {"audit_run_id": run.id, "status": "cancelled"}
+
+
 @router.post("/point-runs/{point_run_id}/retry", status_code=202)
 async def retry_point_run(
     point_run_id: str,
