@@ -178,7 +178,9 @@ class HarnessLog:
 
     def heartbeat(self, phase: str = "") -> None:
         """更新 _runs 行的 heartbeat 时间戳，用于检测 hang。"""
-        self._conn.execute("UPDATE _runs SET heartbeat_at=? WHERE run_id=?", (_now_iso(), self._run_id))
+        self._conn.execute(
+            "UPDATE _runs SET heartbeat_at=? WHERE run_id=?", (_now_iso(), self._run_id)
+        )
         self._conn.commit()
 
     def close(self, status: str = "completed") -> None:

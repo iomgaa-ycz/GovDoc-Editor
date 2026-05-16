@@ -81,7 +81,7 @@ class HarnessJudge:
             except Exception as exc:
                 last_exc = exc
                 if attempt < max_retries:
-                    _time.sleep(2 ** attempt)
+                    _time.sleep(2**attempt)
         raise last_exc  # type: ignore[misc]
 
     def _build_evaluate_prompt(

@@ -200,9 +200,7 @@ def test_collect_workspace_evidence_from_archive(tmp_path: Path) -> None:
     (working / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
     findings_dir = working / "findings"
     findings_dir.mkdir()
-    (findings_dir / "cp_archive.json").write_text(
-        '{"verdict": "存疑"}', encoding="utf-8"
-    )
+    (findings_dir / "cp_archive.json").write_text('{"verdict": "存疑"}', encoding="utf-8")
 
     archive_path = tmp_path / "test.tar.gz"
     with tarfile.open(archive_path, "w:gz") as tf:

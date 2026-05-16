@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sqlite3
 import subprocess
@@ -51,10 +50,18 @@ class TestMainCatchesFatalException:
         """不存在的 manifest 应记录崩溃状态和 CRITICAL 事件。"""
         db_path = str(tmp_path / "crash.db")
         result = subprocess.run(
-            [sys.executable, "-m", "govdoc.harness.pipeline_eval",
-             "--manifest", str(tmp_path / "nonexistent_12345.yaml"),
-             "--db-path", db_path],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                "-m",
+                "govdoc.harness.pipeline_eval",
+                "--manifest",
+                str(tmp_path / "nonexistent_12345.yaml"),
+                "--db-path",
+                db_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode != 0
         conn = sqlite3.connect(db_path)
@@ -85,15 +92,21 @@ class TestPipelineTimeout:
         def _mock_get_session():
             yield MagicMock()
 
-        with patch.dict(os.environ, {"HARNESS_PIPELINE_TIMEOUT": "1"}), \
-             patch("govdoc.harness.pipeline_eval._ensure_rule_source", return_value="rs-1"), \
-             patch("govdoc.pipelines.extract_rules.run_extract", new=slow_extract), \
-             patch("govdoc.db.session.get_session", side_effect=_mock_get_session), \
-             patch("govdoc.runtime.get_trajectory_store", return_value=MagicMock()):
-            asyncio.run(run_pipeline_eval(
-                manifest_path=manifest_path, project_root=str(tmp_path),
-                rubric_dir=str(tmp_path), db_path=db_path,
-            ))
+        with (
+            patch.dict(os.environ, {"HARNESS_PIPELINE_TIMEOUT": "1"}),
+            patch("govdoc.harness.pipeline_eval._ensure_rule_source", return_value="rs-1"),
+            patch("govdoc.pipelines.extract_rules.run_extract", new=slow_extract),
+            patch("govdoc.db.session.get_session", side_effect=_mock_get_session),
+            patch("govdoc.runtime.get_trajectory_store", return_value=MagicMock()),
+        ):
+            asyncio.run(
+                run_pipeline_eval(
+                    manifest_path=manifest_path,
+                    project_root=str(tmp_path),
+                    rubric_dir=str(tmp_path),
+                    db_path=db_path,
+                )
+            )
 
         conn = sqlite3.connect(db_path)
         rows = conn.execute("SELECT status, error FROM pipeline_runs").fetchall()
