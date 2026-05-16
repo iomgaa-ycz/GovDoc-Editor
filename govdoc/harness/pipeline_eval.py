@@ -120,7 +120,9 @@ def record_audit_results(
                 "point_run_id": f.get("point_run_id", ""),
                 "checkpoint_id": f.get("checkpoint_id", ""),
                 "verdict": verdict_str,
-                "verdict_json": json.dumps(verdict_obj, ensure_ascii=False) if isinstance(verdict_obj, dict) else json.dumps({"verdict": verdict_str}, ensure_ascii=False),
+                "verdict_json": json.dumps(verdict_obj, ensure_ascii=False)
+                if isinstance(verdict_obj, dict)
+                else json.dumps({"verdict": verdict_str}, ensure_ascii=False),
                 "has_evidence": 1 if (quotes or refs) else 0,
                 "evidence_count": len(quotes) + len(refs),
                 "evidence_json": json.dumps(refs, ensure_ascii=False),
@@ -318,6 +320,7 @@ async def run_pipeline_eval(
 
         # 清除上次 harness 残留，确保干净起跑
         from govdoc.db.session import get_session as _get_session
+
         _sg = _get_session()
         _clean_session = next(_sg)
         try:
@@ -334,10 +337,13 @@ async def run_pipeline_eval(
             (json.dumps(config_snapshot, ensure_ascii=False), run_id),
         )
 
-        log.log_event("pipeline_eval_start", {
-            "manifest": manifest_path,
-            "config": config_snapshot,
-        })
+        log.log_event(
+            "pipeline_eval_start",
+            {
+                "manifest": manifest_path,
+                "config": config_snapshot,
+            },
+        )
 
         pipeline_timeout = int(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800"))
 
@@ -367,8 +373,11 @@ async def run_pipeline_eval(
                 duration = time.time() - t0
                 usage = json.loads(extract_run.total_usage_json or "{}")
                 total_tokens = sum(
-                    v for phase in usage.values() if isinstance(phase, dict)
-                    for v in phase.values() if isinstance(v, int)
+                    v
+                    for phase in usage.values()
+                    if isinstance(phase, dict)
+                    for v in phase.values()
+                    if isinstance(v, int)
                 )
 
                 record_pipeline_run(
@@ -400,13 +409,16 @@ async def run_pipeline_eval(
                     total_tokens=0,
                     error=f"{type(exc).__name__}: {exc}",
                 )
-                log.log_event("pipeline_error", {
-                    "pipeline": "A",
-                    "project_name": rule.name,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                    "traceback": tb,
-                })
+                log.log_event(
+                    "pipeline_error",
+                    {
+                        "pipeline": "A",
+                        "project_name": rule.name,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                        "traceback": tb,
+                    },
+                )
                 logger.error("管道 A 失败: %s\n%s", rule.name, tb)
             finally:
                 if session_gen is not None:
@@ -478,13 +490,16 @@ async def run_pipeline_eval(
                     total_tokens=0,
                     error=f"{type(exc).__name__}: {exc}",
                 )
-                log.log_event("pipeline_error", {
-                    "pipeline": "B",
-                    "project_name": proj.name,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                    "traceback": tb,
-                })
+                log.log_event(
+                    "pipeline_error",
+                    {
+                        "pipeline": "B",
+                        "project_name": proj.name,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                        "traceback": tb,
+                    },
+                )
                 logger.error("管道 B 失败: %s\n%s", proj.name, tb)
             finally:
                 if session_gen is not None:
@@ -514,13 +529,9 @@ def _clean_harness_state(session: Any) -> None:
         WorkpaperDraft,
     )
 
-    harness_projects = session.exec(
-        select(Project).where(Project.created_by == "harness")
-    ).all()
+    harness_projects = session.exec(select(Project).where(Project.created_by == "harness")).all()
     for proj in harness_projects:
-        audit_runs = session.exec(
-            select(AuditRun).where(AuditRun.project_id == proj.id)
-        ).all()
+        audit_runs = session.exec(select(AuditRun).where(AuditRun.project_id == proj.id)).all()
         for ar in audit_runs:
             for apr in session.exec(
                 select(AuditPointRun).where(AuditPointRun.audit_run_id == ar.id)
@@ -531,26 +542,20 @@ def _clean_harness_state(session: Any) -> None:
             ).all():
                 session.delete(wd)
             session.delete(ar)
-        for td in session.exec(
-            select(TenderDoc).where(TenderDoc.project_id == proj.id)
-        ).all():
+        for td in session.exec(select(TenderDoc).where(TenderDoc.project_id == proj.id)).all():
             session.delete(td)
         session.delete(proj)
 
     for rs in session.exec(
         select(RuleSource).where(RuleSource.rule_library_entry_id == "harness-fixture")
     ).all():
-        for er in session.exec(
-            select(ExtractRun).where(ExtractRun.rule_source_id == rs.id)
-        ).all():
+        for er in session.exec(select(ExtractRun).where(ExtractRun.rule_source_id == rs.id)).all():
             session.delete(er)
         session.delete(rs)
 
     for cf in session.exec(
         select(CheckpointFinal).where(
-            CheckpointFinal.approved_by.in_(
-                ["harness:golden-standard", "system:auto-promote"]
-            )
+            CheckpointFinal.approved_by.in_(["harness:golden-standard", "system:auto-promote"])
         )
     ).all():
         session.delete(cf)
@@ -651,8 +656,12 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
         )
     session.commit()
 
-    logger.info("AuditRun %s 创建完成, %d 个审核点, %d 个 AuditPointRun",
-                audit_run.id, len(cp_ids), len(cp_ids))
+    logger.info(
+        "AuditRun %s 创建完成, %d 个审核点, %d 个 AuditPointRun",
+        audit_run.id,
+        len(cp_ids),
+        len(cp_ids),
+    )
     return audit_run.id
 
 
@@ -718,11 +727,14 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
         import traceback
 
         tb = traceback.format_exc()
-        log.log_event("semantic_eval_fatal", {
-            "error_type": type(exc).__name__,
-            "error_message": str(exc),
-            "traceback": tb,
-        })
+        log.log_event(
+            "semantic_eval_fatal",
+            {
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+                "traceback": tb,
+            },
+        )
         logger.error("HarnessJudge 初始化失败，跳过全部语义评估:\n%s", tb)
         return
 
@@ -764,18 +776,30 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                 evidence["trajectory"] = trajectory_rows
             if dim == "audit-completeness":
                 evidence["audit_checkpoint_inventory"] = audit_rows
-                evidence["note"] = "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
+                evidence["note"] = (
+                    "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
+                )
             if dim == "audit-json-correctness" and audit_rows:
                 assembled_findings = []
                 for ar in audit_rows:
+                    if ar.get("status") != "completed":
+                        continue
                     verdict_json = ar.get("verdict_json", "{}")
                     try:
-                        verdict_obj = json.loads(verdict_json) if isinstance(verdict_json, str) else verdict_json
+                        verdict_obj = (
+                            json.loads(verdict_json)
+                            if isinstance(verdict_json, str)
+                            else verdict_json
+                        )
                     except (json.JSONDecodeError, TypeError):
                         verdict_obj = {"verdict": ar.get("verdict", "")}
                     evidence_json = ar.get("evidence_json", "[]")
                     try:
-                        evidence_refs = json.loads(evidence_json) if isinstance(evidence_json, str) else evidence_json
+                        evidence_refs = (
+                            json.loads(evidence_json)
+                            if isinstance(evidence_json, str)
+                            else evidence_json
+                        )
                     except (json.JSONDecodeError, TypeError):
                         evidence_refs = []
                     assembled_findings.append(
@@ -807,12 +831,15 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             import traceback
 
             tb = traceback.format_exc()
-            log.log_event("semantic_eval_error", {
-                "dimension": dim,
-                "error_type": type(exc).__name__,
-                "error_message": str(exc),
-                "traceback": tb,
-            })
+            log.log_event(
+                "semantic_eval_error",
+                {
+                    "dimension": dim,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "traceback": tb,
+                },
+            )
             logger.error("语义评估 %s 失败:\n%s", dim, tb)
 
 

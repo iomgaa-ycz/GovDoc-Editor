@@ -757,7 +757,11 @@ async def run_api_eval(
                                     "checkpoint_id": pr.get("checkpoint_final_id", ""),
                                     "status": pr.get("status", "pending"),
                                     "duration_s": 0.0,
-                                    "verdict": {},
+                                    "verdict": {
+                                        "verdict": "未完成",
+                                        "rationale": f"审核执行状态: {pr.get('status', 'unknown')}",
+                                        "evidence_quotes": [],
+                                    },
                                     "evidence_refs": [],
                                     "case_refs": [],
                                 }
