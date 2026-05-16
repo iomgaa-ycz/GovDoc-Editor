@@ -15,6 +15,7 @@ import sqlite3
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from scrivai import WorkspaceSpec
@@ -435,6 +436,28 @@ async def _run_single_point(
     return workspace, result
 
 
+def _try_recover_from_workspace(
+    working_dir: Path,
+    checkpoint_id: str,
+) -> dict[str, Any] | None:
+    """尝试从 workspace 产物中恢复 finding（PES 报告失败但产物已就绪时）。"""
+    from govdoc.pipelines.pes_overrides import try_recover_audit_output
+
+    recovered_payload = try_recover_audit_output(
+        SimpleNamespace(status="failed", error="recovery"),
+        working_dir,
+    )
+    if recovered_payload is None:
+        return None
+    findings = recovered_payload.get("findings", [])
+    finding_data = _match_finding_by_checkpoint_id(findings, checkpoint_id)
+    if finding_data is not None:
+        return finding_data
+    if findings:
+        return findings[0]
+    return None
+
+
 def _persist_point_result(
     point_run: AuditPointRun,
     result: Any,
@@ -464,11 +487,19 @@ def _persist_point_result(
         point_run.completed_at = datetime.utcnow()
         point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
     else:
-        point_run.status = "failed"
-        point_run.error = result.error
-        point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
+        recovered = _try_recover_from_workspace(workspace.working_dir, checkpoint.id)
+        if recovered is not None:
+            finding = GovFinding.model_validate(recovered)
+            point_run.finding_json = finding.model_dump_json()
+            point_run.status = "completed"
+            point_run.completed_at = datetime.utcnow()
+            point_run.workspace_archive_path = str(manager.archive(workspace, success=True))
+        else:
+            point_run.status = "failed"
+            point_run.error = result.error
+            point_run.workspace_failed_path = str(manager.archive(workspace, success=False))
 
-    if result is not None:
+    if result is not None and hasattr(result.phase_results, "items"):
         point_run.usage_json = dump_phase_usage(result.phase_results)
 
 
