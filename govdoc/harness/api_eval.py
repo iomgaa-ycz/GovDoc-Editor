@@ -778,8 +778,11 @@ async def run_api_eval(
                             pr_id = pr.get("id", "")
                             if not pr_id:
                                 continue
+                            ws_dir = Path(f"data/.govdoc/workspaces/{pr_id}")
+                            archive = Path(f"data/.govdoc/archives/{pr_id}.tar.gz")
                             ws_evidence = collect_workspace_evidence(
-                                workspace_dir=Path(f"data/.govdoc/workspaces/{pr_id}"),
+                                workspace_dir=ws_dir if ws_dir.exists() else None,
+                                archive_path=archive if archive.exists() else None,
                             )
                             if ws_evidence["plan_json"]:
                                 record_agent_trajectory(

@@ -187,3 +187,34 @@ def test_record_audit_results_failed_point_has_valid_verdict(tmp_path: Path) -> 
     verdict_detail = json.loads(row["verdict_json"])
     assert verdict_detail["verdict"] == "未完成"
     assert "rationale" in verdict_detail
+
+
+def test_collect_workspace_evidence_from_archive(tmp_path: Path) -> None:
+    """从 tar.gz 归档中读取 plan.json 和 findings。"""
+    import tarfile
+
+    ws_dir = tmp_path / "ws"
+    working = ws_dir / "working"
+    working.mkdir(parents=True)
+    plan = {"items_to_extract": [{"id": "cp_archive"}]}
+    (working / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    findings_dir = working / "findings"
+    findings_dir.mkdir()
+    (findings_dir / "cp_archive.json").write_text(
+        '{"verdict": "存疑"}', encoding="utf-8"
+    )
+
+    archive_path = tmp_path / "test.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as tf:
+        tf.add(working / "plan.json", arcname="working/plan.json")
+        tf.add(
+            findings_dir / "cp_archive.json",
+            arcname="working/findings/cp_archive.json",
+        )
+
+    evidence = collect_workspace_evidence(archive_path=archive_path)
+    assert evidence["plan_json"] != ""
+    parsed = json.loads(evidence["plan_json"])
+    assert parsed["items_to_extract"][0]["id"] == "cp_archive"
+    assert len(evidence["workspace_files"]) >= 2
+    assert "cp_archive" in evidence["findings"]

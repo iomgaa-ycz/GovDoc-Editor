@@ -195,7 +195,7 @@ def collect_workspace_evidence(
                     f_obj = tf.extractfile(m)
                     if f_obj:
                         result["plan_json"] = f_obj.read().decode("utf-8")
-                if "/working/findings/" in m and m.endswith(".json"):
+                if ("working/findings/" in m) and m.endswith(".json"):
                     f_obj = tf.extractfile(m)
                     if f_obj:
                         stem = Path(m).stem
