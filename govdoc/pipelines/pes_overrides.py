@@ -334,6 +334,8 @@ class GovDocAuditorPES(_RelaxedPreviousPhaseOutputMixin, AuditorPES):
         except ValueError as exc:
             raise ValueError(f"output.json 不是合法 JSON: {exc}") from exc
 
+        _fix_common_llm_typos(data)
+
         try:
             validated = schema.model_validate(data)
         except ValidationError as exc:
@@ -398,6 +400,28 @@ class GovDocMockAuditorPES(_RelaxedPreviousPhaseOutputMixin, MockPES):
         return "\n\n".join(parts)
 
 
+# ── LLM 输出字段名纠正 ──
+
+_CHECKPOINT_TYPO_MAP = {
+    "retrieval_hook": "retrieval_hint",
+    "retreival_hint": "retrieval_hint",
+    "retrival_hint": "retrieval_hint",
+}
+
+
+def _fix_common_llm_typos(data: dict[str, Any]) -> None:
+    """修复 LLM 输出中常见的字段名拼写错误（就地修改）。"""
+    for finding in data.get("findings", []):
+        if not isinstance(finding, dict):
+            continue
+        cp = finding.get("checkpoint")
+        if not isinstance(cp, dict):
+            continue
+        for typo, correct in _CHECKPOINT_TYPO_MAP.items():
+            if typo in cp and correct not in cp:
+                cp[correct] = cp.pop(typo)
+
+
 # ── Validator ──
 
 
@@ -424,6 +448,10 @@ def _validate_govdoc_auditor_payload(
             )
 
         if not evidence_required:
+            continue
+
+        # 仅 "不合规" 强制要求证据；"合规"/"存疑" 可无证据
+        if verdict_value != "不合规":
             continue
 
         evidence_quotes = (

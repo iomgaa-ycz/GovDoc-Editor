@@ -24,7 +24,7 @@ if ! curl -sf "${BASE_URL}/healthz" > /dev/null 2>&1; then
     exit 1
 fi
 
-source activate govdoc-auditor-v3 && python -m govdoc.harness.api_eval \
+eval "$(conda shell.bash hook)" && conda activate govdoc-auditor-v3 && python -m govdoc.harness.api_eval \
     --base-url "$BASE_URL" \
     --manifest scripts/fixtures/harness_manifest.yaml \
     --project-root . \

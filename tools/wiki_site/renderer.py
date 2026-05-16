@@ -49,9 +49,7 @@ def _write_render_queue(queue_path: Path, paths: list[str]) -> None:
     """写入渲染队列。"""
     queue_path.parent.mkdir(parents=True, exist_ok=True)
     unique = list(dict.fromkeys(paths))
-    queue_path.write_text(
-        json.dumps(unique, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    queue_path.write_text(json.dumps(unique, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _rebuild_manifest_and_sync(wiki_dir: Path, app_data_dir: Path) -> None:
@@ -65,6 +63,7 @@ def _rebuild_manifest_and_sync(wiki_dir: Path, app_data_dir: Path) -> None:
         (app_data_dir / "edges.json").write_bytes(edges_path.read_bytes())
 
     import shutil
+
     db_src = wiki_dir.parent / "results" / "harness.db"
     db_dst = app_data_dir.parent.parent / "public" / "harness.db"
     if db_src.exists():
@@ -96,11 +95,7 @@ class _WikiEventHandler(FileSystemEventHandler):
     def process_pending(self) -> None:
         """处理超过防抖时间的待渲染文件，加入渲染队列。"""
         now = time.time()
-        ready = [
-            p
-            for p, ts in list(self._pending.items())
-            if now - ts >= self.debounce_seconds
-        ]
+        ready = [p for p, ts in list(self._pending.items()) if now - ts >= self.debounce_seconds]
 
         if not ready:
             return
@@ -184,9 +179,7 @@ def serve(
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(str(os.getpid()), encoding="utf-8")
 
-    handler = _WikiEventHandler(
-        wiki_dir, app_data_dir, queue_path, config.debounce_seconds
-    )
+    handler = _WikiEventHandler(wiki_dir, app_data_dir, queue_path, config.debounce_seconds)
     observer = Observer()
     observer.schedule(handler, str(wiki_dir), recursive=True)
     results_dir = project_root / "results"
@@ -218,8 +211,7 @@ def serve(
             handler.process_pending()
             if (
                 config.auto_shutdown_minutes > 0
-                and time.time() - handler.last_activity
-                > config.auto_shutdown_minutes * 60
+                and time.time() - handler.last_activity > config.auto_shutdown_minutes * 60
             ):
                 logger.info("无活动超时，自动关闭")
                 break
