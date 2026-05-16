@@ -116,7 +116,9 @@ def test_record_agent_trajectory_stores_plan_and_files(tmp_path):
         log,
         pipeline="A",
         run_id="extract-run-001",
-        plan_json=json.dumps({"items_to_extract": [{"id": "cp_01", "title": "测试"}]}, ensure_ascii=False),
+        plan_json=json.dumps(
+            {"items_to_extract": [{"id": "cp_01", "title": "测试"}]}, ensure_ascii=False
+        ),
         workspace_files=["plan.json", "plan.md", "findings/cp_01.json"],
         phase_details=[
             {"phase": "plan", "status": "completed", "duration_s": 12.3},
@@ -157,3 +159,31 @@ def test_collect_workspace_evidence_from_directory(tmp_path):
     assert "plan.json" in evidence["workspace_files"]
     assert "findings/cp_01.json" in evidence["workspace_files"]
     assert "cp_01" in evidence["findings"]
+
+
+def test_record_audit_results_failed_point_has_valid_verdict(tmp_path: Path) -> None:
+    """failed 状态的审核点应有结构合法的 verdict 占位，而非空 {}。"""
+    log = _make_log(tmp_path)
+    findings = [
+        {
+            "point_run_id": "pr_failed",
+            "checkpoint_id": "cp_failed",
+            "status": "failed",
+            "duration_s": 0.0,
+            "verdict": {
+                "verdict": "未完成",
+                "rationale": "审核执行失败",
+                "evidence_quotes": [],
+            },
+            "evidence_refs": [],
+            "case_refs": [],
+        }
+    ]
+    record_audit_results(log, findings)
+    rows = log.query("SELECT * FROM audit_results WHERE run_id=?", ("test-run",))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["status"] == "failed"
+    verdict_detail = json.loads(row["verdict_json"])
+    assert verdict_detail["verdict"] == "未完成"
+    assert "rationale" in verdict_detail
