@@ -23,7 +23,7 @@ phases:
 
   summarize:
     name: summarize
-    max_turns: 4
+    max_turns: 16
     allowed_tools: ["Read", "Write", "Glob"]
     required_outputs: ["output.json"]
 
