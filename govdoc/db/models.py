@@ -97,6 +97,9 @@ class AuditPointRun(SQLModel, table=True):
     finding_json: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: datetime | None = None
+    started_at: datetime | None = None
+    # plan / execute / summarize — PES 当前阶段
+    current_phase: str | None = None
 
 
 class WorkpaperDraft(SQLModel, table=True):
