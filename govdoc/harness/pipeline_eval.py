@@ -779,6 +779,34 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                 evidence["note"] = (
                     "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
                 )
+            if dim == "extract-json-correctness" and extract_rows:
+                evidence["output_json"] = {
+                    "checkpoints": [
+                        {
+                            "id": row.get("checkpoint_id", ""),
+                            "category": row.get("category", ""),
+                            "title": row.get("title", ""),
+                            "description": row.get("description", ""),
+                            "severity": row.get("severity", ""),
+                            "legal_basis": json.loads(row["legal_basis_json"])
+                            if row.get("legal_basis_json")
+                            else [],
+                        }
+                        for row in extract_rows
+                    ]
+                }
+            if dim.startswith("workpaper-"):
+                wp_events = log.query(
+                    "SELECT payload FROM _events WHERE run_id=? AND event_type='workpaper_draft'",
+                    (log._run_id,),
+                )
+                if wp_events:
+                    wp_payload = json.loads(wp_events[-1]["payload"])
+                    evidence["workpaper_summary"] = wp_payload.get("summary", "")
+                    evidence["workpaper_findings_verdicts"] = wp_payload.get(
+                        "findings_verdicts", []
+                    )
+                    evidence["workpaper_findings_count"] = wp_payload.get("findings_count", 0)
             if dim == "audit-json-correctness" and audit_rows:
                 assembled_findings = []
                 for ar in audit_rows:

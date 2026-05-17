@@ -801,10 +801,23 @@ async def run_api_eval(
                         method="GET",
                         path=f"/api/v1/audit/runs/{audit_run_id}/workpaper/draft",
                         expected_status=200,
-                        description="获取工作底稿草稿",
+                        description="获取工作底���草稿",
                     ),
                     log,
                 )
+                if draft_resp and isinstance(draft_resp, dict):
+                    log.log_event(
+                        "workpaper_draft",
+                        {
+                            "audit_run_id": audit_run_id,
+                            "summary": draft_resp.get("summary", ""),
+                            "findings_count": len(draft_resp.get("findings", [])),
+                            "findings_verdicts": [
+                                f.get("verdict", {}).get("verdict", "")
+                                for f in draft_resp.get("findings", [])
+                            ],
+                        },
+                    )
 
                 # 5k: 定稿（部分定稿 or 完整定稿）
                 if audit_status == "partial_ready":
