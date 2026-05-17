@@ -245,36 +245,10 @@ class _RelaxedPreviousPhaseOutputMixin:
         return _load_previous_phase_output(self.workspace.working_dir, phase)
 
 
-# ── PES 子类 ──
+class _GovDocPhasePromptMixin:
+    """统一 phase prompt 拼接逻辑。子类设置 _phase_prompts 类变量即可。"""
 
-
-class GovDocExtractorPES(_RelaxedPreviousPhaseOutputMixin, ExtractorPES):
-    """GovDoc ExtractorPES：通过 build_phase_prompt 注入 phase 级指令。"""
-
-    async def build_phase_prompt(
-        self,
-        phase: str,
-        phase_cfg: PhaseConfig,
-        context: dict[str, Any],
-        task_prompt: str,
-    ) -> str:
-        """拼接顺序：phase_prompt + task_prompt + context。
-
-        Scrivai 0.1.7 删除了 PhaseConfig.additional_system_prompt，
-        phase 级指令现在通过本方法注入到 user prompt 中。
-        """
-        parts: list[str] = []
-        phase_prompt = _EXTRACTOR_PHASE_PROMPTS.get(phase, "")
-        if phase_prompt:
-            parts.append(phase_prompt)
-        parts.append(task_prompt)
-        if context:
-            parts.append(json.dumps(context, ensure_ascii=False, default=str))
-        return "\n\n".join(parts)
-
-
-class GovDocAuditorPES(_RelaxedPreviousPhaseOutputMixin, AuditorPES):
-    """GovDoc AuditorPES：phase prompt + output validator + recovery。"""
+    _phase_prompts: dict[str, str] = {}
 
     async def build_phase_prompt(
         self,
@@ -285,13 +259,36 @@ class GovDocAuditorPES(_RelaxedPreviousPhaseOutputMixin, AuditorPES):
     ) -> str:
         """拼接顺序：phase_prompt + task_prompt + context。"""
         parts: list[str] = []
-        phase_prompt = _AUDITOR_PHASE_PROMPTS.get(phase, "")
+        phase_prompt = self._phase_prompts.get(phase, "")
         if phase_prompt:
             parts.append(phase_prompt)
         parts.append(task_prompt)
         if context:
             parts.append(json.dumps(context, ensure_ascii=False, default=str))
         return "\n\n".join(parts)
+
+
+# ── PES 子类 ──
+
+
+class GovDocExtractorPES(
+    _GovDocPhasePromptMixin,
+    _RelaxedPreviousPhaseOutputMixin,
+    ExtractorPES,
+):
+    """GovDoc ExtractorPES：通过 build_phase_prompt 注入 phase 级指令。"""
+
+    _phase_prompts = _EXTRACTOR_PHASE_PROMPTS
+
+
+class GovDocAuditorPES(
+    _GovDocPhasePromptMixin,
+    _RelaxedPreviousPhaseOutputMixin,
+    AuditorPES,
+):
+    """GovDoc AuditorPES：phase prompt + output validator + recovery。"""
+
+    _phase_prompts = _AUDITOR_PHASE_PROMPTS
 
     async def postprocess_phase_result(
         self,
@@ -360,44 +357,24 @@ class GovDocAuditorPES(_RelaxedPreviousPhaseOutputMixin, AuditorPES):
 # ── Mock PES（replay / 测试用） ──
 
 
-class GovDocMockExtractorPES(_RelaxedPreviousPhaseOutputMixin, MockPES):
+class GovDocMockExtractorPES(
+    _GovDocPhasePromptMixin,
+    _RelaxedPreviousPhaseOutputMixin,
+    MockPES,
+):
     """MockPES + GovDoc phase prompt 覆写，避免 PromptManager 空 spec 报错。"""
 
-    async def build_phase_prompt(
-        self,
-        phase: str,
-        phase_cfg: PhaseConfig,
-        context: dict[str, Any],
-        task_prompt: str,
-    ) -> str:
-        parts: list[str] = []
-        phase_prompt = _EXTRACTOR_PHASE_PROMPTS.get(phase, "")
-        if phase_prompt:
-            parts.append(phase_prompt)
-        parts.append(task_prompt)
-        if context:
-            parts.append(json.dumps(context, ensure_ascii=False, default=str))
-        return "\n\n".join(parts)
+    _phase_prompts = _EXTRACTOR_PHASE_PROMPTS
 
 
-class GovDocMockAuditorPES(_RelaxedPreviousPhaseOutputMixin, MockPES):
+class GovDocMockAuditorPES(
+    _GovDocPhasePromptMixin,
+    _RelaxedPreviousPhaseOutputMixin,
+    MockPES,
+):
     """MockPES + GovDoc phase prompt 覆写，避免 PromptManager 空 spec 报错。"""
 
-    async def build_phase_prompt(
-        self,
-        phase: str,
-        phase_cfg: PhaseConfig,
-        context: dict[str, Any],
-        task_prompt: str,
-    ) -> str:
-        parts: list[str] = []
-        phase_prompt = _AUDITOR_PHASE_PROMPTS.get(phase, "")
-        if phase_prompt:
-            parts.append(phase_prompt)
-        parts.append(task_prompt)
-        if context:
-            parts.append(json.dumps(context, ensure_ascii=False, default=str))
-        return "\n\n".join(parts)
+    _phase_prompts = _AUDITOR_PHASE_PROMPTS
 
 
 # ── LLM 输出字段名纠正 ──
