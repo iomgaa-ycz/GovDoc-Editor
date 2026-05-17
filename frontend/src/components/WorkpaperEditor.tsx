@@ -1,68 +1,29 @@
 import { Bold, Heading2, List, Quote } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { Button } from "@/components/ui/button";
 
-import { Button } from "./Ui";
+export function WorkpaperEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
 
-export function WorkpaperEditor(props: {
-  value: string;
-  onChange: (nextValue: string) => void;
-}) {
-  const editorRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!editorRef.current) {
-      return;
-    }
-    if (editorRef.current.innerHTML !== props.value) {
-      editorRef.current.innerHTML = props.value;
-    }
-  }, [props.value]);
-
-  function applyCommand(command: string, value?: string) {
-    editorRef.current?.focus();
-    document.execCommand(command, false, value);
-    props.onChange(editorRef.current?.innerHTML || "");
+  function exec(command: string, arg?: string) {
+    document.execCommand(command, false, arg);
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
   }
 
   return (
-    <div className="workpaper-editor">
-      <div className="editor-toolbar">
-        <Button tone="secondary" size="sm" icon={Bold} onClick={() => applyCommand("bold")}>
-          加粗
-        </Button>
-        <Button
-          tone="secondary"
-          size="sm"
-          icon={Heading2}
-          onClick={() => applyCommand("formatBlock", "h2")}
-        >
-          标题
-        </Button>
-        <Button
-          tone="secondary"
-          size="sm"
-          icon={Quote}
-          onClick={() => applyCommand("formatBlock", "blockquote")}
-        >
-          引用
-        </Button>
-        <Button
-          tone="secondary"
-          size="sm"
-          icon={List}
-          onClick={() => applyCommand("insertOrderedList")}
-        >
-          列表
-        </Button>
+    <div>
+      <div className="flex items-center gap-1 border-b px-3 py-2">
+        <Button variant="ghost" size="icon" onClick={() => exec("bold")} title="加粗"><Bold className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => exec("formatBlock", "H2")} title="标题"><Heading2 className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => exec("formatBlock", "BLOCKQUOTE")} title="引用"><Quote className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => exec("insertOrderedList")} title="有序列表"><List className="h-4 w-4" /></Button>
       </div>
       <div
         ref={editorRef}
-        className="document-editor"
         contentEditable
-        suppressContentEditableWarning
-        onInput={(event) => {
-          props.onChange((event.target as HTMLDivElement).innerHTML);
-        }}
+        className="min-h-[500px] p-10 text-sm leading-relaxed text-text-primary focus:outline-none"
+        dangerouslySetInnerHTML={{ __html: value }}
+        onInput={() => { if (editorRef.current) onChange(editorRef.current.innerHTML); }}
       />
     </div>
   );

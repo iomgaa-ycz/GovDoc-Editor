@@ -1,53 +1,29 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useWorkbench } from "../context/V3WorkbenchContext";
-import {
-  parseCheckpointPayload,
-  parseFindingJson,
-  verdictToStatus,
-} from "../adapters/backendToUi";
-import { listComments, createComment } from "../api/v3";
-import type { Comment } from "../types/ui";
-import {
-  Button,
-  Card,
-  CardHeader,
-  EmptyState,
-  PageHero,
-  SelectInput,
-  StatPill,
-  TextArea,
-} from "../components/Ui";
-import { PointInsight } from "../components/PointInsight";
+import { useWorkbench } from "@/context/V3WorkbenchContext";
+import { parseFindingJson, verdictToStatus } from "@/adapters/backendToUi";
+import { listComments, createComment } from "@/api/v3";
+import type { Comment } from "@/types/ui";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatusBadge } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/EmptyState";
+import { PointInsight } from "@/components/PointInsight";
 
 export function AuditResultsPage() {
   const {
-    activeAuditRun,
-    auditRuns,
-    auditProgress,
-    selectedAuditRunId,
-    setSelectedAuditRunId,
-    selectedPointRunId,
-    setSelectedPointRunId,
-    finalCheckpoints,
-    retryPointRun,
+    auditRuns, auditProgress, selectedAuditRunId, setSelectedAuditRunId,
+    selectedPointRunId, setSelectedPointRunId, finalCheckpoints, retryPointRun,
   } = useWorkbench();
 
   const pointRuns = auditProgress?.point_runs ?? [];
   const activePr = pointRuns.find((pr) => pr.id === selectedPointRunId);
-
   const [retryingId, setRetryingId] = useState<string | null>(null);
-
-  async function handleRetry(prId: string) {
-    setRetryingId(prId);
-    try {
-      await retryPointRun(prId);
-    } finally {
-      setRetryingId(null);
-    }
-  }
-
   const [comments, setComments] = useState<Comment[]>([]);
   const [feedbackText, setFeedbackText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -57,141 +33,99 @@ export function AuditResultsPage() {
     listComments("AuditPointRun", selectedPointRunId).then(setComments).catch(() => {});
   }, [selectedPointRunId]);
 
+  async function handleRetry(prId: string) {
+    setRetryingId(prId);
+    try { await retryPointRun(prId); } finally { setRetryingId(null); }
+  }
+
   async function handleSubmitFeedback() {
     if (!selectedPointRunId || !feedbackText.trim()) return;
     setSubmitting(true);
     try {
-      const comment = await createComment("AuditPointRun", selectedPointRunId, "reviewer", feedbackText);
-      setComments((prev) => [comment, ...prev]);
+      const c = await createComment("AuditPointRun", selectedPointRunId, "reviewer", feedbackText);
+      setComments((prev) => [c, ...prev]);
       setFeedbackText("");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function getCheckpoint(pr: { checkpoint_final_id: string }) {
-    const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-    return cp?.parsed ?? null;
+    } finally { setSubmitting(false); }
   }
 
   return (
-    <>
-      <PageHero
-        eyebrow="审核点结果"
-        title="审核结果详情"
-        description="查看每个审核点的 AI 审查结果与人工反馈。"
-        actions={
-          <div className="hero-side">
-            <SelectInput
-              value={selectedAuditRunId ?? ""}
-              onChange={(e) => setSelectedAuditRunId(e.target.value || null)}
-              style={{ minWidth: 200 }}
-            >
-              <option value="">选择审核运行</option>
-              {auditRuns.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.id.slice(0, 8)}... ({r.status})
-                </option>
-              ))}
-            </SelectInput>
-          </div>
-        }
-      />
+    <div className="flex flex-col h-screen">
+      <header className="flex items-center justify-between border-b bg-surface-card px-7 py-3.5">
+        <span className="text-base font-semibold text-text-primary">审核结果</span>
+        <Select value={selectedAuditRunId ?? ""} onValueChange={(v: string) => setSelectedAuditRunId(v || null)}>
+          <SelectTrigger className="w-56"><SelectValue placeholder="选择审核运行" /></SelectTrigger>
+          <SelectContent>
+            {auditRuns.map((r) => (
+              <SelectItem key={r.id} value={r.id}>{r.project_name || r.id.slice(0, 8)} ({r.status})</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </header>
 
       {pointRuns.length === 0 ? (
-        <EmptyState
-          title="暂无审核结果"
-          description="请先完成一次审核运行。"
-        />
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState title="暂无审核结果" description="请先完成一次审核运行。" />
+        </div>
       ) : (
-        <div className="triple-layout--results triple-layout">
-          {/* Left: point list */}
-          <div className="left-column">
-            <Card>
-              <CardHeader title="审核点列表" />
-              <div className="result-point-list">
-                {pointRuns.map((pr) => {
-                  const cp = getCheckpoint(pr);
-                  const title = cp?.title ?? pr.checkpoint_final_id.slice(0, 8);
-                  const finding = parseFindingJson(pr.finding_json);
-                  const status = verdictToStatus(finding, pr.status);
-                  return (
-                    <button
-                      key={pr.id}
-                      className={`result-point-item${pr.id === selectedPointRunId ? " is-active" : ""}`}
-                      type="button"
-                      onClick={() => setSelectedPointRunId(pr.id)}
-                    >
-                      <div>
-                        <strong>{title}</strong>
-                        <span><StatPill status={status} /></span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-80 shrink-0 border-r bg-surface-card overflow-auto">
+            <div className="p-4 border-b">
+              <p className="text-sm font-medium text-text-primary">审核要点列表</p>
+              <p className="text-xs text-text-muted">{pointRuns.length} 个审核点</p>
+            </div>
+            <ScrollArea className="h-[calc(100vh-120px)]">
+              {pointRuns.map((pr) => {
+                const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
+                const title = cp?.parsed?.title ?? pr.checkpoint_final_id.slice(0, 8);
+                const finding = parseFindingJson(pr.finding_json);
+                return (
+                  <button key={pr.id} className={cn("flex w-full items-center justify-between px-4 py-3 text-left border-b hover:bg-surface transition-colors", pr.id === selectedPointRunId && "bg-accent-light border-l-2 border-l-accent")} onClick={() => setSelectedPointRunId(pr.id)}>
+                    <span className="text-sm truncate mr-2">{title}</span>
+                    <StatusBadge status={finding?.verdict?.verdict ?? pr.status} />
+                  </button>
+                );
+              })}
+            </ScrollArea>
           </div>
 
-          {/* Center: insight detail */}
-          <div className="center-column">
+          <div className="flex-1 overflow-auto p-7 space-y-5">
             {activePr ? (() => {
-              const cp = getCheckpoint(activePr);
+              const cp = finalCheckpoints.find((c) => c.id === activePr.checkpoint_final_id);
               const finding = parseFindingJson(activePr.finding_json);
-              if (!cp) return <EmptyState title="无法加载" description="找不到该审核点数据。" />;
+              if (!cp?.parsed) return <EmptyState title="无法加载" description="找不到该审核点数据。" />;
               return (
                 <>
-                  <PointInsight checkpoint={cp} finding={finding} pointStatus={activePr.status} />
+                  <PointInsight checkpoint={cp.parsed} finding={finding} pointStatus={activePr.status} />
                   {(activePr.status === "failed" || activePr.status === "waiting_retry") && (
-                    <div style={{ marginTop: 12 }}>
-                      <Button
-                        tone="secondary"
-                        icon={RefreshCw}
-                        busy={retryingId === activePr.id}
-                        disabled={retryingId === activePr.id}
-                        onClick={() => handleRetry(activePr.id)}
-                      >
-                        {retryingId === activePr.id ? "正在重试..." : "重试此审核点"}
-                      </Button>
-                    </div>
+                    <Button variant="secondary" disabled={retryingId === activePr.id} onClick={() => handleRetry(activePr.id)}>
+                      <RefreshCw className={cn("h-4 w-4", retryingId === activePr.id && "animate-spin")} />
+                      {retryingId === activePr.id ? "正在重试..." : "重试此审核点"}
+                    </Button>
                   )}
+                  <Separator />
+                  <div>
+                    <h4 className="text-sm font-medium text-text-primary mb-3">人工反馈</h4>
+                    <div className="flex gap-2 mb-4">
+                      <Textarea placeholder="输入审查意见或修改建议..." value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} className="flex-1" />
+                      <Button size="icon" disabled={!feedbackText.trim() || submitting} onClick={handleSubmitFeedback}><Send className="h-4 w-4" /></Button>
+                    </div>
+                    {comments.map((c) => (
+                      <div key={c.id} className="border-b py-2.5 last:border-0">
+                        <p className="text-sm text-text-primary">{c.text}</p>
+                        <p className="text-xs text-text-muted mt-1">{c.author} · {new Date(c.created_at).toLocaleString("zh-CN")}</p>
+                      </div>
+                    ))}
+                  </div>
                 </>
               );
             })() : (
-              <EmptyState title="请选择审核点" description="点击左侧列表查看详细审查结果。" />
-            )}
-          </div>
-
-          {/* Right: feedback */}
-          <div className="right-column">
-            <Card>
-              <CardHeader title="人工反馈" />
-              <div className="feedback-panel">
-                <TextArea
-                  placeholder="输入审查意见或修改建议"
-                  value={feedbackText}
-                  onChange={(e) => setFeedbackText(e.target.value)}
-                />
-                <Button
-                  tone="primary"
-                  onClick={handleSubmitFeedback}
-                  busy={submitting}
-                  disabled={!feedbackText.trim() || submitting}
-                  style={{ width: "100%" }}
-                >
-                  提交反馈
-                </Button>
-                {comments.map((c) => (
-                  <div key={c.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-light)" }}>
-                    <p style={{ margin: 0, fontSize: 13 }}>{c.text}</p>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.author} · {c.created_at}</span>
-                  </div>
-                ))}
+              <div className="flex-1 flex items-center justify-center h-full">
+                <EmptyState title="请选择审核点" description="点击左侧列表查看详细审查结果。" />
               </div>
-            </Card>
+            )}
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
