@@ -16,6 +16,7 @@ from typing import Any, Type
 from pydantic import BaseModel, ValidationError
 
 from govdoc.harness.log import HarnessLog
+from govdoc.harness.manifest import HarnessManifest
 from govdoc.harness.schemas import create_all_tables
 
 logger = logging.getLogger(__name__)
@@ -275,17 +276,10 @@ async def run_api_eval(
     返回:
         本次运行的 run_id。
     """
-    import httpx
     from dotenv import load_dotenv
+    import httpx
 
     from govdoc.harness.manifest import load_manifest
-    from govdoc.harness.pipeline_eval import (
-        _clean_harness_state,
-        _run_semantic_evaluations,
-        record_audit_results,
-        record_extract_results,
-        record_pipeline_run,
-    )
 
     load_dotenv()
     run_id = run_id or f"L2-{uuid.uuid4().hex[:8]}"
@@ -302,716 +296,917 @@ async def run_api_eval(
 
     async with httpx.AsyncClient(base_url=base_url, timeout=600.0) as client:
         with HarnessLog(db_path=db_path, run_id=run_id, config_snapshot=config_snapshot) as log:
-            create_all_tables(log)
-            log.log_event("api_eval_start", {"base_url": base_url, "config": config_snapshot})
-
-            # ── 清理上次 harness 残留 ──
-            from govdoc.db.session import get_session as _get_session
-
-            _sg = _get_session()
-            _clean_session = next(_sg)
-            try:
-                _clean_harness_state(_clean_session)
-            finally:
-                _sg.close()
-
-            # ── Phase 1: 冒烟端点 ──
-            await call_endpoint(
+            _init_eval_session(log, base_url, config_snapshot)
+            await _run_health_check(client, log)
+            await _execute_rule_extraction_specs(client, log, manifest, pipeline_timeout)
+            imported_checkpoint_ids = await _prepare_checkpoint_specs(
                 client,
-                EndpointSpec(
-                    method="GET",
-                    path="/healthz",
-                    expected_status=200,
-                    description="健康检查",
-                ),
                 log,
+                manifest,
+                max_checkpoints,
             )
-
-            await call_endpoint(
+            completed_audit_run_ids = await _execute_project_audit_specs(
                 client,
-                EndpointSpec(
-                    method="GET",
-                    path="/api/v1/projects",
-                    expected_status=200,
-                    description="列出项目",
-                ),
                 log,
+                manifest,
+                imported_checkpoint_ids,
+                run_id,
+                pipeline_timeout,
             )
-
-            await call_endpoint(
+            await _execute_auxiliary_endpoint_specs(
                 client,
-                EndpointSpec(
-                    method="GET",
-                    path="/api/v1/rules",
-                    expected_status=200,
-                    description="列出法规",
-                ),
                 log,
+                manifest,
+                imported_checkpoint_ids,
+                completed_audit_run_ids,
+                project_root,
             )
-
-            await call_endpoint(
-                client,
-                EndpointSpec(
-                    method="GET",
-                    path="/api/v1/checkpoints",
-                    expected_status=200,
-                    description="列出审核点",
-                ),
-                log,
-            )
-
-            # ── Phase 2: Pipeline A — per rule ──
-            for rule in manifest.rules:
-                rule_path = Path(rule.path)
-                if not rule_path.exists():
-                    logger.warning("法规文件不存在: %s", rule_path)
-                    continue
-
-                t0 = time.time()
-                status, resp_data = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/rules/upload",
-                        expected_status=202,
-                        description=f"上传法规: {rule.name}",
-                        form_data={"title": rule.name},
-                        files={"file": (rule_path.name, rule_path.read_bytes())},
-                    ),
-                    log,
-                )
-
-                if not resp_data:
-                    continue
-                rule_source_id = resp_data.get("rule_source_id", "")
-                extract_run_id = resp_data.get("extract_run_id", "")
-                if not extract_run_id:
-                    continue
-
-                poll_path = f"/api/v1/rules/{rule_source_id}/extract-runs/{extract_run_id}/status"
-                final = await _poll_until_done(
-                    client,
-                    poll_path,
-                    status_field="status",
-                    terminal_statuses={
-                        "draft_ready",
-                        "completed",
-                        "failed",
-                        "interrupted",
-                        "cancelled",
-                    },
-                    log=log,
-                    poll_interval=10.0,
-                    timeout_s=pipeline_timeout,
-                )
-                pa_status = final["status"] if final else "timeout"
-                record_pipeline_run(
-                    log,
-                    pipeline="A",
-                    project_name=rule.name,
-                    input_file=rule.path,
-                    status=pa_status,
-                    duration_s=time.time() - t0,
-                    total_tokens=0,
-                    error=(final.get("error") if final else "Pipeline A 超时") or None,
-                )
-
-                if pa_status in ("draft_ready", "completed"):
-                    _, cp_list = await call_endpoint(
-                        client,
-                        EndpointSpec(
-                            method="GET",
-                            path="/api/v1/checkpoints",
-                            expected_status=200,
-                            description="获取抽取审核点",
-                        ),
-                        log,
-                    )
-                    if cp_list:
-                        extract_cps = [
-                            json.loads(cp.get("payload_json", "{}"))
-                            for cp in cp_list
-                            if cp.get("approved_by") == "system:auto-promote"
-                        ]
-                        if extract_cps:
-                            record_extract_results(log, extract_cps)
-                            # 收集 agent 轨迹证据
-                            from govdoc.harness.pipeline_eval import (
-                                collect_workspace_evidence,
-                                record_agent_trajectory,
-                            )
-
-                            ws_evidence = collect_workspace_evidence(
-                                workspace_dir=Path(f"data/.govdoc/workspaces/{extract_run_id}"),
-                            )
-                            if ws_evidence["plan_json"]:
-                                record_agent_trajectory(
-                                    log,
-                                    pipeline="A",
-                                    run_id=extract_run_id,
-                                    plan_json=ws_evidence["plan_json"],
-                                    workspace_files=ws_evidence["workspace_files"],
-                                    phase_details=[],
-                                )
-
-            # ── Phase 3: 导入金标准审核点 ──
-            imported_checkpoint_ids: list[str] = []
-            for cp_fixture in manifest.checkpoints:
-                cp_path = Path(cp_fixture.path)
-                if not cp_path.exists():
-                    continue
-                status, resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/checkpoints/import",
-                        expected_status=200,
-                        description=f"导入审核点: {cp_fixture.name}",
-                        files={"file": (cp_path.name, cp_path.read_bytes())},
-                    ),
-                    log,
-                )
-                if resp:
-                    ids = [c["id"] for c in resp.get("checkpoints", []) if c.get("id")]
-                    imported_checkpoint_ids.extend(ids)
-
-            # 截断审核点数量
-            if max_checkpoints > 0 and len(imported_checkpoint_ids) > max_checkpoints:
-                imported_checkpoint_ids = imported_checkpoint_ids[:max_checkpoints]
-                logger.info("审核点截断为 %d 个", max_checkpoints)
-
-            # ── Phase 4: Checkpoint CRUD 测试 ──
-            # 用合法数据测试 PUT + DELETE，不影响 imported 列表
-            if imported_checkpoint_ids:
-                test_cp_id = imported_checkpoint_ids[-1]
-                # 先读取原始数据，测试后恢复
-                _, original_cp_list = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/checkpoints",
-                        expected_status=200,
-                        description="读取审核点（CRUD 前备份）",
-                    ),
-                    log,
-                )
-                original_payload = None
-                if original_cp_list:
-                    for cp in original_cp_list:
-                        if cp.get("id") == test_cp_id:
-                            original_payload = cp.get("payload_json")
-                            break
-
-                # PUT 用合法枚举值
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="PUT",
-                        path="/api/v1/checkpoints/{checkpoint_id}",
-                        expected_status=200,
-                        description="更新审核点（CRUD 测试）",
-                        path_params={"checkpoint_id": test_cp_id},
-                        body={
-                            "payload_json": '{"id":"crud-test","category":"其他违法违规","title":"CRUD 测试","description":"临时测试数据","legal_basis":[],"severity":"minor","retrieval_hint":""}'
-                        },
-                    ),
-                    log,
-                )
-
-                # 恢复原始数据
-                if original_payload:
-                    await call_endpoint(
-                        client,
-                        EndpointSpec(
-                            method="PUT",
-                            path="/api/v1/checkpoints/{checkpoint_id}",
-                            expected_status=200,
-                            description="恢复审核点原始数据",
-                            path_params={"checkpoint_id": test_cp_id},
-                            body={"payload_json": original_payload},
-                        ),
-                        log,
-                    )
-
-                # DELETE 测试：找一个不在 imported 列表中的审核点
-                _, extra_resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/checkpoints",
-                        expected_status=200,
-                        description="列出审核点（CRUD 后）",
-                    ),
-                    log,
-                )
-                if extra_resp:
-                    all_ids = {c["id"] for c in extra_resp if c.get("id")}
-                    deletable = all_ids - set(imported_checkpoint_ids)
-                    if deletable:
-                        del_id = next(iter(deletable))
-                        await call_endpoint(
-                            client,
-                            EndpointSpec(
-                                method="DELETE",
-                                path="/api/v1/checkpoints/{checkpoint_id}",
-                                expected_status=204,
-                                description="删除审核点",
-                                path_params={"checkpoint_id": del_id},
-                            ),
-                            log,
-                        )
-
-            # ── Phase 5: Per-project 端到端（Pipeline B + workpaper） ──
-            audit_terminal = {
-                "draft_ready",
-                "completed",
-                "partial_ready",
-                "failed",
-                "waiting_retry",
-                "cancelled",
-                "interrupted",
-            }
-            completed_audit_run_ids: list[str] = []
-
-            for proj in manifest.projects:
-                tender_path = Path(proj.tender_doc)
-                if not tender_path.exists() or not imported_checkpoint_ids:
-                    continue
-
-                # 5a: 创建 Project
-                _, proj_resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/projects",
-                        expected_status=201,
-                        description=f"创建项目: {proj.name}",
-                        body={"name": f"harness-{proj.name}-{run_id}", "created_by": "harness"},
-                    ),
-                    log,
-                )
-                if not proj_resp:
-                    continue
-                project_id = proj_resp["id"]
-
-                # 5b: 获取单个 Project
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/projects/{project_id}",
-                        expected_status=200,
-                        description=f"获取项目: {proj.name}",
-                        path_params={"project_id": project_id},
-                    ),
-                    log,
-                )
-
-                # 5c: 上传文书
-                _, td_resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/projects/{project_id}/tender-doc",
-                        expected_status=201,
-                        description=f"上传文书: {proj.name}",
-                        path_params={"project_id": project_id},
-                        files={"file": (tender_path.name, tender_path.read_bytes())},
-                    ),
-                    log,
-                )
-                if not td_resp:
-                    continue
-                tender_doc_id = td_resp["id"]
-
-                # 5d: 列出文书
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/projects/{project_id}/tender-docs",
-                        expected_status=200,
-                        description=f"列出文书: {proj.name}",
-                        path_params={"project_id": project_id},
-                    ),
-                    log,
-                )
-
-                # 5e: 创建 Audit Run
-                t0 = time.time()
-                status, audit_resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/audit/runs",
-                        expected_status=202,
-                        description=f"创建审核: {proj.name}",
-                        body={
-                            "project_id": project_id,
-                            "tender_doc_id": tender_doc_id,
-                            "checkpoint_ids": imported_checkpoint_ids,
-                        },
-                    ),
-                    log,
-                )
-
-                if not audit_resp or status != 202:
-                    record_pipeline_run(
-                        log,
-                        pipeline="B",
-                        project_name=proj.name,
-                        input_file=str(proj.tender_doc),
-                        status="create_failed",
-                        duration_s=time.time() - t0,
-                        total_tokens=0,
-                        error=f"创建审核返回 {status}",
-                    )
-                    continue
-                audit_run_id = audit_resp.get("audit_run_id", "")
-                if not audit_run_id:
-                    continue
-
-                # 5f: 列出 Audit Runs
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/audit/runs",
-                        expected_status=200,
-                        description="列出审核运行",
-                    ),
-                    log,
-                )
-
-                # 5g: 获取单个 Audit Run
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/audit/runs/{audit_run_id}",
-                        expected_status=200,
-                        description="获取审核运行",
-                        path_params={"audit_run_id": audit_run_id},
-                    ),
-                    log,
-                )
-
-                # 5h: 轮询等待完成
-                final = await _poll_until_done(
-                    client,
-                    f"/api/v1/audit/runs/{audit_run_id}/progress",
-                    status_field="status",
-                    terminal_statuses=audit_terminal,
-                    log=log,
-                    poll_interval=10.0,
-                    timeout_s=pipeline_timeout,
-                )
-                audit_status = final["status"] if final else "timeout"
-                record_pipeline_run(
-                    log,
-                    pipeline="B",
-                    project_name=proj.name,
-                    input_file=str(proj.tender_doc),
-                    status=audit_status,
-                    duration_s=time.time() - t0,
-                    total_tokens=0,
-                    error=None
-                    if audit_status in ("draft_ready", "completed", "partial_ready")
-                    else audit_status,
-                )
-
-                if not final or audit_status not in ("draft_ready", "completed", "partial_ready"):
-                    continue
-                completed_audit_run_ids.append(audit_run_id)
-
-                # 5i: 记录审核发现
-                _, progress = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path=f"/api/v1/audit/runs/{audit_run_id}/progress",
-                        expected_status=200,
-                        description="获取审核进度（记录发现）",
-                    ),
-                    log,
-                )
-                if progress:
-                    findings: list[dict[str, Any]] = []
-                    for pr in progress.get("point_runs", []):
-                        if pr.get("status") == "completed" and pr.get("finding_json"):
-                            finding_raw = pr["finding_json"]
-                            finding = (
-                                json.loads(finding_raw)
-                                if isinstance(finding_raw, str)
-                                else finding_raw
-                            )
-                            finding["point_run_id"] = pr.get("id", "")
-                            finding["checkpoint_id"] = pr.get("checkpoint_final_id", "")
-                            finding["status"] = pr.get("status", "unknown")
-                            finding["duration_s"] = 0.0
-                            findings.append(finding)
-                        else:
-                            findings.append(
-                                {
-                                    "point_run_id": pr.get("id", ""),
-                                    "checkpoint_id": pr.get("checkpoint_final_id", ""),
-                                    "status": pr.get("status", "pending"),
-                                    "duration_s": 0.0,
-                                    "verdict": {
-                                        "verdict": "未完成",
-                                        "rationale": f"审核执行状态: {pr.get('status', 'unknown')}",
-                                        "evidence_quotes": [],
-                                    },
-                                    "evidence_refs": [],
-                                    "case_refs": [],
-                                }
-                            )
-                    if findings:
-                        record_audit_results(log, findings)
-                        # 收集各 point_run 的 workspace 证据
-                        from govdoc.harness.pipeline_eval import (
-                            collect_workspace_evidence,
-                            record_agent_trajectory,
-                        )
-
-                        for pr in progress.get("point_runs", []):
-                            pr_id = pr.get("id", "")
-                            if not pr_id:
-                                continue
-                            ws_dir = Path(f"data/.govdoc/workspaces/{pr_id}")
-                            archive = Path(f"data/.govdoc/archives/{pr_id}.tar.gz")
-                            ws_evidence = collect_workspace_evidence(
-                                workspace_dir=ws_dir if ws_dir.exists() else None,
-                                archive_path=archive if archive.exists() else None,
-                            )
-                            if ws_evidence["plan_json"]:
-                                record_agent_trajectory(
-                                    log,
-                                    pipeline="B",
-                                    run_id=pr_id,
-                                    plan_json=ws_evidence["plan_json"],
-                                    workspace_files=ws_evidence["workspace_files"],
-                                    phase_details=[],
-                                )
-
-                # 5j: 获取工作底稿草稿
-                _, draft_resp = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path=f"/api/v1/audit/runs/{audit_run_id}/workpaper/draft",
-                        expected_status=200,
-                        description="获取工作底���草稿",
-                    ),
-                    log,
-                )
-                if draft_resp and isinstance(draft_resp, dict):
-                    log.log_event(
-                        "workpaper_draft",
-                        {
-                            "audit_run_id": audit_run_id,
-                            "summary": draft_resp.get("summary", ""),
-                            "findings_count": len(draft_resp.get("findings", [])),
-                            "findings_verdicts": [
-                                f.get("verdict", {}).get("verdict", "")
-                                for f in draft_resp.get("findings", [])
-                            ],
-                        },
-                    )
-
-                # 5k: 定稿（部分定稿 or 完整定稿）
-                if audit_status == "partial_ready":
-                    await call_endpoint(
-                        client,
-                        EndpointSpec(
-                            method="POST",
-                            path=f"/api/v1/audit/runs/{audit_run_id}/workpaper/finalize-partial",
-                            expected_status=201,
-                            description="部分定稿",
-                            body={"approved_by": "harness"},
-                        ),
-                        log,
-                    )
-                elif audit_status == "draft_ready":
-                    await call_endpoint(
-                        client,
-                        EndpointSpec(
-                            method="POST",
-                            path=f"/api/v1/audit/runs/{audit_run_id}/workpaper/finalize",
-                            expected_status=201,
-                            description="完整定稿",
-                            body={"approved_by": "harness"},
-                        ),
-                        log,
-                    )
-
-                # 定稿是异步的，等一小段时间
-                await asyncio.sleep(5)
-
-                # 5l: 下载 DOCX
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path=f"/api/v1/audit/runs/{audit_run_id}/workpaper/final/docx",
-                        expected_status=200,
-                        description="下载 DOCX",
-                    ),
-                    log,
-                )
-
-            # ── Phase 6: Retry 测试（使用已完成的 audit run 中的一个失败点） ──
-            if completed_audit_run_ids:
-                arid = completed_audit_run_ids[0]
-                _, progress = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path=f"/api/v1/audit/runs/{arid}/progress",
-                        expected_status=200,
-                        description="获取进度（查失败点）",
-                    ),
-                    log,
-                )
-                if progress:
-                    failed_points = [
-                        pr for pr in progress.get("point_runs", []) if pr.get("status") == "failed"
-                    ]
-                    if failed_points:
-                        retry_id = failed_points[0]["id"]
-                        await call_endpoint(
-                            client,
-                            EndpointSpec(
-                                method="POST",
-                                path=f"/api/v1/audit/point-runs/{retry_id}/retry",
-                                expected_status=202,
-                                description="重试失败点",
-                                path_params={},
-                            ),
-                            log,
-                        )
-
-            # ── Phase 7: Cancel 测试 ──
-            # 创建一个新的 audit run 然后立即取消
-            if manifest.projects and imported_checkpoint_ids:
-                proj = manifest.projects[0]
-                # 复用已创建的 project 和 tender_doc（如果有的话）
-                _, all_runs = await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="GET",
-                        path="/api/v1/audit/runs",
-                        expected_status=200,
-                        description="列出审核（查项目ID）",
-                    ),
-                    log,
-                )
-                if all_runs and len(all_runs) > 0:
-                    existing_proj_id = all_runs[0].get("project_id", "")
-                    existing_td_id = all_runs[0].get("tender_doc_id", "")
-                    if existing_proj_id and existing_td_id:
-                        _, cancel_resp = await call_endpoint(
-                            client,
-                            EndpointSpec(
-                                method="POST",
-                                path="/api/v1/audit/runs",
-                                expected_status=202,
-                                description="创建审核（取消测试）",
-                                body={
-                                    "project_id": existing_proj_id,
-                                    "tender_doc_id": existing_td_id,
-                                    "checkpoint_ids": imported_checkpoint_ids[:1],
-                                },
-                            ),
-                            log,
-                        )
-                        if cancel_resp:
-                            cancel_arid = cancel_resp.get("audit_run_id", "")
-                            if cancel_arid:
-                                await asyncio.sleep(1)
-                                await call_endpoint(
-                                    client,
-                                    EndpointSpec(
-                                        method="POST",
-                                        path=f"/api/v1/audit/runs/{cancel_arid}/cancel",
-                                        expected_status=200,
-                                        description="取消审核",
-                                    ),
-                                    log,
-                                )
-
-            # ── Phase 8: Compare 测试 ──
-            # 需要两份 DOCX。用 real_data 中的文件
-            compare_files = list(Path(project_root).glob("real_data/**/*.docx"))
-            if len(compare_files) >= 2:
-                f1, f2 = compare_files[0], compare_files[1]
-                await call_endpoint(
-                    client,
-                    EndpointSpec(
-                        method="POST",
-                        path="/api/v1/compare",
-                        expected_status=200,
-                        description="文档对比",
-                        files={
-                            "first_file": (f1.name, f1.read_bytes()),
-                            "second_file": (f2.name, f2.read_bytes()),
-                        },
-                    ),
-                    log,
-                )
-
-            # ── Phase 8.5: 存储 Ground Truth ──
-            if manifest.ground_truth:
-                from govdoc.harness.ground_truth import (
-                    parse_gold_checkpoints,
-                    parse_human_workpaper,
-                )
-
-                gt = manifest.ground_truth
-                if gt.gold_checkpoints and gt.gold_checkpoints.exists():
-                    gold_items = parse_gold_checkpoints(gt.gold_checkpoints)
-                    log.log_event(
-                        "ground_truth_checkpoints",
-                        {"count": len(gold_items), "items": gold_items},
-                    )
-                    logger.info("已加载金标准审核点: %d 项", len(gold_items))
-
-                for wp_fixture in gt.human_workpapers:
-                    if wp_fixture.path.exists():
-                        wp_data = parse_human_workpaper(wp_fixture.path)
-                        wp_data["fixture_project_name"] = wp_fixture.project_name
-                        log.log_event("ground_truth_workpaper", wp_data)
-                        logger.info(
-                            "已加载人类工作底稿: %s (%d 个发现)",
-                            wp_fixture.project_name,
-                            len(wp_data.get("findings_text", [])),
-                        )
-
-            # ── Phase 9: 语义评估 ──
-            logger.info("开始语义评估")
+            _store_ground_truth(log, manifest)
             _run_semantic_evaluations(log, rubric_dir, project_root)
-
-            # ── Phase 10: P95 延迟 ──
-            sync_calls = log.query(
-                "SELECT duration_ms FROM api_calls WHERE run_id=? AND status_code > 0 "
-                "ORDER BY duration_ms",
-                (run_id,),
-            )
-            if sync_calls:
-                durations = [row["duration_ms"] for row in sync_calls]
-                p95_idx = int(len(durations) * 0.95)
-                p95 = durations[min(p95_idx, len(durations) - 1)]
-                log.log_event("api_latency_p95", {"p95_ms": p95})
-
-            log.log_event(
-                "api_eval_complete",
-                {
-                    "total_calls": len(sync_calls) if sync_calls else 0,
-                },
-            )
+            _finalize_eval(log, run_id)
 
     logger.info("L2 评估完成, run_id=%s", run_id)
     return run_id
+
+
+def _init_eval_session(
+    log: HarnessLog,
+    base_url: str,
+    config_snapshot: dict[str, Any],
+) -> None:
+    """初始化评估日志表、起始事件，并清理上次 harness 残留状态。"""
+    from govdoc.db.session import get_session as _get_session
+    from govdoc.harness.pipeline_eval import _clean_harness_state
+
+    create_all_tables(log)
+    log.log_event("api_eval_start", {"base_url": base_url, "config": config_snapshot})
+
+    session_gen = _get_session()
+    clean_session = next(session_gen)
+    try:
+        _clean_harness_state(clean_session)
+    finally:
+        session_gen.close()
+
+
+async def _run_health_check(client: Any, log: HarnessLog) -> None:
+    """执行基础冒烟端点，确认 API 服务和核心列表端点可访问。"""
+    health_specs = [
+        EndpointSpec("GET", "/healthz", 200, "健康检查"),
+        EndpointSpec("GET", "/api/v1/projects", 200, "列出项目"),
+        EndpointSpec("GET", "/api/v1/rules", 200, "列出法规"),
+        EndpointSpec("GET", "/api/v1/checkpoints", 200, "列出审核点"),
+    ]
+    for spec in health_specs:
+        await call_endpoint(client, spec, log)
+
+
+async def _execute_rule_extraction_specs(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    pipeline_timeout: float,
+) -> None:
+    """逐个上传法规文件并记录 Pipeline A 抽取结果与 agent 轨迹。"""
+    for rule in manifest.rules:
+        await _execute_single_rule_extraction(client, log, rule.name, rule.path, pipeline_timeout)
+
+
+async def _execute_single_rule_extraction(
+    client: Any,
+    log: HarnessLog,
+    rule_name: str,
+    rule_path: Path,
+    pipeline_timeout: float,
+) -> None:
+    """执行单个法规文件的上传、抽取轮询和结果落库。"""
+    from govdoc.harness.pipeline_eval import record_pipeline_run
+
+    if not rule_path.exists():
+        logger.warning("法规文件不存在: %s", rule_path)
+        return
+
+    t0 = time.time()
+    _, resp_data = await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/rules/upload",
+            expected_status=202,
+            description=f"上传法规: {rule_name}",
+            form_data={"title": rule_name},
+            files={"file": (rule_path.name, rule_path.read_bytes())},
+        ),
+        log,
+    )
+
+    if not resp_data:
+        return
+    rule_source_id = resp_data.get("rule_source_id", "")
+    extract_run_id = resp_data.get("extract_run_id", "")
+    if not extract_run_id:
+        return
+
+    final = await _poll_until_done(
+        client,
+        f"/api/v1/rules/{rule_source_id}/extract-runs/{extract_run_id}/status",
+        status_field="status",
+        terminal_statuses={"draft_ready", "completed", "failed", "interrupted", "cancelled"},
+        log=log,
+        poll_interval=10.0,
+        timeout_s=pipeline_timeout,
+    )
+    pa_status = final["status"] if final else "timeout"
+    record_pipeline_run(
+        log,
+        pipeline="A",
+        project_name=rule_name,
+        input_file=rule_path,
+        status=pa_status,
+        duration_s=time.time() - t0,
+        total_tokens=0,
+        error=(final.get("error") if final else "Pipeline A 超时") or None,
+    )
+
+    if pa_status in ("draft_ready", "completed"):
+        await _record_rule_extraction_outputs(client, log, extract_run_id)
+
+
+async def _record_rule_extraction_outputs(
+    client: Any,
+    log: HarnessLog,
+    extract_run_id: str,
+) -> None:
+    """记录 Pipeline A 自动提升的审核点和对应 workspace 轨迹。"""
+    from govdoc.harness.pipeline_eval import (
+        collect_workspace_evidence,
+        record_agent_trajectory,
+        record_extract_results,
+    )
+
+    _, cp_list = await call_endpoint(
+        client,
+        EndpointSpec("GET", "/api/v1/checkpoints", 200, "获取抽取审核点"),
+        log,
+    )
+    if not cp_list:
+        return
+
+    extract_cps = [
+        json.loads(cp.get("payload_json", "{}"))
+        for cp in cp_list
+        if cp.get("approved_by") == "system:auto-promote"
+    ]
+    if not extract_cps:
+        return
+
+    record_extract_results(log, extract_cps)
+    ws_evidence = collect_workspace_evidence(
+        workspace_dir=Path(f"data/.govdoc/workspaces/{extract_run_id}"),
+    )
+    if ws_evidence["plan_json"]:
+        record_agent_trajectory(
+            log,
+            pipeline="A",
+            run_id=extract_run_id,
+            plan_json=ws_evidence["plan_json"],
+            workspace_files=ws_evidence["workspace_files"],
+            phase_details=[],
+        )
+
+
+async def _prepare_checkpoint_specs(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    max_checkpoints: int,
+) -> list[str]:
+    """导入金标准审核点，按需截断数量，并执行审核点 CRUD 契约检查。"""
+    imported_checkpoint_ids = await _import_checkpoint_fixtures(
+        client,
+        log,
+        manifest,
+        max_checkpoints,
+    )
+    await _run_checkpoint_crud_checks(client, log, imported_checkpoint_ids)
+    return imported_checkpoint_ids
+
+
+async def _import_checkpoint_fixtures(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    max_checkpoints: int,
+) -> list[str]:
+    """导入 manifest 中的审核点 fixture，并返回参与后续审核的 ID 列表。"""
+    imported_checkpoint_ids: list[str] = []
+    for cp_fixture in manifest.checkpoints:
+        cp_path = cp_fixture.path
+        if not cp_path.exists():
+            continue
+        _, resp = await call_endpoint(
+            client,
+            EndpointSpec(
+                method="POST",
+                path="/api/v1/checkpoints/import",
+                expected_status=200,
+                description=f"导入审核点: {cp_fixture.name}",
+                files={"file": (cp_path.name, cp_path.read_bytes())},
+            ),
+            log,
+        )
+        if resp:
+            imported_checkpoint_ids.extend(
+                c["id"] for c in resp.get("checkpoints", []) if c.get("id")
+            )
+
+    if max_checkpoints > 0 and len(imported_checkpoint_ids) > max_checkpoints:
+        imported_checkpoint_ids = imported_checkpoint_ids[:max_checkpoints]
+        logger.info("审核点截断为 %d 个", max_checkpoints)
+    return imported_checkpoint_ids
+
+
+async def _run_checkpoint_crud_checks(
+    client: Any,
+    log: HarnessLog,
+    imported_checkpoint_ids: list[str],
+) -> None:
+    """用不影响 imported 列表的临时数据执行审核点 PUT/DELETE 检查。"""
+    if not imported_checkpoint_ids:
+        return
+
+    test_cp_id = imported_checkpoint_ids[-1]
+    _, original_cp_list = await call_endpoint(
+        client,
+        EndpointSpec("GET", "/api/v1/checkpoints", 200, "读取审核点（CRUD 前备份）"),
+        log,
+    )
+    original_payload = _find_checkpoint_payload(original_cp_list, test_cp_id)
+
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="PUT",
+            path="/api/v1/checkpoints/{checkpoint_id}",
+            expected_status=200,
+            description="更新审核点（CRUD 测试）",
+            path_params={"checkpoint_id": test_cp_id},
+            body={
+                "payload_json": '{"id":"crud-test","category":"其他违法违规","title":"CRUD 测试","description":"临时测试数据","legal_basis":[],"severity":"minor","retrieval_hint":""}'
+            },
+        ),
+        log,
+    )
+
+    if original_payload:
+        await call_endpoint(
+            client,
+            EndpointSpec(
+                method="PUT",
+                path="/api/v1/checkpoints/{checkpoint_id}",
+                expected_status=200,
+                description="恢复审核点原始数据",
+                path_params={"checkpoint_id": test_cp_id},
+                body={"payload_json": original_payload},
+            ),
+            log,
+        )
+
+    await _delete_extra_checkpoint(client, log, imported_checkpoint_ids)
+
+
+def _find_checkpoint_payload(
+    checkpoint_list: Any,
+    checkpoint_id: str,
+) -> str | None:
+    """从审核点列表中查找指定 ID 的原始 payload_json。"""
+    if not checkpoint_list:
+        return None
+    for checkpoint in checkpoint_list:
+        if checkpoint.get("id") == checkpoint_id:
+            return checkpoint.get("payload_json")
+    return None
+
+
+async def _delete_extra_checkpoint(
+    client: Any,
+    log: HarnessLog,
+    imported_checkpoint_ids: list[str],
+) -> None:
+    """删除一个非 imported 列表中的审核点以覆盖 DELETE 端点。"""
+    _, extra_resp = await call_endpoint(
+        client,
+        EndpointSpec("GET", "/api/v1/checkpoints", 200, "列出审核点（CRUD 后）"),
+        log,
+    )
+    if not extra_resp:
+        return
+
+    all_ids = {c["id"] for c in extra_resp if c.get("id")}
+    deletable = all_ids - set(imported_checkpoint_ids)
+    if not deletable:
+        return
+
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="DELETE",
+            path="/api/v1/checkpoints/{checkpoint_id}",
+            expected_status=204,
+            description="删除审核点",
+            path_params={"checkpoint_id": next(iter(deletable))},
+        ),
+        log,
+    )
+
+
+async def _execute_project_audit_specs(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    imported_checkpoint_ids: list[str],
+    run_id: str,
+    pipeline_timeout: float,
+) -> list[str]:
+    """逐项目执行 Pipeline B、工作底稿生成和下载端点检查。"""
+    completed_audit_run_ids: list[str] = []
+    for project in manifest.projects:
+        audit_run_id = await _execute_single_project_audit(
+            client,
+            log,
+            project.name,
+            project.tender_doc,
+            imported_checkpoint_ids,
+            run_id,
+            pipeline_timeout,
+        )
+        if audit_run_id:
+            completed_audit_run_ids.append(audit_run_id)
+    return completed_audit_run_ids
+
+
+async def _execute_single_project_audit(
+    client: Any,
+    log: HarnessLog,
+    project_name: str,
+    tender_path: Path,
+    imported_checkpoint_ids: list[str],
+    run_id: str,
+    pipeline_timeout: float,
+) -> str | None:
+    """执行单个项目的创建、文书上传、审核运行、结果记录和定稿下载。"""
+    from govdoc.harness.pipeline_eval import record_pipeline_run
+
+    if not tender_path.exists() or not imported_checkpoint_ids:
+        return None
+
+    project_id = await _create_project(client, log, project_name, run_id)
+    if not project_id:
+        return None
+
+    tender_doc_id = await _upload_tender_doc(client, log, project_name, project_id, tender_path)
+    if not tender_doc_id:
+        return None
+
+    t0 = time.time()
+    status, audit_resp = await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/audit/runs",
+            expected_status=202,
+            description=f"创建审核: {project_name}",
+            body={
+                "project_id": project_id,
+                "tender_doc_id": tender_doc_id,
+                "checkpoint_ids": imported_checkpoint_ids,
+            },
+        ),
+        log,
+    )
+    if not audit_resp or status != 202:
+        record_pipeline_run(
+            log,
+            pipeline="B",
+            project_name=project_name,
+            input_file=str(tender_path),
+            status="create_failed",
+            duration_s=time.time() - t0,
+            total_tokens=0,
+            error=f"创建审核返回 {status}",
+        )
+        return None
+
+    audit_run_id = audit_resp.get("audit_run_id", "")
+    if not audit_run_id:
+        return None
+
+    await _read_audit_run_endpoints(client, log, audit_run_id)
+    audit_status = await _poll_and_record_audit_run(
+        client,
+        log,
+        audit_run_id,
+        project_name,
+        tender_path,
+        t0,
+        pipeline_timeout,
+    )
+    if audit_status not in ("draft_ready", "completed", "partial_ready"):
+        return None
+
+    await _record_completed_audit_details(client, log, audit_run_id, audit_status)
+    return audit_run_id
+
+
+async def _create_project(
+    client: Any,
+    log: HarnessLog,
+    project_name: str,
+    run_id: str,
+) -> str | None:
+    """创建项目并读取一次项目详情，返回项目 ID。"""
+    _, proj_resp = await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/projects",
+            expected_status=201,
+            description=f"创建项目: {project_name}",
+            body={"name": f"harness-{project_name}-{run_id}", "created_by": "harness"},
+        ),
+        log,
+    )
+    if not proj_resp:
+        return None
+
+    project_id = proj_resp["id"]
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="GET",
+            path="/api/v1/projects/{project_id}",
+            expected_status=200,
+            description=f"获取项目: {project_name}",
+            path_params={"project_id": project_id},
+        ),
+        log,
+    )
+    return project_id
+
+
+async def _upload_tender_doc(
+    client: Any,
+    log: HarnessLog,
+    project_name: str,
+    project_id: str,
+    tender_path: Path,
+) -> str | None:
+    """上传项目招标文件并读取文书列表，返回文书 ID。"""
+    _, td_resp = await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/projects/{project_id}/tender-doc",
+            expected_status=201,
+            description=f"上传文书: {project_name}",
+            path_params={"project_id": project_id},
+            files={"file": (tender_path.name, tender_path.read_bytes())},
+        ),
+        log,
+    )
+    if not td_resp:
+        return None
+
+    tender_doc_id = td_resp["id"]
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="GET",
+            path="/api/v1/projects/{project_id}/tender-docs",
+            expected_status=200,
+            description=f"列出文书: {project_name}",
+            path_params={"project_id": project_id},
+        ),
+        log,
+    )
+    return tender_doc_id
+
+
+async def _read_audit_run_endpoints(client: Any, log: HarnessLog, audit_run_id: str) -> None:
+    """读取审核运行列表和单个审核运行，覆盖查询端点契约。"""
+    await call_endpoint(
+        client,
+        EndpointSpec("GET", "/api/v1/audit/runs", 200, "列出审核运行"),
+        log,
+    )
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="GET",
+            path="/api/v1/audit/runs/{audit_run_id}",
+            expected_status=200,
+            description="获取审核运行",
+            path_params={"audit_run_id": audit_run_id},
+        ),
+        log,
+    )
+
+
+async def _poll_and_record_audit_run(
+    client: Any,
+    log: HarnessLog,
+    audit_run_id: str,
+    project_name: str,
+    tender_path: Path,
+    start_time: float,
+    pipeline_timeout: float,
+) -> str:
+    """轮询 Pipeline B 至终态并记录 pipeline_runs 汇总。"""
+    from govdoc.harness.pipeline_eval import record_pipeline_run
+
+    final = await _poll_until_done(
+        client,
+        f"/api/v1/audit/runs/{audit_run_id}/progress",
+        status_field="status",
+        terminal_statuses={
+            "draft_ready",
+            "completed",
+            "partial_ready",
+            "failed",
+            "waiting_retry",
+            "cancelled",
+            "interrupted",
+        },
+        log=log,
+        poll_interval=10.0,
+        timeout_s=pipeline_timeout,
+    )
+    audit_status = final["status"] if final else "timeout"
+    record_pipeline_run(
+        log,
+        pipeline="B",
+        project_name=project_name,
+        input_file=str(tender_path),
+        status=audit_status,
+        duration_s=time.time() - start_time,
+        total_tokens=0,
+        error=None
+        if audit_status in ("draft_ready", "completed", "partial_ready")
+        else audit_status,
+    )
+    return audit_status
+
+
+async def _record_completed_audit_details(
+    client: Any,
+    log: HarnessLog,
+    audit_run_id: str,
+    audit_status: str,
+) -> None:
+    """记录已完成审核运行的发现、轨迹、草稿、定稿和 DOCX 下载结果。"""
+    await _record_audit_progress_outputs(client, log, audit_run_id)
+    await _record_workpaper_draft(client, log, audit_run_id)
+    await _finalize_workpaper(client, log, audit_run_id, audit_status)
+    await asyncio.sleep(5)
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            "GET",
+            f"/api/v1/audit/runs/{audit_run_id}/workpaper/final/docx",
+            200,
+            "下载 DOCX",
+        ),
+        log,
+    )
+
+
+async def _record_audit_progress_outputs(
+    client: Any,
+    log: HarnessLog,
+    audit_run_id: str,
+) -> None:
+    """读取审核进度，记录审核发现和每个 point_run 的 workspace 证据。"""
+    from govdoc.harness.pipeline_eval import record_audit_results
+
+    _, progress = await call_endpoint(
+        client,
+        EndpointSpec(
+            "GET",
+            f"/api/v1/audit/runs/{audit_run_id}/progress",
+            200,
+            "获取审核进度（记录发现）",
+        ),
+        log,
+    )
+    if not progress:
+        return
+
+    findings = _build_audit_findings(progress)
+    if findings:
+        record_audit_results(log, findings)
+        _record_point_run_trajectories(log, progress)
+
+
+def _build_audit_findings(progress: dict[str, Any]) -> list[dict[str, Any]]:
+    """从审核进度响应中转换 harness 需要落库的 finding 结构。"""
+    findings: list[dict[str, Any]] = []
+    for point_run in progress.get("point_runs", []):
+        if point_run.get("status") == "completed" and point_run.get("finding_json"):
+            finding_raw = point_run["finding_json"]
+            finding = json.loads(finding_raw) if isinstance(finding_raw, str) else finding_raw
+            finding["point_run_id"] = point_run.get("id", "")
+            finding["checkpoint_id"] = point_run.get("checkpoint_final_id", "")
+            finding["status"] = point_run.get("status", "unknown")
+            finding["duration_s"] = 0.0
+            findings.append(finding)
+        else:
+            findings.append(_build_incomplete_finding(point_run))
+    return findings
+
+
+def _build_incomplete_finding(point_run: dict[str, Any]) -> dict[str, Any]:
+    """为未完成的 point_run 构造占位 finding，保留原始行为字段。"""
+    status = point_run.get("status", "unknown")
+    return {
+        "point_run_id": point_run.get("id", ""),
+        "checkpoint_id": point_run.get("checkpoint_final_id", ""),
+        "status": point_run.get("status", "pending"),
+        "duration_s": 0.0,
+        "verdict": {
+            "verdict": "未完成",
+            "rationale": f"审核执行状态: {status}",
+            "evidence_quotes": [],
+        },
+        "evidence_refs": [],
+        "case_refs": [],
+    }
+
+
+def _record_point_run_trajectories(log: HarnessLog, progress: dict[str, Any]) -> None:
+    """收集并记录 Pipeline B 每个 point_run 对应的 workspace 轨迹。"""
+    from govdoc.harness.pipeline_eval import collect_workspace_evidence, record_agent_trajectory
+
+    for point_run in progress.get("point_runs", []):
+        point_run_id = point_run.get("id", "")
+        if not point_run_id:
+            continue
+        ws_dir = Path(f"data/.govdoc/workspaces/{point_run_id}")
+        archive = Path(f"data/.govdoc/archives/{point_run_id}.tar.gz")
+        ws_evidence = collect_workspace_evidence(
+            workspace_dir=ws_dir if ws_dir.exists() else None,
+            archive_path=archive if archive.exists() else None,
+        )
+        if ws_evidence["plan_json"]:
+            record_agent_trajectory(
+                log,
+                pipeline="B",
+                run_id=point_run_id,
+                plan_json=ws_evidence["plan_json"],
+                workspace_files=ws_evidence["workspace_files"],
+                phase_details=[],
+            )
+
+
+async def _record_workpaper_draft(client: Any, log: HarnessLog, audit_run_id: str) -> None:
+    """读取工作底稿草稿并记录摘要、发现数量和结论分布。"""
+    _, draft_resp = await call_endpoint(
+        client,
+        EndpointSpec(
+            "GET",
+            f"/api/v1/audit/runs/{audit_run_id}/workpaper/draft",
+            200,
+            "获取工作底稿草稿",
+        ),
+        log,
+    )
+    if draft_resp and isinstance(draft_resp, dict):
+        log.log_event(
+            "workpaper_draft",
+            {
+                "audit_run_id": audit_run_id,
+                "summary": draft_resp.get("summary", ""),
+                "findings_count": len(draft_resp.get("findings", [])),
+                "findings_verdicts": [
+                    f.get("verdict", {}).get("verdict", "") for f in draft_resp.get("findings", [])
+                ],
+            },
+        )
+
+
+async def _finalize_workpaper(
+    client: Any,
+    log: HarnessLog,
+    audit_run_id: str,
+    audit_status: str,
+) -> None:
+    """按审核状态触发部分定稿或完整定稿端点。"""
+    if audit_status == "partial_ready":
+        path = f"/api/v1/audit/runs/{audit_run_id}/workpaper/finalize-partial"
+        description = "部分定稿"
+    elif audit_status == "draft_ready":
+        path = f"/api/v1/audit/runs/{audit_run_id}/workpaper/finalize"
+        description = "完整定稿"
+    else:
+        return
+
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path=path,
+            expected_status=201,
+            description=description,
+            body={"approved_by": "harness"},
+        ),
+        log,
+    )
+
+
+async def _execute_auxiliary_endpoint_specs(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    imported_checkpoint_ids: list[str],
+    completed_audit_run_ids: list[str],
+    project_root: str,
+) -> None:
+    """执行重试、取消、文档对比等附加端点检查。"""
+    await _run_retry_check(client, log, completed_audit_run_ids)
+    await _run_cancel_check(client, log, manifest, imported_checkpoint_ids)
+    await _run_compare_check(client, log, project_root)
+
+
+async def _run_retry_check(
+    client: Any,
+    log: HarnessLog,
+    completed_audit_run_ids: list[str],
+) -> None:
+    """在已完成审核中查找失败点并覆盖 retry 端点。"""
+    if not completed_audit_run_ids:
+        return
+
+    audit_run_id = completed_audit_run_ids[0]
+    _, progress = await call_endpoint(
+        client,
+        EndpointSpec(
+            "GET",
+            f"/api/v1/audit/runs/{audit_run_id}/progress",
+            200,
+            "获取进度（查失败点）",
+        ),
+        log,
+    )
+    if not progress:
+        return
+
+    failed_points = [pr for pr in progress.get("point_runs", []) if pr.get("status") == "failed"]
+    if not failed_points:
+        return
+
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path=f"/api/v1/audit/point-runs/{failed_points[0]['id']}/retry",
+            expected_status=202,
+            description="重试失败点",
+            path_params={},
+        ),
+        log,
+    )
+
+
+async def _run_cancel_check(
+    client: Any,
+    log: HarnessLog,
+    manifest: HarnessManifest,
+    imported_checkpoint_ids: list[str],
+) -> None:
+    """复用已有项目和文书创建新审核并立即取消，覆盖 cancel 端点。"""
+    if not manifest.projects or not imported_checkpoint_ids:
+        return
+
+    _, all_runs = await call_endpoint(
+        client,
+        EndpointSpec("GET", "/api/v1/audit/runs", 200, "列出审核（查项目ID）"),
+        log,
+    )
+    if not all_runs:
+        return
+
+    existing_proj_id = all_runs[0].get("project_id", "")
+    existing_td_id = all_runs[0].get("tender_doc_id", "")
+    if not existing_proj_id or not existing_td_id:
+        return
+
+    _, cancel_resp = await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/audit/runs",
+            expected_status=202,
+            description="创建审核（取消测试）",
+            body={
+                "project_id": existing_proj_id,
+                "tender_doc_id": existing_td_id,
+                "checkpoint_ids": imported_checkpoint_ids[:1],
+            },
+        ),
+        log,
+    )
+    if not cancel_resp:
+        return
+
+    cancel_audit_run_id = cancel_resp.get("audit_run_id", "")
+    if not cancel_audit_run_id:
+        return
+
+    await asyncio.sleep(1)
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            "POST",
+            f"/api/v1/audit/runs/{cancel_audit_run_id}/cancel",
+            200,
+            "取消审核",
+        ),
+        log,
+    )
+
+
+async def _run_compare_check(client: Any, log: HarnessLog, project_root: str) -> None:
+    """查找 real_data 下两份 DOCX 并覆盖文档对比端点。"""
+    compare_files = list(Path(project_root).glob("real_data/**/*.docx"))
+    if len(compare_files) < 2:
+        return
+
+    first_file, second_file = compare_files[0], compare_files[1]
+    await call_endpoint(
+        client,
+        EndpointSpec(
+            method="POST",
+            path="/api/v1/compare",
+            expected_status=200,
+            description="文档对比",
+            files={
+                "first_file": (first_file.name, first_file.read_bytes()),
+                "second_file": (second_file.name, second_file.read_bytes()),
+            },
+        ),
+        log,
+    )
+
+
+def _store_ground_truth(log: HarnessLog, manifest: HarnessManifest) -> None:
+    """解析并记录 manifest 中配置的金标准审核点和人工工作底稿。"""
+    from govdoc.harness.ground_truth import parse_gold_checkpoints, parse_human_workpaper
+
+    if not manifest.ground_truth:
+        return
+
+    ground_truth = manifest.ground_truth
+    if ground_truth.gold_checkpoints and ground_truth.gold_checkpoints.exists():
+        gold_items = parse_gold_checkpoints(ground_truth.gold_checkpoints)
+        log.log_event("ground_truth_checkpoints", {"count": len(gold_items), "items": gold_items})
+        logger.info("已加载金标准审核点: %d 项", len(gold_items))
+
+    for wp_fixture in ground_truth.human_workpapers:
+        if wp_fixture.path.exists():
+            wp_data = parse_human_workpaper(wp_fixture.path)
+            wp_data["fixture_project_name"] = wp_fixture.project_name
+            log.log_event("ground_truth_workpaper", wp_data)
+            logger.info(
+                "已加载人类工作底稿: %s (%d 个发现)",
+                wp_fixture.project_name,
+                len(wp_data.get("findings_text", [])),
+            )
+
+
+def _run_semantic_evaluations(
+    log: HarnessLog,
+    rubric_dir: str,
+    project_root: str,
+) -> None:
+    """调用 pipeline 语义评估逻辑，记录 rubric 维度的质量指标。"""
+    from govdoc.harness.pipeline_eval import _run_semantic_evaluations as run_semantic_evals
+
+    logger.info("开始语义评估")
+    run_semantic_evals(log, rubric_dir, project_root)
+
+
+def _finalize_eval(log: HarnessLog, run_id: str) -> None:
+    """计算 P95 延迟并写入 API 评估完成事件。"""
+    sync_calls = log.query(
+        "SELECT duration_ms FROM api_calls WHERE run_id=? AND status_code > 0 ORDER BY duration_ms",
+        (run_id,),
+    )
+    if sync_calls:
+        durations = [row["duration_ms"] for row in sync_calls]
+        p95_idx = int(len(durations) * 0.95)
+        p95 = durations[min(p95_idx, len(durations) - 1)]
+        log.log_event("api_latency_p95", {"p95_ms": p95})
+
+    log.log_event("api_eval_complete", {"total_calls": len(sync_calls) if sync_calls else 0})
 
 
 def _parse_args() -> argparse.Namespace:
