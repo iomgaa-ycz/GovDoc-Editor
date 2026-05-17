@@ -6,7 +6,6 @@ import hashlib
 import json
 import warnings
 from pathlib import Path
-from typing import Any
 
 from scrivai import to_markdown as _scrivai_to_markdown
 
@@ -19,18 +18,6 @@ def get_storage_root() -> Path:
     root = load_config().storage_root
     root.mkdir(parents=True, exist_ok=True)
     return root
-
-
-def ensure_rule_source_dir(rule_source_id: str) -> Path:
-    path = get_storage_root() / "rules" / rule_source_id
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def ensure_project_dir(project_id: str) -> Path:
-    path = get_storage_root() / "projects" / project_id
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def ensure_workpaper_dir(audit_run_id: str) -> Path:
@@ -112,16 +99,6 @@ class DocumentStore:
 
         self._write_manifest(raw, prepared, sha)
         return prepared
-
-    def build_prepared_manifest(self) -> list[dict[str, Any]]:
-        """列出所有已转换的 prepared 文件及其 manifest 信息。"""
-        manifests: list[dict[str, Any]] = []
-        for mf in self._raw_dir.rglob("*.manifest.json"):
-            try:
-                manifests.append(json.loads(mf.read_text(encoding="utf-8")))
-            except (json.JSONDecodeError, OSError):
-                continue
-        return manifests
 
     def _convert(self, raw: Path, target: Path) -> Path:
         """调用 scrivai.to_markdown 将原始文件转换为 markdown。"""
