@@ -40,7 +40,10 @@ async def run_extract(
 
     if extract_run_id is None:
         extract_run = ExtractRun(
-            rule_source_id=rule_source_id, status="running", heartbeat_at=datetime.utcnow()
+            rule_source_id=rule_source_id,
+            status="running",
+            heartbeat_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
         )
         session.add(extract_run)
         session.commit()
@@ -53,6 +56,8 @@ async def run_extract(
             raise ValueError(f"ExtractRun {extract_run_id} 不属于 RuleSource {rule_source_id}")
         extract_run.status = "running"
         extract_run.heartbeat_at = datetime.utcnow()
+        extract_run.started_at = datetime.utcnow()
+        extract_run.current_phase = None
         extract_run.error = None
         extract_run.workspace_archive_path = None
         extract_run.workspace_failed_path = None
@@ -92,7 +97,19 @@ async def run_extract(
                 phase_outcomes=replay.phase_outcomes,
             )
         else:
-            pes = build_gov_extractor_pes(workspace=workspace, runtime_context=runtime_context)
+            from govdoc.pipelines.phase_progress_hook import PhaseProgressHook
+            from govdoc.api.deps import get_db_session as _get_progress_session
+
+            progress_hook = PhaseProgressHook(
+                run_id=extract_run.id,
+                model_class=ExtractRun,
+                session_factory=_get_progress_session,
+            )
+            pes = build_gov_extractor_pes(
+                workspace=workspace,
+                runtime_context=runtime_context,
+                extra_hooks=[progress_hook],
+            )
 
         result = await pes.run(task_prompt="抽取 data/guide.md 中的所有审核点。")
         attach_workspace_output(result, workspace.working_dir)

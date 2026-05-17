@@ -55,6 +55,7 @@ export interface WorkbenchContextValue {
   extractingRuleSourceId: string | null;
   extractStatus: string | null;
   extractError: string | null;
+  extractCurrentPhase: string | null;
   uploadRuleAndExtract: (title: string, file: File) => Promise<RuleUploadResult>;
   pollExtractRun: (ruleId: string, runId: string) => Promise<void>;
 
@@ -144,6 +145,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [extractingRuleSourceId, setExtractingRuleSourceId] = useState<string | null>(null);
   const [extractStatus, setExtractStatus] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractCurrentPhase, setExtractCurrentPhase] = useState<string | null>(null);
 
   // Projects
   const [projects, setProjects] = useState<Project[]>([]);
@@ -269,16 +271,19 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       try {
         const status = await api.getExtractRunStatus(ruleId, runId);
         setExtractStatus(status.status);
+        setExtractCurrentPhase(status.current_phase ?? null);
         if (status.status === "draft_ready") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
           setExtractingRuleSourceId(null);
+          setExtractCurrentPhase(null);
           await refreshAll();
         } else if (status.status === "failed") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
           setExtractError(status.error || "抽取失败");
           setExtractingRuleSourceId(null);
+          setExtractCurrentPhase(null);
         }
       } catch {
         // continue polling
@@ -557,6 +562,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     extractingRuleSourceId,
     extractStatus,
     extractError,
+    extractCurrentPhase,
     uploadRuleAndExtract,
     pollExtractRun,
     projects,

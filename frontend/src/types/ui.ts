@@ -108,6 +108,8 @@ export interface ExtractRun {
   workspace_archive_path: string | null;
   workspace_failed_path: string | null;
   error: string | null;
+  started_at: string | null;
+  current_phase: string | null;
 }
 
 // ── Projects & audit ──

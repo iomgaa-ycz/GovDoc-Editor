@@ -118,6 +118,8 @@ async def get_extract_run_status(rule_id: str, run_id: str):
             "workspace_archive_path": run.workspace_archive_path,
             "workspace_failed_path": run.workspace_failed_path,
             "error": run.error,
+            "started_at": str(run.started_at) if run.started_at else None,
+            "current_phase": run.current_phase,
         }
 
 

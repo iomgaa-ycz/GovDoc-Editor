@@ -402,9 +402,11 @@ async def _run_single_point(
     else:
         from govdoc.pipelines.phase_progress_hook import PhaseProgressHook
         from govdoc.api.deps import get_db_session as _get_progress_session
+        from govdoc.db.models import AuditPointRun as _AuditPointRunModel
 
         progress_hook = PhaseProgressHook(
-            point_run_id=point_run.id,
+            run_id=point_run.id,
+            model_class=_AuditPointRunModel,
             session_factory=_get_progress_session,
         )
         pes = build_gov_auditor_pes(
