@@ -130,6 +130,7 @@ export interface TenderDoc {
 export interface AuditRun {
   id: string;
   project_id: string;
+  project_name?: string;
   tender_doc_id: string;
   supplementary_doc_ids?: string[];
   status: AuditRunStatus;
@@ -144,7 +145,10 @@ export interface AuditPointRun {
   checkpoint_final_id: string;
   status: PointRunStatus;
   error: string | null;
-  finding_json: string | null; // JSON-encoded GovFinding
+  finding_json: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  current_phase: string | null;
 }
 
 export interface AuditRunProgress {
@@ -182,4 +186,34 @@ export interface RuleUploadResult {
   extract_run_id: string;
   status: string;
   warnings: string[];
+}
+
+// ── Comments ──
+
+export interface Comment {
+  id: string;
+  target_type: string;
+  target_id: string;
+  author: string;
+  text: string;
+  created_at: string;
+}
+
+// ── Dashboard ──
+
+export interface DashboardStats {
+  checkpoint_count: number;
+  completed_audit_count: number;
+  finding_count: number;
+  workpaper_count: number;
+  recent_projects: RecentProject[];
+}
+
+export interface RecentProject {
+  project_id: string;
+  name: string;
+  audit_status: string;
+  point_count: number;
+  issue_count: number;
+  last_active: string;
 }

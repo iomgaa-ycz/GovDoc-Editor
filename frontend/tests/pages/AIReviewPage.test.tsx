@@ -240,11 +240,11 @@ describe("AIReviewPage · 行为护栏", () => {
       total_count: 5,
       processed_count: 2,
       point_runs: [
-        { id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: null },
-        { id: "pr-2", checkpoint_final_id: "cp-2", status: "completed", error: null, finding_json: null },
-        { id: "pr-3", checkpoint_final_id: "cp-3", status: "failed", error: "oops", finding_json: null },
-        { id: "pr-4", checkpoint_final_id: "cp-4", status: "running", error: null, finding_json: null },
-        { id: "pr-5", checkpoint_final_id: "cp-5", status: "pending", error: null, finding_json: null },
+        { id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
+        { id: "pr-2", checkpoint_final_id: "cp-2", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
+        { id: "pr-3", checkpoint_final_id: "cp-3", status: "failed", error: "oops", finding_json: null, started_at: null, completed_at: null, current_phase: null },
+        { id: "pr-4", checkpoint_final_id: "cp-4", status: "running", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
+        { id: "pr-5", checkpoint_final_id: "cp-5", status: "pending", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
       ],
     };
 
@@ -285,7 +285,7 @@ describe("AIReviewPage · PR#2 新功能", () => {
 
     const progress: AuditRunProgress = {
       audit_run_id: "ar-1", status: "running", total_count: 1, processed_count: 1,
-      point_runs: [{ id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: uncertainFinding }],
+      point_runs: [{ id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: uncertainFinding, started_at: null, completed_at: null, current_phase: null }],
     };
 
     renderPage({

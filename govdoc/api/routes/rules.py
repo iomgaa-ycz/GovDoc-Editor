@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
-from govdoc.db.models import ExtractRun, RuleSource
+from govdoc.db.models import CheckpointFinal, ExtractRun, RuleSource
 from govdoc.runtime import get_document_store, get_libraries
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
@@ -118,4 +118,19 @@ async def get_extract_run_status(rule_id: str, run_id: str):
             "workspace_archive_path": run.workspace_archive_path,
             "workspace_failed_path": run.workspace_failed_path,
             "error": run.error,
+        }
+
+
+@router.get("/{rule_id}/extract-runs/{run_id}/preview")
+async def get_extract_run_preview(rule_id: str, run_id: str):
+    """返回提取运行中已提取的审核点数量（提取进行中可轮询）。"""
+    with get_db_session() as session:
+        run = session.get(ExtractRun, run_id)
+        if run is None or run.rule_source_id != rule_id:
+            raise HTTPException(status_code=404, detail="ExtractRun 不存在")
+        checkpoint_count = len(session.exec(select(CheckpointFinal)).all())
+        return {
+            "run_id": run.id,
+            "status": run.status,
+            "extracted_count": checkpoint_count,
         }

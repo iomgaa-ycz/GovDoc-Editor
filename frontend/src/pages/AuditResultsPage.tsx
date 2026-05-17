@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 import {
@@ -7,6 +7,8 @@ import {
   parseFindingJson,
   verdictToStatus,
 } from "../adapters/backendToUi";
+import { listComments, createComment } from "../api/v3";
+import type { Comment } from "../types/ui";
 import {
   Button,
   Card,
@@ -46,8 +48,26 @@ export function AuditResultsPage() {
     }
   }
 
-  // Feedback state (local only — V3 has no feedback API yet)
-  const [feedbackNotes, setFeedbackNotes] = useState("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!selectedPointRunId) return;
+    listComments("AuditPointRun", selectedPointRunId).then(setComments).catch(() => {});
+  }, [selectedPointRunId]);
+
+  async function handleSubmitFeedback() {
+    if (!selectedPointRunId || !feedbackText.trim()) return;
+    setSubmitting(true);
+    try {
+      const comment = await createComment("AuditPointRun", selectedPointRunId, "reviewer", feedbackText);
+      setComments((prev) => [comment, ...prev]);
+      setFeedbackText("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   function getCheckpoint(pr: { checkpoint_final_id: string }) {
     const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
@@ -148,16 +168,25 @@ export function AuditResultsPage() {
               <CardHeader title="人工反馈" />
               <div className="feedback-panel">
                 <TextArea
-                  placeholder="输入反馈意见（本地暂存，暂不支持提交）"
-                  value={feedbackNotes}
-                  onChange={(e) => setFeedbackNotes(e.target.value)}
+                  placeholder="输入审查意见或修改建议"
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
                 />
-                <Button tone="secondary" disabled style={{ width: "100%" }}>
-                  保存反馈（开发中）
+                <Button
+                  tone="primary"
+                  onClick={handleSubmitFeedback}
+                  busy={submitting}
+                  disabled={!feedbackText.trim() || submitting}
+                  style={{ width: "100%" }}
+                >
+                  提交反馈
                 </Button>
-                <p style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>
-                  V3 后端暂未提供 feedback API，此功能将在后续版本开放。
-                </p>
+                {comments.map((c) => (
+                  <div key={c.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-light)" }}>
+                    <p style={{ margin: 0, fontSize: 13 }}>{c.text}</p>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.author} · {c.created_at}</span>
+                  </div>
+                ))}
               </div>
             </Card>
           </div>
