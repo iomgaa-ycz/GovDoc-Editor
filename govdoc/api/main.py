@@ -23,6 +23,7 @@ from govdoc.api.deps import get_db_session
 from govdoc.api.routes.audit import router as audit_router
 from govdoc.api.routes.checkpoints import router as checkpoints_router
 from govdoc.api.routes.compare import router as compare_router
+from govdoc.api.routes.comments import router as comments_router
 from govdoc.api.routes.projects import router as projects_router
 from govdoc.api.routes.rules import router as rules_router
 from govdoc.api.routes.workpapers import router as workpapers_router
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(audit_router)
     app.include_router(workpapers_router)
     app.include_router(compare_router)
+    app.include_router(comments_router)
     return app
 
 
