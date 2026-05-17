@@ -23,8 +23,6 @@ def _write_test_config(path: Path) -> Path:
         "\n".join(
             [
                 "app:",
-                "  host: 127.0.0.1",
-                "  port: 8000",
                 f"  storage_root: {path / 'storage'}",
                 f"  database_url: sqlite:///{path / 'app.sqlite'}",
                 "model:",

@@ -104,10 +104,10 @@ def _record_pipeline_exception(
         pipeline=pipeline,
         project_name=project_name,
         input_file=input_file,
-        status="error",
+        status="failed",
         duration_s=duration,
         total_tokens=0,
-        error=str(exc),
+        error=f"{type(exc).__name__}: {exc}",
     )
     log.log_event(
         "pipeline_error",
