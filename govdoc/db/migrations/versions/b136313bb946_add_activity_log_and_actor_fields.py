@@ -33,8 +33,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.add_column("auditrun", sa.Column("created_by", sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-    op.add_column("tenderdoc", sa.Column("uploaded_by", sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.add_column(
+        "auditrun", sa.Column("created_by", sqlmodel.sql.sqltypes.AutoString(), nullable=True)
+    )
+    op.add_column(
+        "tenderdoc", sa.Column("uploaded_by", sqlmodel.sql.sqltypes.AutoString(), nullable=True)
+    )
     # ### end Alembic commands ###
 
 
