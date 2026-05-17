@@ -122,7 +122,9 @@ class ActivityLog(SQLModel, table=True):
 
     id: str = Field(default_factory=uid, primary_key=True)
     actor: str
-    action: str  # upload_tender_doc / create_audit_run / update_checkpoint / delete_checkpoint / ...
+    action: (
+        str  # upload_tender_doc / create_audit_run / update_checkpoint / delete_checkpoint / ...
+    )
     target_type: str  # TenderDoc / AuditRun / CheckpointFinal / WorkpaperDraft / ...
     target_id: str
     before_json: str | None = None
