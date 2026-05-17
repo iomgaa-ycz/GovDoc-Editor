@@ -31,6 +31,7 @@ from govdoc.db.models import (
 )
 from govdoc.pipelines.common import attach_workspace_output, dump_phase_usage, load_result_payload
 from govdoc.pipelines.pes_overrides import GovDocMockAuditorPES
+from govdoc.pipelines.summary import generate_summary
 from govdoc.runtime import (
     build_gov_auditor_pes,
     get_config,
@@ -103,24 +104,6 @@ def _update_heartbeat(audit_run: AuditRun, session: Session) -> None:
     audit_run.heartbeat_at = datetime.utcnow()
     session.add(audit_run)
     session.commit()
-
-
-def generate_summary(findings: list[GovFinding]) -> str:
-    """从 findings 生成简短汇总。"""
-    if not findings:
-        return "无审核结果。"
-    total = len(findings)
-    compliant = sum(1 for f in findings if f.verdict.verdict == "合规")
-    non_compliant = sum(1 for f in findings if f.verdict.verdict == "不合规")
-    uncertain = total - compliant - non_compliant
-    parts = [f"共审核 {total} 个审核点。"]
-    if non_compliant:
-        parts.append(f"不合规 {non_compliant} 项。")
-    if compliant:
-        parts.append(f"合规 {compliant} 项。")
-    if uncertain:
-        parts.append(f"存疑 {uncertain} 项。")
-    return " ".join(parts)
 
 
 def _delete_trajectory_run(store: Any, run_id: str) -> None:

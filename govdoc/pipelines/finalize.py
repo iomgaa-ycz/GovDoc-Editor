@@ -14,6 +14,7 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from govdoc.db.models import AuditPointRun, AuditRun, TenderDoc, WorkpaperDraft, WorkpaperFinal
+from govdoc.pipelines.summary import generate_summary
 from govdoc.runtime import get_libraries
 from govdoc.schemas import GovFinding, Workpaper
 
@@ -42,23 +43,6 @@ def workpaper_to_markdown(workpaper: Workpaper) -> str:
             ]
         )
     return "\n".join(lines).strip() + "\n"
-
-
-def _generate_summary(findings: list[GovFinding]) -> str:
-    if not findings:
-        return "无审核结果。"
-    total = len(findings)
-    compliant = sum(1 for f in findings if f.verdict.verdict == "合规")
-    non_compliant = sum(1 for f in findings if f.verdict.verdict == "不合规")
-    uncertain = total - compliant - non_compliant
-    parts = [f"共审核 {total} 个审核点。"]
-    if non_compliant:
-        parts.append(f"不合规 {non_compliant} 项。")
-    if compliant:
-        parts.append(f"合规 {compliant} 项。")
-    if uncertain:
-        parts.append(f"存疑 {uncertain} 项。")
-    return " ".join(parts)
 
 
 async def finalize_workpaper(
@@ -101,7 +85,7 @@ async def _finalize_partial(
         project_id=audit_run.project_id,
         tender_doc_path=tender_doc.storage_path if tender_doc is not None else "",
         findings=findings,
-        summary=_generate_summary(findings),
+        summary=generate_summary(findings),
     )
 
     current_drafts = session.exec(
