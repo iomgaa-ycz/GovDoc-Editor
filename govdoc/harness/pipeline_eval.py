@@ -9,8 +9,11 @@ import logging
 import os
 import sys
 import time
+import traceback
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 from sqlmodel import select
@@ -20,6 +23,43 @@ from govdoc.harness.log import HarnessLog
 from govdoc.harness.schemas import create_all_tables
 
 logger = logging.getLogger(__name__)
+
+SEMANTIC_DIMENSIONS: tuple[str, ...] = (
+    "extract-faithfulness",
+    "extract-recall",
+    "extract-precision",
+    "extract-hallucination",
+    "extract-json-correctness",
+    "extract-category-accuracy",
+    "audit-faithfulness",
+    "audit-relevancy",
+    "audit-verdict-reasoning",
+    "audit-hallucination",
+    "audit-completeness",
+    "audit-json-correctness",
+    "agent-plan-quality",
+    "agent-plan-adherence",
+    "agent-step-efficiency",
+    "agent-task-completion",
+    "workpaper-summarization",
+    "workpaper-finding-coverage",
+    "workpaper-format-compliance",
+    "extract-gold-coverage",
+    "extract-gold-alignment",
+    "audit-ground-truth",
+)
+
+
+@dataclass
+class PipelineEvalContext:
+    """保存一次管道评估运行所需的共享上下文。"""
+
+    log: HarnessLog
+    manifest: Any
+    run_id: str
+    project_root: str
+    rubric_dir: str
+    pipeline_timeout: int
 
 
 def record_pipeline_run(
@@ -44,6 +84,38 @@ def record_pipeline_run(
             "duration_s": duration_s,
             "total_tokens": total_tokens,
             "error": error,
+        },
+    )
+
+
+def _record_pipeline_exception(
+    log: HarnessLog,
+    *,
+    pipeline: str,
+    project_name: str,
+    input_file: str,
+    exc: Exception,
+    start_time: float,
+) -> None:
+    """记录单次管道异常，并写入错误事件。"""
+    duration = time.time() - start_time
+    record_pipeline_run(
+        log,
+        pipeline=pipeline,
+        project_name=project_name,
+        input_file=input_file,
+        status="error",
+        duration_s=duration,
+        total_tokens=0,
+        error=str(exc),
+    )
+    log.log_event(
+        "pipeline_error",
+        {
+            "pipeline": pipeline,
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+            "traceback": traceback.format_exc(),
         },
     )
 
@@ -295,13 +367,45 @@ async def run_pipeline_eval(
     返回:
         本次运行的 run_id。
     """
-    import os
+    context = _init_pipeline_eval(
+        manifest_path=manifest_path,
+        project_root=project_root,
+        rubric_dir=rubric_dir,
+        db_path=db_path,
+        run_id=run_id,
+    )
+    exc_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None] = (
+        None,
+        None,
+        None,
+    )
+    try:
+        await _run_extract_pipeline(context)
+        await _run_audit_pipeline(context)
+    except BaseException:
+        exc_info = sys.exc_info()
+        raise
+    finally:
+        _finalize_pipeline_eval(context, exc_info=exc_info)
+
+    logger.info("L1 评估完成, run_id=%s", context.run_id)
+    return context.run_id
+
+
+def _init_pipeline_eval(
+    *,
+    manifest_path: str,
+    project_root: str,
+    rubric_dir: str,
+    db_path: str,
+    run_id: str | None,
+) -> PipelineEvalContext:
+    """初始化管道评估运行，包括 manifest、日志和清理会话。"""
     from dotenv import load_dotenv
     from govdoc.harness.manifest import load_manifest
 
     load_dotenv()
-    run_id = run_id or f"L1-{uuid.uuid4().hex[:8]}"
-
+    effective_run_id = run_id or f"L1-{uuid.uuid4().hex[:8]}"
     config_snapshot: dict[str, Any] = {
         "manifest_path": manifest_path,
         "project_root": project_root,
@@ -310,19 +414,11 @@ async def run_pipeline_eval(
         "judge_model": os.environ.get("HARNESS_JUDGE_MODEL", ""),
         "judge_base_url": os.environ.get("HARNESS_JUDGE_BASE_URL", ""),
     }
-
-    with HarnessLog(db_path=db_path, run_id=run_id, config_snapshot=config_snapshot) as log:
+    log = HarnessLog(db_path=db_path, run_id=effective_run_id, config_snapshot=config_snapshot)
+    log.__enter__()
+    try:
         create_all_tables(log)
-
-        # 清除上次 harness 残留，确保干净起跑
-        from govdoc.db.session import get_session as _get_session
-
-        _sg = _get_session()
-        _clean_session = next(_sg)
-        try:
-            _clean_harness_state(_clean_session)
-        finally:
-            _sg.close()
+        _reset_harness_session_state()
 
         manifest = load_manifest(manifest_path, project_root=project_root)
         config_snapshot["projects"] = [p.name for p in manifest.projects]
@@ -330,9 +426,8 @@ async def run_pipeline_eval(
         config_snapshot["checkpoints"] = [c.name for c in manifest.checkpoints]
         log.execute(
             "UPDATE _runs SET config=? WHERE run_id=?",
-            (json.dumps(config_snapshot, ensure_ascii=False), run_id),
+            (json.dumps(config_snapshot, ensure_ascii=False), effective_run_id),
         )
-
         log.log_event(
             "pipeline_eval_start",
             {
@@ -340,176 +435,177 @@ async def run_pipeline_eval(
                 "config": config_snapshot,
             },
         )
+        return PipelineEvalContext(
+            log=log,
+            manifest=manifest,
+            run_id=effective_run_id,
+            project_root=project_root,
+            rubric_dir=rubric_dir,
+            pipeline_timeout=int(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800")),
+        )
+    except BaseException:
+        log.__exit__(*sys.exc_info())
+        raise
 
-        pipeline_timeout = int(os.environ.get("HARNESS_PIPELINE_TIMEOUT", "1800"))
 
-        # Phase 1: 管道 A
-        for rule in manifest.rules:
-            log.heartbeat("pipeline_A")
-            logger.info("管道 A: 处理法规 %s", rule.name)
-            t0 = time.time()
-            session_gen: Any | None = None
+def _reset_harness_session_state() -> None:
+    """创建清理会话并清除上次 harness 运行残留。"""
+    from govdoc.db.session import get_session
+
+    session_gen = get_session()
+    session = next(session_gen)
+    try:
+        _clean_harness_state(session)
+    finally:
+        session_gen.close()
+
+
+async def _run_extract_pipeline(context: PipelineEvalContext) -> None:
+    """运行管道 A，并记录提取结果与异常。"""
+    from govdoc.db.session import get_session
+    from govdoc.pipelines.extract_rules import run_extract
+    from govdoc.runtime import get_trajectory_store
+
+    for rule in context.manifest.rules:
+        context.log.heartbeat("pipeline_A")
+        logger.info("管道 A: 处理法规 %s", rule.name)
+        start_time = time.time()
+        session_gen: Any | None = None
+        try:
+            traj_store = get_trajectory_store()
+            session_gen = get_session()
+            session = next(session_gen)
+            extract_run = await asyncio.wait_for(
+                run_extract(
+                    rule_source_id=_ensure_rule_source(rule, session),
+                    session=session,
+                    project_root=context.project_root,
+                    trajectory_store=traj_store,
+                ),
+                timeout=context.pipeline_timeout,
+            )
+            duration = time.time() - start_time
+            total_tokens = _sum_usage_tokens(extract_run.total_usage_json)
+            record_pipeline_run(
+                context.log,
+                pipeline="A",
+                project_name=rule.name,
+                input_file=str(rule.path),
+                status=extract_run.status,
+                duration_s=duration,
+                total_tokens=total_tokens,
+                error=getattr(extract_run, "error", None),
+            )
+
+            if extract_run.status in ("draft_ready", "completed"):
+                checkpoints = _load_extract_output(extract_run, session)
+                record_extract_results(context.log, checkpoints)
+        except Exception as exc:
+            _record_pipeline_exception(
+                context.log,
+                pipeline="A",
+                project_name=rule.name,
+                input_file=str(rule.path),
+                exc=exc,
+                start_time=start_time,
+            )
+            logger.error("管道 A 失败: %s", rule.name, exc_info=True)
+        finally:
+            _close_session_gen(session_gen)
+
+
+async def _run_audit_pipeline(context: PipelineEvalContext) -> None:
+    """运行管道 B，并记录审核结果与异常。"""
+    from govdoc.db.session import get_session
+    from govdoc.pipelines.audit_tender import run_audit
+    from govdoc.runtime import get_trajectory_store
+
+    for proj in context.manifest.projects:
+        context.log.heartbeat("pipeline_B")
+        logger.info("管道 B: 处理项目 %s", proj.name)
+        start_time = time.time()
+        session_gen: Any | None = None
+        try:
+            traj_store = get_trajectory_store()
+            setup_gen = get_session()
+            setup_session = next(setup_gen)
             try:
-                from govdoc.pipelines.extract_rules import run_extract
-                from govdoc.db.session import get_session
-                from govdoc.runtime import get_trajectory_store
-
-                traj_store = get_trajectory_store()
-                session_gen = get_session()
-                session = next(session_gen)
-                extract_run = await asyncio.wait_for(
-                    run_extract(
-                        rule_source_id=_ensure_rule_source(rule, session),
-                        session=session,
-                        project_root=project_root,
-                        trajectory_store=traj_store,
-                    ),
-                    timeout=pipeline_timeout,
-                )
-                duration = time.time() - t0
-                usage = json.loads(extract_run.total_usage_json or "{}")
-                total_tokens = sum(
-                    v
-                    for phase in usage.values()
-                    if isinstance(phase, dict)
-                    for v in phase.values()
-                    if isinstance(v, int)
-                )
-
-                record_pipeline_run(
-                    log,
-                    pipeline="A",
-                    project_name=rule.name,
-                    input_file=rule.path,
-                    status=extract_run.status,
-                    duration_s=duration,
-                    total_tokens=total_tokens,
-                    error=getattr(extract_run, "error", None),
-                )
-
-                if extract_run.status in ("draft_ready", "completed"):
-                    checkpoints = _load_extract_output(extract_run, session)
-                    record_extract_results(log, checkpoints)
-            except Exception as exc:
-                import traceback
-
-                duration = time.time() - t0
-                tb = traceback.format_exc()
-                record_pipeline_run(
-                    log,
-                    pipeline="A",
-                    project_name=rule.name,
-                    input_file=rule.path,
-                    status="failed",
-                    duration_s=duration,
-                    total_tokens=0,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-                log.log_event(
-                    "pipeline_error",
-                    {
-                        "pipeline": "A",
-                        "project_name": rule.name,
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                        "traceback": tb,
-                    },
-                )
-                logger.error("管道 A 失败: %s\n%s", rule.name, tb)
+                audit_run_id = _ensure_audit_run(proj, setup_session, context.manifest)
             finally:
-                if session_gen is not None:
-                    try:
-                        session_gen.close()
-                    except AttributeError:
-                        pass
+                setup_gen.close()
 
-        # Phase 2: 管道 B
-        for proj in manifest.projects:
-            log.heartbeat("pipeline_B")
-            logger.info("管道 B: 处理项目 %s", proj.name)
-            t0 = time.time()
-            session_gen: Any | None = None
-            try:
-                from govdoc.pipelines.audit_tender import run_audit
-                from govdoc.db.session import get_session
-                from govdoc.runtime import get_trajectory_store
+            session_gen = get_session()
+            session = next(session_gen)
+            audit_run = await asyncio.wait_for(
+                run_audit(
+                    audit_run_id=audit_run_id,
+                    session=session,
+                    project_root=context.project_root,
+                    trajectory_store=traj_store,
+                ),
+                timeout=context.pipeline_timeout,
+            )
+            duration = time.time() - start_time
+            record_pipeline_run(
+                context.log,
+                pipeline="B",
+                project_name=proj.name,
+                input_file=str(proj.tender_doc),
+                status=audit_run.status,
+                duration_s=duration,
+                total_tokens=0,
+            )
 
-                traj_store = get_trajectory_store()
+            if audit_run.status in ("draft_ready", "partial_ready", "completed"):
+                findings = _load_audit_findings(audit_run, session)
+                record_audit_results(context.log, findings)
+        except Exception as exc:
+            _record_pipeline_exception(
+                context.log,
+                pipeline="B",
+                project_name=proj.name,
+                input_file=str(proj.tender_doc),
+                exc=exc,
+                start_time=start_time,
+            )
+            logger.error("管道 B 失败: %s", proj.name, exc_info=True)
+        finally:
+            _close_session_gen(session_gen)
 
-                # 用独立 session 执行数据准备（创建 Project/TenderDoc/AuditRun/AuditPointRun）
-                setup_gen = get_session()
-                setup_session = next(setup_gen)
-                try:
-                    audit_run_id = _ensure_audit_run(proj, setup_session, manifest)
-                finally:
-                    setup_gen.close()
 
-                # 用全新 session 执行 run_audit，避免 identity map 残留导致 StaleDataError
-                session_gen = get_session()
-                session = next(session_gen)
-                audit_run = await asyncio.wait_for(
-                    run_audit(
-                        audit_run_id=audit_run_id,
-                        session=session,
-                        project_root=project_root,
-                        trajectory_store=traj_store,
-                    ),
-                    timeout=pipeline_timeout,
-                )
-                duration = time.time() - t0
-
-                record_pipeline_run(
-                    log,
-                    pipeline="B",
-                    project_name=proj.name,
-                    input_file=proj.tender_doc,
-                    status=audit_run.status,
-                    duration_s=duration,
-                    total_tokens=0,
-                )
-
-                if audit_run.status in ("draft_ready", "partial_ready", "completed"):
-                    findings = _load_audit_findings(audit_run, session)
-                    record_audit_results(log, findings)
-            except Exception as exc:
-                import traceback
-
-                duration = time.time() - t0
-                tb = traceback.format_exc()
-                record_pipeline_run(
-                    log,
-                    pipeline="B",
-                    project_name=proj.name,
-                    input_file=proj.tender_doc,
-                    status="failed",
-                    duration_s=duration,
-                    total_tokens=0,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-                log.log_event(
-                    "pipeline_error",
-                    {
-                        "pipeline": "B",
-                        "project_name": proj.name,
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                        "traceback": tb,
-                    },
-                )
-                logger.error("管道 B 失败: %s\n%s", proj.name, tb)
-            finally:
-                if session_gen is not None:
-                    try:
-                        session_gen.close()
-                    except AttributeError:
-                        pass
-
-        # Phase 3: 语义评估
+def _finalize_pipeline_eval(
+    context: PipelineEvalContext,
+    *,
+    exc_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None],
+) -> None:
+    """运行语义评估并关闭日志。"""
+    try:
         logger.info("开始语义评估")
-        _run_semantic_evaluations(log, rubric_dir, project_root)
+        _run_semantic_evaluations(context.log, context.rubric_dir, context.project_root)
+    finally:
+        context.log.__exit__(*exc_info)
 
-    logger.info("L1 评估完成, run_id=%s", run_id)
-    return run_id
+
+def _sum_usage_tokens(total_usage_json: str | None) -> int:
+    """汇总管道 usage JSON 中的 token 数。"""
+    usage = json.loads(total_usage_json or "{}")
+    return sum(
+        value
+        for phase in usage.values()
+        if isinstance(phase, dict)
+        for value in phase.values()
+        if isinstance(value, int)
+    )
+
+
+def _close_session_gen(session_gen: Any | None) -> None:
+    """关闭 get_session 生成器，兼容测试替身对象。"""
+    if session_gen is None:
+        return
+    try:
+        session_gen.close()
+    except AttributeError:
+        pass
 
 
 def _clean_harness_state(session: Any) -> None:
@@ -708,20 +804,39 @@ def _load_audit_findings(audit_run: Any, session: Any) -> list[dict[str, Any]]:
 
 def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: str) -> None:
     """运行全部语义评估维度。"""
-    import os
     from dotenv import load_dotenv
 
     load_dotenv()
+    judge = _create_semantic_judge(log)
+    if judge is None:
+        return
+
+    extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
+    audit_rows = log.query("SELECT * FROM audit_results WHERE run_id=?", (log._run_id,))
+    trajectory_rows = log.query("SELECT * FROM agent_trajectories WHERE run_id=?", (log._run_id,))
+
+    for dim in SEMANTIC_DIMENSIONS:
+        _evaluate_single_dimension(
+            log=log,
+            judge=judge,
+            dimension=dim,
+            rubric_dir=rubric_dir,
+            extract_rows=extract_rows,
+            audit_rows=audit_rows,
+            trajectory_rows=trajectory_rows,
+        )
+
+
+def _create_semantic_judge(log: HarnessLog) -> HarnessJudge | None:
+    """初始化语义评估裁判，失败时记录事件并返回 None。"""
     try:
-        judge = HarnessJudge(
+        return HarnessJudge(
             provider="openai",
             model=os.environ.get("HARNESS_JUDGE_MODEL", "qwen3.6-plus"),
             base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "http://110.42.53.85:11098"),
             api_key=os.environ.get("HARNESS_JUDGE_API_KEY", ""),
         )
     except Exception as exc:
-        import traceback
-
         tb = traceback.format_exc()
         log.log_event(
             "semantic_eval_fatal",
@@ -732,158 +847,225 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             },
         )
         logger.error("HarnessJudge 初始化失败，跳过全部语义评估:\n%s", tb)
+        return None
+
+
+def _evaluate_single_dimension(
+    *,
+    log: HarnessLog,
+    judge: HarnessJudge,
+    dimension: str,
+    rubric_dir: str,
+    extract_rows: list[dict[str, Any]],
+    audit_rows: list[dict[str, Any]],
+    trajectory_rows: list[dict[str, Any]],
+) -> None:
+    """评估单个语义维度，并隔离该维度的异常。"""
+    try:
+        criteria = load_rubric(rubric_dir, dimension)
+        evidence = _build_semantic_evidence(
+            log=log,
+            dimension=dimension,
+            extract_rows=extract_rows,
+            audit_rows=audit_rows,
+            trajectory_rows=trajectory_rows,
+        )
+        evaluate_dimension(
+            log=log,
+            judge=judge,
+            dimension=dimension,
+            criteria=criteria,
+            evidence=evidence,
+        )
+        logger.info("语义评估 %s 完成", dimension)
+    except FileNotFoundError:
+        log.log_event("semantic_eval_skip", {"dimension": dimension, "reason": "rubric 文件缺失"})
+        logger.warning("跳过 %s: rubric 文件缺失", dimension)
+    except Exception as exc:
+        tb = traceback.format_exc()
+        log.log_event(
+            "semantic_eval_error",
+            {
+                "dimension": dimension,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+                "traceback": tb,
+            },
+        )
+        logger.error("语义评估 %s 失败:\n%s", dimension, tb)
+
+
+def _build_semantic_evidence(
+    *,
+    log: HarnessLog,
+    dimension: str,
+    extract_rows: list[dict[str, Any]],
+    audit_rows: list[dict[str, Any]],
+    trajectory_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """根据维度构造语义评估证据。"""
+    evidence: dict[str, Any] = {
+        "extract_results": extract_rows,
+        "audit_results": audit_rows,
+        "dimension": dimension,
+    }
+    _add_agent_trajectory_evidence(evidence, dimension, trajectory_rows)
+    _add_audit_completeness_evidence(evidence, dimension, audit_rows)
+    _add_extract_json_evidence(evidence, dimension, extract_rows)
+    _add_workpaper_evidence(log, evidence, dimension)
+    _add_extract_gold_evidence(log, evidence, dimension, extract_rows)
+    _add_audit_ground_truth_evidence(log, evidence, dimension, audit_rows)
+    _add_audit_json_evidence(evidence, dimension, audit_rows)
+    return evidence
+
+
+def _add_agent_trajectory_evidence(
+    evidence: dict[str, Any],
+    dimension: str,
+    trajectory_rows: list[dict[str, Any]],
+) -> None:
+    """为 agent 维度追加轨迹证据。"""
+    if dimension.startswith("agent-") and trajectory_rows:
+        evidence["trajectory"] = trajectory_rows
+
+
+def _add_audit_completeness_evidence(
+    evidence: dict[str, Any],
+    dimension: str,
+    audit_rows: list[dict[str, Any]],
+) -> None:
+    """为审核完整性维度追加审核点清单。"""
+    if dimension != "audit-completeness":
         return
+    evidence["audit_checkpoint_inventory"] = audit_rows
+    evidence["note"] = "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
 
-    extract_rows = log.query("SELECT * FROM extract_results WHERE run_id=?", (log._run_id,))
-    audit_rows = log.query("SELECT * FROM audit_results WHERE run_id=?", (log._run_id,))
-    trajectory_rows = log.query("SELECT * FROM agent_trajectories WHERE run_id=?", (log._run_id,))
 
-    dimensions = [
-        "extract-faithfulness",
-        "extract-recall",
-        "extract-precision",
-        "extract-hallucination",
-        "extract-json-correctness",
-        "extract-category-accuracy",
-        "audit-faithfulness",
-        "audit-relevancy",
-        "audit-verdict-reasoning",
-        "audit-hallucination",
-        "audit-completeness",
-        "audit-json-correctness",
-        "agent-plan-quality",
-        "agent-plan-adherence",
-        "agent-step-efficiency",
-        "agent-task-completion",
-        "workpaper-summarization",
-        "workpaper-finding-coverage",
-        "workpaper-format-compliance",
-        "extract-gold-coverage",
-        "extract-gold-alignment",
-        "audit-ground-truth",
+def _add_extract_json_evidence(
+    evidence: dict[str, Any],
+    dimension: str,
+    extract_rows: list[dict[str, Any]],
+) -> None:
+    """为提取 JSON 正确性维度追加组装输出。"""
+    if dimension == "extract-json-correctness" and extract_rows:
+        evidence["output_json"] = {"checkpoints": _assemble_extract_checkpoints(extract_rows)}
+
+
+def _assemble_extract_checkpoints(extract_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """将提取结果行组装为 JSON 正确性评估输入。"""
+    return [
+        {
+            "id": row.get("checkpoint_id", ""),
+            "category": row.get("category", ""),
+            "title": row.get("title", ""),
+            "description": row.get("description", ""),
+            "severity": row.get("severity", ""),
+            "legal_basis": json.loads(row["legal_basis_json"])
+            if row.get("legal_basis_json")
+            else [],
+        }
+        for row in extract_rows
     ]
 
-    for dim in dimensions:
-        try:
-            criteria = load_rubric(rubric_dir, dim)
-            evidence: dict[str, Any] = {
-                "extract_results": extract_rows,
-                "audit_results": audit_rows,
-                "dimension": dim,
-            }
-            if dim.startswith("agent-") and trajectory_rows:
-                evidence["trajectory"] = trajectory_rows
-            if dim == "audit-completeness":
-                evidence["audit_checkpoint_inventory"] = audit_rows
-                evidence["note"] = (
-                    "audit_results 包含所有应审审核点（含 pending/failed 状态），以此判断覆盖率"
-                )
-            if dim == "extract-json-correctness" and extract_rows:
-                evidence["output_json"] = {
-                    "checkpoints": [
-                        {
-                            "id": row.get("checkpoint_id", ""),
-                            "category": row.get("category", ""),
-                            "title": row.get("title", ""),
-                            "description": row.get("description", ""),
-                            "severity": row.get("severity", ""),
-                            "legal_basis": json.loads(row["legal_basis_json"])
-                            if row.get("legal_basis_json")
-                            else [],
-                        }
-                        for row in extract_rows
-                    ]
-                }
-            if dim.startswith("workpaper-"):
-                wp_events = log.query(
-                    "SELECT payload FROM _events WHERE run_id=? AND event_type='workpaper_draft'",
-                    (log._run_id,),
-                )
-                if wp_events:
-                    wp_payload = json.loads(wp_events[-1]["payload"])
-                    evidence["workpaper_summary"] = wp_payload.get("summary", "")
-                    evidence["workpaper_findings_verdicts"] = wp_payload.get(
-                        "findings_verdicts", []
-                    )
-                    evidence["workpaper_findings_count"] = wp_payload.get("findings_count", 0)
-            if dim.startswith("extract-gold-") and extract_rows:
-                gt_cp_events = log.query(
-                    "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_checkpoints'",
-                    (log._run_id,),
-                )
-                if gt_cp_events:
-                    gt_data = json.loads(gt_cp_events[-1]["payload"])
-                    evidence["gold_checkpoints"] = gt_data.get("items", [])
-                    evidence["gold_count"] = gt_data.get("count", 0)
-            if dim == "audit-ground-truth" and audit_rows:
-                gt_wp_events = log.query(
-                    "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_workpaper'",
-                    (log._run_id,),
-                )
-                if gt_wp_events:
-                    evidence["human_workpapers"] = [json.loads(e["payload"]) for e in gt_wp_events]
-            if dim == "audit-json-correctness" and audit_rows:
-                assembled_findings = []
-                for ar in audit_rows:
-                    if ar.get("status") != "completed":
-                        continue
-                    verdict_json = ar.get("verdict_json", "{}")
-                    try:
-                        verdict_obj = (
-                            json.loads(verdict_json)
-                            if isinstance(verdict_json, str)
-                            else verdict_json
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        verdict_obj = {"verdict": ar.get("verdict", "")}
-                    evidence_json = ar.get("evidence_json", "[]")
-                    try:
-                        evidence_refs = (
-                            json.loads(evidence_json)
-                            if isinstance(evidence_json, str)
-                            else evidence_json
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        evidence_refs = []
-                    assembled_findings.append(
-                        {
-                            "checkpoint": {"id": ar.get("checkpoint_id", "")},
-                            "verdict": verdict_obj,
-                            "evidence_refs": evidence_refs,
-                            "case_refs": [],
-                        }
-                    )
-                completed_count = sum(1 for ar in audit_rows if ar.get("status") == "completed")
-                total_count = len(audit_rows)
-                evidence["output_json"] = {
-                    "findings": assembled_findings,
-                    "summary": f"共审核 {total_count} 个审核点，已完成 {completed_count} 项。",
-                }
-            evaluate_dimension(
-                log=log,
-                judge=judge,
-                dimension=dim,
-                criteria=criteria,
-                evidence=evidence,
-            )
-            logger.info("语义评估 %s 完成", dim)
-        except FileNotFoundError:
-            log.log_event("semantic_eval_skip", {"dimension": dim, "reason": "rubric 文件缺失"})
-            logger.warning("跳过 %s: rubric 文件缺失", dim)
-        except Exception as exc:
-            import traceback
 
-            tb = traceback.format_exc()
-            log.log_event(
-                "semantic_eval_error",
-                {
-                    "dimension": dim,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                    "traceback": tb,
-                },
-            )
-            logger.error("语义评估 %s 失败:\n%s", dim, tb)
+def _add_workpaper_evidence(log: HarnessLog, evidence: dict[str, Any], dimension: str) -> None:
+    """追加工作底稿语义评估证据。"""
+    if not dimension.startswith("workpaper-"):
+        return
+    wp_events = log.query(
+        "SELECT payload FROM _events WHERE run_id=? AND event_type='workpaper_draft'",
+        (log._run_id,),
+    )
+    if not wp_events:
+        return
+    wp_payload = json.loads(wp_events[-1]["payload"])
+    evidence["workpaper_summary"] = wp_payload.get("summary", "")
+    evidence["workpaper_findings_verdicts"] = wp_payload.get("findings_verdicts", [])
+    evidence["workpaper_findings_count"] = wp_payload.get("findings_count", 0)
+
+
+def _add_extract_gold_evidence(
+    log: HarnessLog,
+    evidence: dict[str, Any],
+    dimension: str,
+    extract_rows: list[dict[str, Any]],
+) -> None:
+    """追加提取管道金标准审核点证据。"""
+    if not (dimension.startswith("extract-gold-") and extract_rows):
+        return
+    gt_cp_events = log.query(
+        "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_checkpoints'",
+        (log._run_id,),
+    )
+    if not gt_cp_events:
+        return
+    gt_data = json.loads(gt_cp_events[-1]["payload"])
+    evidence["gold_checkpoints"] = gt_data.get("items", [])
+    evidence["gold_count"] = gt_data.get("count", 0)
+
+
+def _add_audit_ground_truth_evidence(
+    log: HarnessLog,
+    evidence: dict[str, Any],
+    dimension: str,
+    audit_rows: list[dict[str, Any]],
+) -> None:
+    """追加人工工作底稿金标准证据。"""
+    if not (dimension == "audit-ground-truth" and audit_rows):
+        return
+    gt_wp_events = log.query(
+        "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_workpaper'",
+        (log._run_id,),
+    )
+    if gt_wp_events:
+        evidence["human_workpapers"] = [json.loads(e["payload"]) for e in gt_wp_events]
+
+
+def _add_audit_json_evidence(
+    evidence: dict[str, Any],
+    dimension: str,
+    audit_rows: list[dict[str, Any]],
+) -> None:
+    """为审核 JSON 正确性维度追加组装输出。"""
+    if dimension == "audit-json-correctness" and audit_rows:
+        evidence["output_json"] = _assemble_audit_output_json(audit_rows)
+
+
+def _assemble_audit_output_json(audit_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """将审核结果行组装为 JSON 正确性评估输入。"""
+    assembled_findings = [
+        {
+            "checkpoint": {"id": row.get("checkpoint_id", "")},
+            "verdict": _parse_json_field(row.get("verdict_json", "{}"), row.get("verdict", "")),
+            "evidence_refs": _parse_json_list(row.get("evidence_json", "[]")),
+            "case_refs": [],
+        }
+        for row in audit_rows
+        if row.get("status") == "completed"
+    ]
+    completed_count = sum(1 for row in audit_rows if row.get("status") == "completed")
+    total_count = len(audit_rows)
+    return {
+        "findings": assembled_findings,
+        "summary": f"共审核 {total_count} 个审核点，已完成 {completed_count} 项。",
+    }
+
+
+def _parse_json_field(value: Any, fallback_verdict: str) -> Any:
+    """解析 JSON 字段，失败时返回 verdict 兜底对象。"""
+    try:
+        return json.loads(value) if isinstance(value, str) else value
+    except (json.JSONDecodeError, TypeError):
+        return {"verdict": fallback_verdict}
+
+
+def _parse_json_list(value: Any) -> list[Any]:
+    """解析 JSON 列表字段，失败时返回空列表。"""
+    try:
+        parsed = json.loads(value) if isinstance(value, str) else value
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 
 def _parse_args() -> argparse.Namespace:
