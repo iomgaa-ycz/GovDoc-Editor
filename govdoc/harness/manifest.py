@@ -38,12 +38,29 @@ class CheckpointFixture:
 
 
 @dataclass(frozen=True)
+class HumanWorkpaperFixture:
+    """人类工作底稿参考文件。"""
+
+    project_name: str
+    path: Path
+
+
+@dataclass(frozen=True)
+class GroundTruthFixture:
+    """Ground truth 参考数据配置。"""
+
+    gold_checkpoints: Path | None
+    human_workpapers: list[HumanWorkpaperFixture]
+
+
+@dataclass(frozen=True)
 class HarnessManifest:
     """Harness manifest 的结构化表示。"""
 
     projects: list[ProjectFixture]
     rules: list[RuleFixture]
     checkpoints: list[CheckpointFixture]
+    ground_truth: GroundTruthFixture | None = None
 
 
 def _resolve_path(path: str, project_root: Path | None) -> Path:
@@ -106,7 +123,25 @@ def load_manifest(
         for item in data.get("checkpoints", [])
     ]
 
-    manifest = HarnessManifest(projects=projects, rules=rules, checkpoints=checkpoints)
+    gt_data = data.get("ground_truth")
+    ground_truth = None
+    if gt_data:
+        gt_cp_path = gt_data.get("gold_checkpoints")
+        human_wps = [
+            HumanWorkpaperFixture(
+                project_name=item["project_name"],
+                path=_resolve_path(item["path"], root_path),
+            )
+            for item in gt_data.get("human_workpapers", [])
+        ]
+        ground_truth = GroundTruthFixture(
+            gold_checkpoints=_resolve_path(gt_cp_path, root_path) if gt_cp_path else None,
+            human_workpapers=human_wps,
+        )
+
+    manifest = HarnessManifest(
+        projects=projects, rules=rules, checkpoints=checkpoints, ground_truth=ground_truth
+    )
     logger.debug(
         "Loaded harness manifest from %s: %d projects, %d rules, %d checkpoints",
         manifest_file,

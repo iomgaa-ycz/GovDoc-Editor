@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from govdoc.harness.ground_truth import parse_gold_checkpoints, parse_human_workpaper
+from govdoc.harness.manifest import load_manifest
 
 
 def test_parse_gold_checkpoints_returns_52_items() -> None:
@@ -55,3 +56,44 @@ def test_parse_human_workpaper_missing_file() -> None:
     """不存在的文件应抛异常。"""
     with pytest.raises(Exception):
         parse_human_workpaper(Path("/nonexistent/file.docx"))
+
+
+# ── manifest ground_truth 测试 ──
+
+
+def test_manifest_loads_ground_truth_section(tmp_path: Path) -> None:
+    """manifest 应能加载 ground_truth 节点。"""
+    manifest_yaml = tmp_path / "manifest.yaml"
+    manifest_yaml.write_text(
+        """
+projects: []
+rules: []
+checkpoints: []
+ground_truth:
+  gold_checkpoints: "real_data/附件9.xls"
+  human_workpapers:
+    - project_name: "汕头河道项目"
+      path: "real_data/汕头.docx"
+""",
+        encoding="utf-8",
+    )
+    m = load_manifest(str(manifest_yaml), project_root=str(tmp_path))
+    assert m.ground_truth is not None
+    assert m.ground_truth.gold_checkpoints == tmp_path / "real_data/附件9.xls"
+    assert len(m.ground_truth.human_workpapers) == 1
+    assert m.ground_truth.human_workpapers[0].project_name == "汕头河道项目"
+
+
+def test_manifest_without_ground_truth(tmp_path: Path) -> None:
+    """没有 ground_truth 节点时应返回 None。"""
+    manifest_yaml = tmp_path / "manifest.yaml"
+    manifest_yaml.write_text(
+        """
+projects: []
+rules: []
+checkpoints: []
+""",
+        encoding="utf-8",
+    )
+    m = load_manifest(str(manifest_yaml), project_root=str(tmp_path))
+    assert m.ground_truth is None
