@@ -30,6 +30,7 @@ class TenderDoc(SQLModel, table=True):
     markdown_path: str
     qmd_collection: str
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_by: str | None = None
 
 
 class RuleSource(SQLModel, table=True):
@@ -78,6 +79,7 @@ class AuditRun(SQLModel, table=True):
     error: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     heartbeat_at: datetime | None = None
+    created_by: str | None = None
 
 
 class AuditPointRun(SQLModel, table=True):
@@ -113,6 +115,20 @@ class WorkpaperFinal(SQLModel, table=True):
     approved_by: str
     approved_at: datetime = Field(default_factory=datetime.utcnow)
     case_library_entry_id: str | None = None
+
+
+class ActivityLog(SQLModel, table=True):
+    """操作审计日志——记录所有用户操作的 before/after。"""
+
+    id: str = Field(default_factory=uid, primary_key=True)
+    actor: str
+    action: str  # upload_tender_doc / create_audit_run / update_checkpoint / delete_checkpoint / ...
+    target_type: str  # TenderDoc / AuditRun / CheckpointFinal / WorkpaperDraft / ...
+    target_id: str
+    before_json: str | None = None
+    after_json: str | None = None
+    request_id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Comment(SQLModel, table=True):
