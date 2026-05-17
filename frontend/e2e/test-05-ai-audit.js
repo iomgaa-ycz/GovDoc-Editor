@@ -15,17 +15,17 @@ async page => {
   await page.waitForTimeout(2000);
   console.log('Step 2: 创建项目 ' + projName);
 
-  // Step 3: 上传招标文件（单主文件，附件上传待 #17 实现）
+  // Step 3: 上传招标文件（单主文件）
   const fileInput = page.locator("input[type='file']").first();
   await fileInput.setInputFiles(TENDER_PDF);
   await page.waitForTimeout(500);
 
-  const uploadBtn = page.locator('button').filter({ hasText: '上传' }).last();
+  const uploadBtn = page.getByRole('button', { name: /确认上传/ });
   await uploadBtn.click();
   console.log('Step 3: 上传招标文件');
 
-  // 等待上传完成
-  const uploaded = page.locator('.bg-status-ok-bg');
+  // 等待上传完成（绿色边框状态）
+  const uploaded = page.locator('.border-green-300');
   await uploaded.waitFor({ timeout: 180000 });
   console.log('Step 3: 上传完成');
   await page.screenshot({ path: 'e2e/screenshots/05-audit-uploaded.png' });
