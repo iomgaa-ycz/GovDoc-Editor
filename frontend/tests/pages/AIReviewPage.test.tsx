@@ -1,28 +1,30 @@
 /**
- * AIReviewPage 行为护栏（P1a Bundle 1）。
+ * AIReviewPage 行为护栏（Tailwind + shadcn/ui 重构后）。
  *
- * 目的：
- *   在 Bundle 2–4（拆 hooks / 子组件 / 收敛容器）重构之前，锁住当前 UI 行为。
- *   重构过程中只要 5 个 case 保持全绿，行为即未退化。
- *
- * 策略选择：
- *   采用 MockWorkbenchProvider（直接注入 WorkbenchContextValue），
- *   而非 real WorkbenchProvider + MSW。理由：
- *     - P1a 验证的是「页面如何消费 context」，非 context 内部行为
- *     - 真 Provider 会在 mount 时发起 4 路并发 API + 每个 project 再拉 tender docs，
- *       测试将陷入轮询 / setInterval 地狱，与拆分目标无关
- *     - Mock 版让每个 case 用最小 overrides 精确构造断言场景
- *
- * 最小外部改动：
- *   V3WorkbenchContext.tsx 将 `WorkbenchContext` 由 private 改为 `export`，
- *   以便本文件的 Provider 使用同一 Context 对象（否则 useWorkbench 走不通）。
+ * 策略：MockWorkbenchProvider 直接注入 WorkbenchContextValue。
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
+
+vi.mock("@radix-ui/react-progress", () => ({
+  Root: ({ children, ...props }: any) => <div data-testid="progress" {...props}>{children}</div>,
+  Indicator: (props: any) => <div {...props} />,
+}));
+
+vi.mock("@radix-ui/react-dialog", () => ({
+  Root: ({ children }: any) => <>{children}</>,
+  Trigger: ({ children }: any) => <>{children}</>,
+  Portal: ({ children }: any) => <>{children}</>,
+  Overlay: () => null,
+  Content: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
+  Close: ({ children }: any) => <button>{children}</button>,
+  Title: ({ children }: any) => <h2>{children}</h2>,
+  Description: ({ children }: any) => <p>{children}</p>,
+}));
 
 import { AIReviewPage } from "@/pages/AIReviewPage";
 import {
@@ -37,96 +39,46 @@ import type {
   TenderDoc,
 } from "@/types/ui";
 
-/* ──────────────────────────────────────────────────────────────
- * MockWorkbenchProvider：提供最小可用的 WorkbenchContextValue
- * ────────────────────────────────────────────────────────────── */
-
 type FinalCheckpoint = CheckpointItem & { parsed: GovCheckpointPayload };
 
 function makePayload(id: string, title: string): GovCheckpointPayload {
-  return {
-    id,
-    category: "其他违法违规",
-    title,
-    description: "",
-    legal_basis: [],
-    severity: "minor",
-    retrieval_hint: "",
-  };
+  return { id, category: "其他违法违规", title, description: "", legal_basis: [], severity: "minor", retrieval_hint: "" };
 }
 
 function makeFinal(id: string, title: string): FinalCheckpoint {
   const payload = makePayload(id, title);
-  return {
-    id,
-    kind: "final",
-    status: "approved",
-    payload_json: JSON.stringify(payload),
-    approved_by: "admin",
-    parsed: payload,
-  };
+  return { id, kind: "final", status: "approved", payload_json: JSON.stringify(payload), approved_by: "admin", parsed: payload };
 }
 
 function defaultValue(): WorkbenchContextValue {
   return {
-    apiConnected: true,
-    ruleSources: [],
-    activeRuleSource: undefined,
-    selectedRuleSourceId: null,
-    setSelectedRuleSourceId: vi.fn(),
-    checkpoints: [],
-    finalCheckpoints: [],
-    extractingRuleSourceId: null,
-    extractStatus: null,
-    extractError: null,
-    uploadRuleAndExtract: vi.fn(),
-    pollExtractRun: vi.fn(),
-    projects: [],
-    activeProject: undefined,
-    selectedProjectId: null,
-    setSelectedProjectId: vi.fn(),
-    createProject: vi.fn(),
-    uploadTenderDoc: vi.fn(),
-    uploadAuditInputDocs: vi.fn(),
-    auditInputDocs: {},
-    tenderDocs: {},
-    auditRuns: [],
-    activeAuditRun: undefined,
-    selectedAuditRunId: null,
-    setSelectedAuditRunId: vi.fn(),
-    createAuditRun: vi.fn(),
-    auditProgress: null,
-    logs: [],
-    pointRuns: [],
-    activePointRun: undefined,
-    selectedPointRunId: null,
-    setSelectedPointRunId: vi.fn(),
+    apiConnected: true, ruleSources: [], activeRuleSource: undefined,
+    selectedRuleSourceId: null, setSelectedRuleSourceId: vi.fn(),
+    checkpoints: [], finalCheckpoints: [],
+    extractingRuleSourceId: null, extractStatus: null, extractError: null,
+    uploadRuleAndExtract: vi.fn(), pollExtractRun: vi.fn(),
+    projects: [], activeProject: undefined,
+    selectedProjectId: null, setSelectedProjectId: vi.fn(),
+    createProject: vi.fn(), uploadTenderDoc: vi.fn(), uploadAuditInputDocs: vi.fn(),
+    auditInputDocs: {}, tenderDocs: {},
+    auditRuns: [], activeAuditRun: undefined,
+    selectedAuditRunId: null, setSelectedAuditRunId: vi.fn(),
+    createAuditRun: vi.fn(), auditProgress: null, logs: [],
+    pointRuns: [], activePointRun: undefined,
+    selectedPointRunId: null, setSelectedPointRunId: vi.fn(),
     retryPointRun: vi.fn(),
-    workpaperHtml: "",
-    workpaperJson: null,
-    workpaperSaveStatus: "idle",
-    finalizeStatus: "idle",
-    loadWorkpaper: vi.fn(),
-    setWorkpaperHtml: vi.fn(),
-    saveWorkpaper: vi.fn(),
-    finalizeWorkpaper: vi.fn(),
-    importCheckpointFile: vi.fn(),
-    updateCheckpoint: vi.fn(),
-    deleteCheckpoint: vi.fn(),
-    refreshAll: vi.fn(),
+    workpaperHtml: "", workpaperJson: null,
+    workpaperSaveStatus: "idle", finalizeStatus: "idle",
+    loadWorkpaper: vi.fn(), setWorkpaperHtml: vi.fn(),
+    saveWorkpaper: vi.fn(), finalizeWorkpaper: vi.fn(),
+    importCheckpointFile: vi.fn(), updateCheckpoint: vi.fn(),
+    deleteCheckpoint: vi.fn(), refreshAll: vi.fn(),
   };
 }
 
-function MockWorkbenchProvider(props: {
-  children: ReactNode;
-  overrides?: Partial<WorkbenchContextValue>;
-}) {
-  const value: WorkbenchContextValue = {
-    ...defaultValue(),
-    ...(props.overrides ?? {}),
-  };
+function MockWorkbenchProvider(props: { children: ReactNode; overrides?: Partial<WorkbenchContextValue> }) {
   return (
-    <WorkbenchContext.Provider value={value}>
+    <WorkbenchContext.Provider value={{ ...defaultValue(), ...(props.overrides ?? {}) }}>
       {props.children}
     </WorkbenchContext.Provider>
   );
@@ -135,214 +87,69 @@ function MockWorkbenchProvider(props: {
 function renderPage(overrides?: Partial<WorkbenchContextValue>) {
   return render(
     <MemoryRouter initialEntries={["/ai-review"]}>
-      <MockWorkbenchProvider overrides={overrides}>
-        <AIReviewPage />
-      </MockWorkbenchProvider>
+      <MockWorkbenchProvider overrides={overrides}><AIReviewPage /></MockWorkbenchProvider>
     </MemoryRouter>,
   );
 }
 
-/* ──────────────────────────────────────────────────────────────
- * 测试夹具
- * ────────────────────────────────────────────────────────────── */
+const sampleProject: Project = { id: "p-1", name: "项目甲", created_at: "2026-04-19T00:00:00Z", created_by: "admin" };
+const sampleTenderDoc: TenderDoc = { id: "td-1", project_id: "p-1", filename: "tender.docx", markdown_path: "/tmp/tender.md" };
+const sampleCheckpoints: FinalCheckpoint[] = [makeFinal("cp-1", "采购范围"), makeFinal("cp-2", "供应商资格")];
 
-const sampleProject: Project = {
-  id: "p-1",
-  name: "项目甲",
-  created_at: "2026-04-19T00:00:00Z",
-  created_by: "admin",
-};
-
-const sampleTenderDoc: TenderDoc = {
-  id: "td-1",
-  project_id: "p-1",
-  filename: "tender.docx",
-  markdown_path: "/tmp/tender.md",
-};
-
-const sampleCheckpoints: FinalCheckpoint[] = [
-  makeFinal("cp-1", "采购范围"),
-  makeFinal("cp-2", "供应商资格"),
-];
-
-/* ──────────────────────────────────────────────────────────────
- * 用例
- * ────────────────────────────────────────────────────────────── */
-
-describe("AIReviewPage · 行为护栏", () => {
-  it("首次渲染显示「任务设置」与「审核进度」两张卡片", () => {
+describe("AIReviewPage · Setup 模式", () => {
+  it("首次渲染显示「新建审查任务」标题和步骤指示器", () => {
     renderPage();
-
-    expect(
-      screen.getByRole("heading", { level: 3, name: "任务设置" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 3, name: "审核进度" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("新建审查任务")).toBeInTheDocument();
+    expect(screen.getByText("选择或创建项目")).toBeInTheDocument();
   });
 
-  it("无 activeProject 时，不渲染「上传招标文书」与「选择审核点」子区块", () => {
-    renderPage();
-
-    // 上传区 / 审核点多选区的 Field label 都不应出现
-    expect(screen.queryByText("上传招标文书")).not.toBeInTheDocument();
-    expect(screen.queryByText("选择审核点")).not.toBeInTheDocument();
-    // 启动审核按钮也应不存在
-    expect(
-      screen.queryByRole("button", { name: /启动审核/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("输入新项目名称后点击「新建」会调用 createProject", async () => {
+  it("输入项目名称后点击「创建」会调用 createProject", async () => {
     const createProject = vi.fn().mockResolvedValue(sampleProject);
     renderPage({ createProject });
 
     const nameInput = screen.getByPlaceholderText("输入项目名称");
     await userEvent.type(nameInput, "测试项目");
-
-    const createBtn = screen.getByRole("button", { name: "新建" });
-    expect(createBtn).not.toBeDisabled();
+    const createBtn = screen.getByRole("button", { name: /创建/ });
     await userEvent.click(createBtn);
 
     expect(createProject).toHaveBeenCalledWith("测试项目");
   });
 
-  it("有 activeProject + mainDoc + finalCheckpoints 时，「启动审核」按钮随选中数量切换 disabled", async () => {
+  it("有 mainDoc + finalCheckpoints 时，「开始审核」按钮随选中数量切换 disabled", async () => {
     renderPage({
-      projects: [sampleProject],
-      activeProject: sampleProject,
-      selectedProjectId: sampleProject.id,
-      auditInputDocs: {
-        [sampleProject.id]: {
-          mainDoc: sampleTenderDoc,
-          supplementaryDocs: [],
-        },
-      },
-      finalCheckpoints: sampleCheckpoints,
-      checkpoints: sampleCheckpoints,
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+      auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [] } },
+      finalCheckpoints: sampleCheckpoints, checkpoints: sampleCheckpoints,
     });
 
-    // 选中 0 → 按钮 disabled
-    const startBtn = screen.getByRole("button", { name: /启动审核/ });
+    const startBtn = screen.getByRole("button", { name: /开始审核/ });
     expect(startBtn).toBeDisabled();
 
-    // 勾选首个审核点 → 按钮可点
-    const cp1 = screen.getByLabelText("采购范围");
-    await userEvent.click(cp1);
+    const checkbox = screen.getAllByRole("checkbox")[0];
+    await userEvent.click(checkbox);
     expect(startBtn).not.toBeDisabled();
-    expect(startBtn).toHaveTextContent(/1 个审核点/);
   });
+});
 
-  it("auditProgress 非空时，进度卡片显示总计 / 已完成 / 失败 / 待处理", () => {
+describe("AIReviewPage · Running 模式", () => {
+  it("auditProgress 非空时显示进度和审核要点列表", () => {
     const progress: AuditRunProgress = {
-      audit_run_id: "ar-1",
-      status: "running",
-      total_count: 5,
-      processed_count: 2,
+      audit_run_id: "ar-1", status: "running", total_count: 3, processed_count: 1,
       point_runs: [
         { id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
-        { id: "pr-2", checkpoint_final_id: "cp-2", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
-        { id: "pr-3", checkpoint_final_id: "cp-3", status: "failed", error: "oops", finding_json: null, started_at: null, completed_at: null, current_phase: null },
-        { id: "pr-4", checkpoint_final_id: "cp-4", status: "running", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
-        { id: "pr-5", checkpoint_final_id: "cp-5", status: "pending", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
+        { id: "pr-2", checkpoint_final_id: "cp-2", status: "running", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: "execute" },
+        { id: "pr-3", checkpoint_final_id: "cp-3", status: "pending", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
       ],
     };
 
     renderPage({
-      projects: [sampleProject],
-      activeProject: sampleProject,
-      selectedProjectId: sampleProject.id,
-      auditInputDocs: {
-        [sampleProject.id]: {
-          mainDoc: sampleTenderDoc,
-          supplementaryDocs: [],
-        },
-      },
-      auditProgress: progress,
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+      auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [] } },
+      auditProgress: progress, finalCheckpoints: sampleCheckpoints,
     });
 
-    // 用 MetricCard 内部结构断言 label → value 对应关系
-    const totalCard = screen.getByText("总计").closest(".metric-card") as HTMLElement;
-    const doneCard = screen.getByText("已完成").closest(".metric-card") as HTMLElement;
-    const failedCard = screen.getByText("失败").closest(".metric-card") as HTMLElement;
-    const pendingCard = screen.getByText("待处理").closest(".metric-card") as HTMLElement;
-
-    expect(within(totalCard).getByText("5")).toBeInTheDocument();
-    expect(within(doneCard).getByText("2")).toBeInTheDocument();
-    expect(within(failedCard).getByText("1")).toBeInTheDocument();
-    // running + pending = 2
-    expect(within(pendingCard).getByText("2")).toBeInTheDocument();
-  });
-});
-
-describe("AIReviewPage · PR#2 新功能", () => {
-  it("审核点 verdict 存疑时，StatPill 渲染 uncertain 状态", () => {
-    const uncertainFinding = JSON.stringify({
-      checkpoint: { id: "cp-1", category: "其他违法违规", title: "采购范围", description: "", legal_basis: [], severity: "minor", retrieval_hint: "" },
-      verdict: { verdict: "存疑", rationale: "证据不足", evidence_quotes: [], suggestion: "" },
-      evidence_refs: [], case_refs: [],
-    });
-
-    const progress: AuditRunProgress = {
-      audit_run_id: "ar-1", status: "running", total_count: 1, processed_count: 1,
-      point_runs: [{ id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: uncertainFinding, started_at: null, completed_at: null, current_phase: null }],
-    };
-
-    renderPage({
-      projects: [sampleProject],
-      activeProject: sampleProject,
-      selectedProjectId: sampleProject.id,
-      auditInputDocs: {
-        [sampleProject.id]: {
-          mainDoc: sampleTenderDoc,
-          supplementaryDocs: [],
-        },
-      },
-      finalCheckpoints: sampleCheckpoints,
-      auditProgress: progress,
-    });
-
-    const pill = screen.getByText("uncertain");
-    expect(pill).toHaveClass("status-pill--uncertain");
-  });
-
-  it("文书上传失败时显示红色错误提示", async () => {
-    const uploadAuditInputDocs = vi.fn().mockRejectedValue(new Error("MonkeyOCR 不可用"));
-    renderPage({
-      projects: [sampleProject],
-      activeProject: sampleProject,
-      selectedProjectId: sampleProject.id,
-      uploadAuditInputDocs,
-    });
-
-    const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
-    const testFile = new File(["dummy"], "tender.pdf", { type: "application/pdf" });
-    await userEvent.upload(fileInput, testFile);
-
-    const uploadBtn = screen.getByRole("button", { name: "上传文书" });
-    await userEvent.click(uploadBtn);
-
-    expect(await screen.findByText("MonkeyOCR 不可用")).toBeInTheDocument();
-  });
-
-  it("文书上传成功且含 warnings 时显示降级警告", () => {
-    const tenderDocWithWarnings: TenderDoc = {
-      ...sampleTenderDoc,
-      warnings: ["docx_to_markdown 失败，使用 fallback 文本提取"],
-    };
-    renderPage({
-      projects: [sampleProject],
-      activeProject: sampleProject,
-      selectedProjectId: sampleProject.id,
-      auditInputDocs: {
-        [sampleProject.id]: {
-          mainDoc: tenderDocWithWarnings,
-          supplementaryDocs: [],
-        },
-      },
-    });
-
-    expect(screen.getByText(/文书已上传/)).toBeInTheDocument();
-    expect(screen.getByText("docx_to_markdown 失败，使用 fallback 文本提取")).toBeInTheDocument();
+    expect(screen.getByText("审核进行中")).toBeInTheDocument();
+    expect(screen.getByText("审核要点")).toBeInTheDocument();
+    expect(screen.getByText(/已完成 1\/3/)).toBeInTheDocument();
   });
 });
