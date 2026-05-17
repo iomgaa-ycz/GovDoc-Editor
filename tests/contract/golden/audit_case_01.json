@@ -1,5 +1,6 @@
 {
   "audit_run": {
+    "created_by": null,
     "error": null,
     "processed_count": 2,
     "status": "draft_ready",
