@@ -1025,64 +1025,14 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _update_run_status(db_path: str, run_id: str, status: str) -> None:
-    """确保运行记录存在，并更新最终状态。"""
-    import sqlite3
-
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS _runs ("
-            "run_id TEXT PRIMARY KEY, git_sha TEXT, started_at TEXT, "
-            "finished_at TEXT, heartbeat_at TEXT, config JSON, "
-            "status TEXT DEFAULT 'running')"
-        )
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS _events ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, "
-            "timestamp TEXT, event_type TEXT, payload JSON)"
-        )
-        from govdoc.harness.log import _now_iso
-
-        now = _now_iso()
-        conn.execute(
-            "INSERT OR IGNORE INTO _runs (run_id, started_at, status) VALUES (?, ?, ?)",
-            (run_id, now, "running"),
-        )
-        conn.execute(
-            "UPDATE _runs SET finished_at = ?, status = ? WHERE run_id = ?",
-            (now, status, run_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def main() -> None:
     """运行 L2 API 评估 CLI，并记录致命异常与中断信号。"""
-    import signal
     import sys
-    from types import FrameType
-    from typing import NoReturn
 
-    from govdoc.harness.handler import SqliteHandler
+    from govdoc.harness.cli_common import setup_harness_cli, update_run_status
 
     args = _parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-
-    run_id = f"L2-{uuid.uuid4().hex[:8]}"
-    root_logger = logging.getLogger()
-    sqlite_handler = SqliteHandler(db_path=args.db_path, run_id=run_id)
-    root_logger.addHandler(sqlite_handler)
-
-    def _handle_signal(signum: int, frame: FrameType | None) -> NoReturn:
-        del frame
-        _update_run_status(args.db_path, run_id, "interrupted")
-        raise SystemExit(128 + signum)
-
-    signal.signal(signal.SIGTERM, _handle_signal)
-    signal.signal(signal.SIGINT, _handle_signal)
+    run_id, sqlite_handler = setup_harness_cli(args.db_path, "L2")
 
     try:
         completed_run_id = asyncio.run(
@@ -1098,10 +1048,10 @@ def main() -> None:
         logger.info("L2 完成, run_id=%s", completed_run_id)
     except Exception:
         logger.critical("L2 API 评估发生致命异常", exc_info=True)
-        _update_run_status(args.db_path, run_id, "crashed")
+        update_run_status(args.db_path, run_id, "crashed")
         sys.exit(1)
     finally:
-        root_logger.removeHandler(sqlite_handler)
+        logging.getLogger().removeHandler(sqlite_handler)
         sqlite_handler.close()
 
 

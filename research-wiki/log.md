@@ -25,3 +25,7 @@
 - [2026-05-13 08:44 UTC] 新增 plan: Wiki-Site 渲染站点搭建实施计划 (plan:wiki-site-setup-impl)
 - [2026-05-13 08:44 UTC] 新增边: plan:wiki-site-setup-impl --implements--> design:wiki-site-setup
 - [2026-05-13 08:45 UTC] 重建索引: 14 篇页面
+- [2026-05-17 03:29 UTC] 新增 plan: L2 Harness Ground Truth 评估维度 (plan:harness-ground-truth-eval)
+- [2026-05-17 03:29 UTC] 重建索引: 70 篇页面
+- [2026-05-17 04:31 UTC] 新增 plan: 内测前代码清理实施计划 (plan:pre-beta-code-cleanup)
+- [2026-05-17 04:31 UTC] 重建索引: 72 篇页面

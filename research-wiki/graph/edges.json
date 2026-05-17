@@ -69,6 +69,16 @@
       "id": "plan:wiki-site-setup-impl",
       "label": "Wiki-Site 渲染站点搭建实施计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:harness-ground-truth-eval",
+      "label": "L2 Harness Ground Truth 评估维度",
+      "type": "plan"
+    },
+    {
+      "id": "plan:pre-beta-code-cleanup",
+      "label": "内测前代码清理实施计划",
+      "type": "plan"
     }
   ],
   "links": [

@@ -62,27 +62,9 @@ class HarnessLog:
 
     def _init_fixed_tables(self) -> None:
         """创建 _runs 和 _events 固定表。"""
-        self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS _runs (
-                run_id TEXT PRIMARY KEY,
-                git_sha TEXT,
-                started_at TEXT,
-                finished_at TEXT,
-                heartbeat_at TEXT,
-                config JSON,
-                status TEXT DEFAULT 'running'
-            )
-        """)
-        self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS _events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id TEXT,
-                timestamp TEXT,
-                event_type TEXT,
-                payload JSON
-            )
-        """)
-        self._conn.commit()
+        from govdoc.harness.cli_common import init_run_tables  # noqa: PLC0415
+
+        init_run_tables(self._conn)
 
     def create_table(
         self,

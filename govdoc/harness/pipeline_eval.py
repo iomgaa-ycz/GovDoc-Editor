@@ -825,9 +825,7 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                     (log._run_id,),
                 )
                 if gt_wp_events:
-                    evidence["human_workpapers"] = [
-                        json.loads(e["payload"]) for e in gt_wp_events
-                    ]
+                    evidence["human_workpapers"] = [json.loads(e["payload"]) for e in gt_wp_events]
             if dim == "audit-json-correctness" and audit_rows:
                 assembled_findings = []
                 for ar in audit_rows:
