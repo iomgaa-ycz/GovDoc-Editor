@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+  }
+  body {
+    @apply bg-surface text-text-primary font-sans antialiased;
+    margin: 0;
+  }
+  * {
+    @apply border-border;
+  }
+}
+
+@layer utilities {
+  .gradient-btn {
+    background: linear-gradient(180deg, #2563EB 0%, #0062FF 100%);
+  }
+}
