@@ -32,8 +32,6 @@ export function AIReviewPage() {
   const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
   const mainDoc = inputDocs?.mainDoc;
   const supplementaryDocs = inputDocs?.supplementaryDocs ?? [];
-  const hasPendingUpload = Boolean(wf.mainTenderFile || wf.supplementaryFiles.length > 0);
-
   return (
     <>
       <PageHero
@@ -69,7 +67,7 @@ export function AIReviewPage() {
                 uploadError={wf.uploadError}
               />
 
-              {mainDoc && !hasPendingUpload && !auditProgress && (
+              {mainDoc && !auditProgress && (
                 <CheckpointPicker
                   checkpoints={finalCheckpoints}
                   selectedIds={auditRun.selectedCpIds}

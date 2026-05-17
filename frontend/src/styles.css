@@ -318,6 +318,7 @@ a {
 }
 
 .card {
+  min-width: 0;
   background: var(--surface-card);
   border: 1px solid rgba(226, 232, 240, 0.96);
   border-radius: var(--radius-lg);
@@ -402,6 +403,7 @@ a {
 .field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .field-label {
@@ -482,6 +484,7 @@ a {
 .point-preview-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .file-chip {
@@ -489,10 +492,17 @@ a {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+  min-width: 0;
+  overflow: hidden;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   background: var(--surface-panel);
   border: 1px solid var(--border-light);
+}
+
+.file-chip > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .file-chip strong,
@@ -502,6 +512,13 @@ a {
 .result-point-item strong,
 .point-preview-item strong {
   display: block;
+}
+
+.file-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-chip span,
@@ -516,6 +533,7 @@ a {
 .icon-button {
   width: 30px;
   height: 30px;
+  flex: 0 0 30px;
   border: none;
   border-radius: 10px;
   background: var(--surface-panel);
@@ -538,6 +556,12 @@ a {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   line-height: 1.65;
+  min-width: 0;
+}
+
+.inline-notice svg,
+.empty-state svg {
+  flex: 0 0 auto;
 }
 
 .inline-notice--info {
@@ -567,7 +591,9 @@ a {
 
 .empty-state p,
 .inline-notice span {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .home-page {
@@ -636,6 +662,7 @@ a {
 .right-column {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .library-item,
@@ -811,12 +838,13 @@ a {
 .modal-form {
   display: grid;
   gap: 16px;
+  min-width: 0;
   padding: 20px;
 }
 
 .triple-layout {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  grid-template-columns: 330px minmax(0, 1fr) 340px;
   gap: 16px;
 }
 

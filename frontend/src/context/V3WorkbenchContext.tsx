@@ -67,7 +67,7 @@ export interface WorkbenchContextValue {
   uploadTenderDoc: (projectId: string, file: File) => Promise<TenderDoc>;
   uploadAuditInputDocs: (
     projectId: string,
-    mainFile: File,
+    mainFile: File | null,
     supplementaryFiles: File[],
   ) => Promise<AuditInputDocs>;
 
@@ -311,11 +311,13 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function handleUploadAuditInputDocs(
     projectId: string,
-    mainFile: File,
+    mainFile: File | null,
     supplementaryFiles: File[],
   ): Promise<AuditInputDocs> {
     const existing = auditInputDocs[projectId];
-    const mainDoc = existing?.mainDoc ?? await api.uploadTenderDoc(projectId, mainFile);
+    const mainDoc = existing?.mainDoc ?? (
+      mainFile ? await api.uploadTenderDoc(projectId, mainFile) : undefined
+    );
     let supplementaryDocs = [...(existing?.supplementaryDocs ?? [])];
 
     setAuditInputDocs((prev) => ({
@@ -326,8 +328,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       },
     }));
 
-    const filesToUpload = supplementaryFiles.slice(supplementaryDocs.length);
-    for (const file of filesToUpload) {
+    for (const file of supplementaryFiles) {
       const doc = await api.uploadTenderDoc(projectId, file);
       supplementaryDocs = [...supplementaryDocs, doc];
       setAuditInputDocs((prev) => ({

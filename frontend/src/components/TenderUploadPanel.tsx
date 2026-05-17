@@ -10,6 +10,7 @@
  *   2. 区分主招标文书与补充文件，上传语义由容器注入。
  */
 
+import { Trash2 } from "lucide-react";
 import type { ChangeEvent } from "react";
 
 import type { Project, TenderDoc } from "../types/ui";
@@ -73,6 +74,46 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
     uploadError,
   } = props;
 
+  function fileKey(file: File) {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }
+
+  function handleSelectSupplementaryFiles(files: File[]) {
+    const seen = new Set<string>();
+    const merged = [...supplementaryFiles, ...files].filter((file) => {
+      const key = fileKey(file);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setSupplementaryFiles(merged);
+  }
+
+  function removeSupplementaryFile(target: File) {
+    const targetKey = fileKey(target);
+    setSupplementaryFiles(
+      supplementaryFiles.filter((file) => fileKey(file) !== targetKey),
+    );
+  }
+
+  function DeleteFileButton(props: { label: string; onDelete: () => void | Promise<void> }) {
+    return (
+      <button
+        className="icon-button"
+        type="button"
+        aria-label={props.label}
+        title={props.label}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void props.onDelete();
+        }}
+      >
+        <Trash2 size={14} />
+      </button>
+    );
+  }
+
   return (
     <>
       <Field label="项目">
@@ -119,6 +160,10 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
                     <strong>{mainTenderFile.name}</strong>
                     <span>{(mainTenderFile.size / 1024).toFixed(1)} KB</span>
                   </div>
+                  <DeleteFileButton
+                    label="移除待上传主文书"
+                    onDelete={() => setMainTenderFile(null)}
+                  />
                 </div>
               </div>
             ) : (
@@ -142,27 +187,29 @@ export function TenderUploadPanel(props: TenderUploadPanelProps) {
                   </div>
                 ))}
                 {supplementaryFiles.map((file) => (
-                  <div className="file-chip" key={`${file.name}-${file.size}-${file.lastModified}`}>
+                  <div className="file-chip" key={fileKey(file)}>
                     <div>
                       <strong>{file.name}</strong>
                       <span>{(file.size / 1024).toFixed(1)} KB</span>
                     </div>
+                    <DeleteFileButton
+                      label={`移除待上传补充文件 ${file.name}`}
+                      onDelete={() => removeSupplementaryFile(file)}
+                    />
                   </div>
                 ))}
               </div>
             ) : null}
-            {!mainTenderFile && (
-              <FileDropzone
-                title="选择补充文件"
-                subtitle="可多选，支持 .pdf, .docx, .md"
-                accept=".pdf,.docx,.md,.txt"
-                multiple
-                onSelect={(files) => setSupplementaryFiles(files)}
-              />
-            )}
+            <FileDropzone
+              title="选择补充文件"
+              subtitle="可多选，支持 .pdf, .docx, .md"
+              accept=".pdf,.docx,.md,.txt"
+              multiple
+              onSelect={handleSelectSupplementaryFiles}
+            />
           </Field>
 
-          {mainTenderFile && (
+          {(mainTenderFile || supplementaryFiles.length > 0) && (
             <Button tone="primary" onClick={handleUploadTender} busy={uploadingTender}>
               上传文书
             </Button>

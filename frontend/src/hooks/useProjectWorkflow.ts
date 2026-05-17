@@ -70,7 +70,8 @@ export function useProjectWorkflow(): ProjectWorkflow {
   }
 
   async function handleUploadTender(): Promise<void> {
-    if (!activeProject || !mainTenderFile) return;
+    if (!activeProject) return;
+    if (!mainTenderFile && supplementaryFiles.length === 0) return;
     setUploadingTender(true);
     setUploadError(null);
     try {
