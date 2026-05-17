@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.middleware import log_activity
 from govdoc.db.models import ExtractRun, RuleSource
 from govdoc.runtime import get_document_store, get_libraries
 
@@ -60,6 +61,14 @@ async def upload_rule(
             rule_library_entry_id=rule_entry.entry_id,
         )
         session.add(rule_source)
+        log_activity(
+            session,
+            actor="system",
+            action="upload_rule",
+            target_type="RuleSource",
+            target_id=rule_source.id,
+            after={"title": title, "filename": file.filename or ""},
+        )
         session.commit()
         session.refresh(rule_source)
 

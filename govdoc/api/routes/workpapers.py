@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import FinalizeWorkpaperRequest, UpdateWorkpaperDraftRequest
 from govdoc.db.models import AuditRun, WorkpaperDraft, WorkpaperFinal
 
@@ -59,6 +60,14 @@ async def update_workpaper_draft(audit_run_id: str, payload: UpdateWorkpaperDraf
             version=next_version,
         )
         session.add(draft)
+        log_activity(
+            session,
+            actor=payload.modified_by,
+            action="update_workpaper_draft",
+            target_type="WorkpaperDraft",
+            target_id=draft.id,
+            after={"version": next_version, "audit_run_id": audit_run_id},
+        )
         session.commit()
         session.refresh(draft)
         return {"id": draft.id, "version": draft.version}
@@ -76,6 +85,17 @@ async def finalize_workpaper_partial(
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
         if run.status not in ("partial_ready", "draft_ready"):
             raise HTTPException(status_code=400, detail=f"状态 {run.status} 不支持部分定稿")
+
+    with get_db_session() as log_session:
+        log_activity(
+            log_session,
+            actor=payload.approved_by,
+            action="finalize_workpaper",
+            target_type="AuditRun",
+            target_id=audit_run_id,
+            after={"partial": True},
+        )
+        log_session.commit()
 
     from govdoc.pipelines.finalize import finalize_workpaper
 
@@ -105,6 +125,17 @@ async def finalize_workpaper_endpoint(
         run = session.get(AuditRun, audit_run_id)
         if run is None:
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
+
+    with get_db_session() as log_session:
+        log_activity(
+            log_session,
+            actor=payload.approved_by,
+            action="finalize_workpaper",
+            target_type="AuditRun",
+            target_id=audit_run_id,
+            after={"partial": False},
+        )
+        log_session.commit()
 
     from govdoc.pipelines.finalize import finalize_workpaper
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import AuditRunProgressResponse, CreateAuditRunRequest
 from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, TenderDoc
 
@@ -70,6 +71,19 @@ async def create_audit_run(
             total_count=len(payload.checkpoint_ids),
         )
         session.add(audit_run)
+        if hasattr(audit_run, "created_by"):
+            audit_run.created_by = payload.created_by
+        log_activity(
+            session,
+            actor=payload.created_by,
+            action="create_audit_run",
+            target_type="AuditRun",
+            target_id=audit_run.id,
+            after={
+                "project_id": payload.project_id,
+                "tender_doc_id": payload.tender_doc_id,
+            },
+        )
         session.commit()
         session.refresh(audit_run)
 
@@ -194,7 +208,17 @@ async def cancel_audit_run(audit_run_id: str):
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
         if run.status not in ("pending", "running"):
             raise HTTPException(status_code=400, detail=f"状态 {run.status} 不可取消")
+        old_status = run.status
         run.status = "cancelled"
+        log_activity(
+            session,
+            actor="system",
+            action="cancel_audit_run",
+            target_type="AuditRun",
+            target_id=run.id,
+            before={"status": old_status},
+            after={"status": "cancelled"},
+        )
         session.add(run)
         session.commit()
         return {"audit_run_id": run.id, "status": "cancelled"}

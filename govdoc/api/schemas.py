@@ -31,11 +31,13 @@ class ExtractRunStatusResponse(GovDocModel):
 
 class UpdateCheckpointRequest(GovDocModel):
     payload_json: str
+    modified_by: str = "system"
 
 
 class CreateAuditRunRequest(GovDocModel):
     project_id: str
     tender_doc_id: str
+    created_by: str = "system"
     supplementary_doc_ids: list[str] = Field(default_factory=list)
     checkpoint_ids: list[str] = Field(
         default_factory=list,
@@ -45,6 +47,7 @@ class CreateAuditRunRequest(GovDocModel):
 
 class UpdateWorkpaperDraftRequest(GovDocModel):
     workpaper: Workpaper
+    modified_by: str = "system"
 
 
 class FinalizeWorkpaperRequest(GovDocModel):
