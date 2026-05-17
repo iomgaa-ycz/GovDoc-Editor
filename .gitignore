@@ -169,4 +169,4 @@ real_data/
 # Harness 运行结果（每次重新生成）
 results/harness.db
 results/harness.db-wal
-results/harness.db-shm
+results/harness.db-shmgraphify-out/
