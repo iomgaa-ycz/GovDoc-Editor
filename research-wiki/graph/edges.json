@@ -79,6 +79,21 @@
       "id": "plan:pre-beta-code-cleanup",
       "label": "内测前代码清理实施计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:frontend-redesign-backend-gaps",
+      "label": "前端重设计后端接口补全",
+      "type": "plan"
+    },
+    {
+      "id": "plan:frontend-tailwind-refactor",
+      "label": "前端重构：Tailwind CSS + shadcn/ui",
+      "type": "plan"
+    },
+    {
+      "id": "plan:issue-17-multifile-upload",
+      "label": "Issue #17: AI 审核页面主文件+附件上传",
+      "type": "plan"
     }
   ],
   "links": [

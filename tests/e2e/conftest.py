@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-E2E_DATA_DIR = Path(__file__).parent / "data"
+REAL_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "real_data"
 E2E_REPORTS_DIR = Path(__file__).parent / "reports"
 
 BACKEND_BASE = os.environ.get("E2E_BACKEND_URL", "http://100.83.164.94:8001")
@@ -58,7 +58,7 @@ def api_long(backend_url: str) -> httpx.Client:
 @pytest.fixture(scope="session")
 def tender_docx_path() -> Path:
     """从化区中医医院招标文书 DOCX。"""
-    p = E2E_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
+    p = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
@@ -66,18 +66,15 @@ def tender_docx_path() -> Path:
 @pytest.fixture(scope="session")
 def tender_pdf_path() -> Path:
     """从化区中医医院招标文书 PDF。"""
-    p = (
-        E2E_DATA_DIR
-        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
-    )
+    p = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "3、从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
 
 @pytest.fixture(scope="session")
 def guide_docx_path() -> Path:
-    """2025 年专项整治工作指引 DOCX。"""
-    p = E2E_DATA_DIR / "2025年政府采购领域“四类”违法违规行为专项整治工作指引.docx"
+    """2025 年专项整治工作指引。"""
+    p = REAL_DATA_DIR / '2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc'
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
@@ -85,6 +82,6 @@ def guide_docx_path() -> Path:
 @pytest.fixture(scope="session")
 def checkpoint_xls_path() -> Path:
     """处理处罚标准 XLS（用于审核点批量导入）。"""
-    p = E2E_DATA_DIR / "附件9 处理处罚标准.xls"
+    p = REAL_DATA_DIR / "附件9 处理处罚标准.xls"
     assert p.exists(), f"测试文件不存在: {p}"
     return p

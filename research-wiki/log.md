@@ -29,3 +29,9 @@
 - [2026-05-17 03:29 UTC] 重建索引: 70 篇页面
 - [2026-05-17 04:31 UTC] 新增 plan: 内测前代码清理实施计划 (plan:pre-beta-code-cleanup)
 - [2026-05-17 04:31 UTC] 重建索引: 72 篇页面
+- [2026-05-17 08:18 UTC] 新增 plan: 前端重设计后端接口补全 (plan:frontend-redesign-backend-gaps)
+- [2026-05-17 08:18 UTC] 重建索引: 72 篇页面
+- [2026-05-17 09:14 UTC] 新增 plan: 前端重构：Tailwind CSS + shadcn/ui (plan:frontend-tailwind-refactor)
+- [2026-05-17 09:14 UTC] 重建索引: 74 篇页面
+- [2026-05-17 16:12 UTC] 新增 plan: Issue #17: AI 审核页面主文件+附件上传 (plan:issue-17-multifile-upload)
+- [2026-05-17 16:12 UTC] 重建索引: 76 篇页面

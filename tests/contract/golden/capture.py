@@ -32,6 +32,9 @@ UNSTABLE_FIELDS = {
     "workspace_archive_path",
     "workspace_failed_path",
     "docx_path",
+    # 运行时状态字段（每次跑都可能不同）
+    "started_at",
+    "current_phase",
     # FK UUID 字段（每次 seed 时 SQLModel 生成新 UUID）
     "audit_run_id",
     "project_id",

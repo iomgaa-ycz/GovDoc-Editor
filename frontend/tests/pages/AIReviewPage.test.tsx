@@ -71,7 +71,7 @@ function defaultValue(): WorkbenchContextValue {
     projects: [], activeProject: undefined,
     selectedProjectId: null, setSelectedProjectId: vi.fn(),
     createProject: vi.fn(), uploadTenderDoc: vi.fn(), uploadAuditInputDocs: vi.fn(),
-    auditInputDocs: {}, tenderDocs: {},
+    auditInputDocs: {}, resetProjectDocs: vi.fn(), tenderDocs: {},
     auditRuns: [], activeAuditRun: undefined,
     selectedAuditRunId: null, setSelectedAuditRunId: vi.fn(),
     createAuditRun: vi.fn(), auditProgress: null, logs: [],
@@ -163,6 +163,44 @@ describe("AIReviewPage · Setup 模式", () => {
     });
 
     expect(screen.getByText("tender.docx")).toBeInTheDocument();
+  });
+
+  it("有 activeProject + 无 mainDoc 时渲染第二步上传卡片含主招标文书 label", () => {
+    renderPage({
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+    });
+    expect(screen.getByText("主招标文书")).toBeInTheDocument();
+    expect(screen.getByText("点击选择或拖入招标文书")).toBeInTheDocument();
+  });
+
+  it("mainDoc 已上传时显示绿色状态和「移除」按钮", () => {
+    renderPage({
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+      auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [] } },
+    });
+    expect(screen.getByText("tender.docx")).toBeInTheDocument();
+    expect(screen.getByText("移除")).toBeInTheDocument();
+  });
+
+  it("点击已上传主文件的「移除」调用 resetProjectDocs", async () => {
+    const resetProjectDocs = vi.fn();
+    renderPage({
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+      auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [] } },
+      resetProjectDocs,
+    });
+    await userEvent.click(screen.getByText("移除"));
+    expect(resetProjectDocs).toHaveBeenCalledWith(sampleProject.id);
+  });
+
+  it("mainDoc 已上传 + supplementaryDocs 非空时显示附件文件名", () => {
+    const suppDoc: TenderDoc = { id: "td-s1", project_id: "p-1", filename: "合同.pdf", markdown_path: "/tmp/s1.md" };
+    renderPage({
+      projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
+      auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [suppDoc] } },
+    });
+    expect(screen.getByText("合同.pdf")).toBeInTheDocument();
+    expect(screen.getByText("补充文件（可选）")).toBeInTheDocument();
   });
 });
 

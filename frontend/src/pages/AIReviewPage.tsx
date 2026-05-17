@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Loader2, Plus } from "lucide-react";
+import { Check, ChevronRight, FileText, Loader2, Paperclip, Plus, Upload, X } from "lucide-react";
 import { useState } from "react";
 
 import { useWorkbench } from "@/context/V3WorkbenchContext";
@@ -22,7 +22,7 @@ import { PointInsight } from "@/components/PointInsight";
 export function AIReviewPage() {
   const {
     projects, activeProject, selectedProjectId, setSelectedProjectId,
-    auditInputDocs, finalCheckpoints, auditProgress, retryPointRun,
+    auditInputDocs, finalCheckpoints, auditProgress, retryPointRun, resetProjectDocs,
   } = useWorkbench();
 
   const wf = useProjectWorkflow();
@@ -32,6 +32,7 @@ export function AIReviewPage() {
 
   const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
   const mainDoc = inputDocs?.mainDoc;
+  const supplementaryDocs = inputDocs?.supplementaryDocs ?? [];
   const isRunning = auditProgress != null;
   const pointRuns = auditProgress?.point_runs ?? [];
   const progress = auditProgress ? (auditProgress.total_count > 0 ? (auditProgress.processed_count / auditProgress.total_count) * 100 : 0) : 0;
@@ -165,23 +166,74 @@ export function AIReviewPage() {
             </Card>
             {activeProject && (
               <Card>
-                <CardHeader><CardTitle>第二步：上传招标文件</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  {mainDoc ? (
-                    <div className="flex items-center gap-2 rounded-card border p-3 bg-status-ok-bg">
-                      <Check className="h-4 w-4 text-status-ok" />
-                      <span className="text-sm">{mainDoc.filename}</span>
+                <CardHeader><CardTitle>第二步：上传招标文书</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 主招标文书 */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-text-secondary">主招标文书</label>
+                    {mainDoc ? (
+                      <div className="flex items-center gap-2 rounded-card border border-green-300 bg-green-50 p-3">
+                        <Check className="h-4 w-4 shrink-0 text-green-600" />
+                        <span className="min-w-0 flex-1 truncate text-sm">{mainDoc.filename}</span>
+                        <button type="button" className="text-xs text-red-500 hover:text-red-700" onClick={() => resetProjectDocs(activeProject.id)}>移除</button>
+                      </div>
+                    ) : wf.mainTenderFile ? (
+                      <div className="flex items-center gap-2 rounded-card border p-3">
+                        <FileText className="h-4 w-4 shrink-0 text-text-muted" />
+                        <span className="min-w-0 flex-1 truncate text-sm">{wf.mainTenderFile.name}</span>
+                        <button type="button" className="text-xs text-red-500 hover:text-red-700" onClick={() => wf.setMainTenderFile(null)}>移除</button>
+                      </div>
+                    ) : (
+                      <FileDropzone title="点击选择或拖入招标文书" subtitle="支持 .docx, .pdf" accept=".docx,.pdf" onSelect={(files) => { if (files[0]) wf.setMainTenderFile(files[0]); }} />
+                    )}
+                  </div>
+
+                  {/* 补充文件（主文件选择后才显示） */}
+                  {(wf.mainTenderFile || mainDoc) && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-text-secondary">补充文件（可选）</label>
+                        {(wf.supplementaryFiles.length > 0 || supplementaryDocs.length > 0) && (
+                          <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                            <Paperclip className="h-3 w-3" />
+                            {wf.supplementaryFiles.length + supplementaryDocs.length} 个文件
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-text-muted">变更公告、答疑纪要、补充通知等</p>
+
+                      {/* 已上传的附件 */}
+                      {supplementaryDocs.map((doc) => (
+                        <div key={doc.id} className="flex items-center gap-2 rounded-card border bg-gray-50 px-3 py-2">
+                          <FileText className="h-4 w-4 shrink-0 text-text-muted" />
+                          <span className="min-w-0 flex-1 truncate text-sm">{doc.filename}</span>
+                        </div>
+                      ))}
+
+                      {/* 待上传的附件列表 */}
+                      {wf.supplementaryFiles.map((f, i) => (
+                        <div key={`pending-${i}`} className="flex items-center gap-2 rounded-card border bg-gray-50 px-3 py-2">
+                          <FileText className="h-4 w-4 shrink-0 text-text-muted" />
+                          <span className="min-w-0 flex-1 truncate text-sm">{f.name}</span>
+                          <button type="button" className="text-text-muted hover:text-red-500" onClick={() => wf.removeSupplementaryFile(i)}>
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* 添加更多附件 */}
+                      {!mainDoc && (
+                        <FileDropzone title="添加补充文件" subtitle="支持 .docx, .pdf，可多选" accept=".docx,.pdf" multiple onSelect={(files) => wf.addSupplementaryFiles(files)} />
+                      )}
                     </div>
-                  ) : (
-                    <FileDropzone title="点击选择或拖入招标文件" subtitle="支持 .docx, .pdf" accept=".docx,.pdf" onSelect={(files) => { if (files[0]) wf.setMainTenderFile(files[0]); }} />
                   )}
+
+                  {/* 确认上传按钮 */}
                   {wf.mainTenderFile && !mainDoc && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">{wf.mainTenderFile.name}</span>
-                      <Button size="sm" disabled={wf.uploadingTender} onClick={wf.handleUploadTender}>
-                        {wf.uploadingTender ? <Loader2 className="h-4 w-4 animate-spin" /> : "上传"}
-                      </Button>
-                    </div>
+                    <Button className="w-full" disabled={wf.uploadingTender} onClick={wf.handleUploadTender}>
+                      {wf.uploadingTender ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      确认上传{wf.supplementaryFiles.length > 0 ? `（含 ${wf.supplementaryFiles.length} 个附件）` : ""}
+                    </Button>
                   )}
                   {wf.uploadError && <p className="text-sm text-status-err">{wf.uploadError}</p>}
                 </CardContent>
