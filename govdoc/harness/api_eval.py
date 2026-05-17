@@ -960,6 +960,33 @@ async def run_api_eval(
                     log,
                 )
 
+            # ── Phase 8.5: 存储 Ground Truth ──
+            if manifest.ground_truth:
+                from govdoc.harness.ground_truth import (
+                    parse_gold_checkpoints,
+                    parse_human_workpaper,
+                )
+
+                gt = manifest.ground_truth
+                if gt.gold_checkpoints and gt.gold_checkpoints.exists():
+                    gold_items = parse_gold_checkpoints(gt.gold_checkpoints)
+                    log.log_event(
+                        "ground_truth_checkpoints",
+                        {"count": len(gold_items), "items": gold_items},
+                    )
+                    logger.info("已加载金标准审核点: %d 项", len(gold_items))
+
+                for wp_fixture in gt.human_workpapers:
+                    if wp_fixture.path.exists():
+                        wp_data = parse_human_workpaper(wp_fixture.path)
+                        wp_data["fixture_project_name"] = wp_fixture.project_name
+                        log.log_event("ground_truth_workpaper", wp_data)
+                        logger.info(
+                            "已加载人类工作底稿: %s (%d 个发现)",
+                            wp_fixture.project_name,
+                            len(wp_data.get("findings_text", [])),
+                        )
+
             # ── Phase 9: 语义评估 ──
             logger.info("开始语义评估")
             _run_semantic_evaluations(log, rubric_dir, project_root)

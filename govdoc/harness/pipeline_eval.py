@@ -762,6 +762,9 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
         "workpaper-summarization",
         "workpaper-finding-coverage",
         "workpaper-format-compliance",
+        "extract-gold-coverage",
+        "extract-gold-alignment",
+        "audit-ground-truth",
     ]
 
     for dim in dimensions:
@@ -807,6 +810,24 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
                         "findings_verdicts", []
                     )
                     evidence["workpaper_findings_count"] = wp_payload.get("findings_count", 0)
+            if dim.startswith("extract-gold-") and extract_rows:
+                gt_cp_events = log.query(
+                    "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_checkpoints'",
+                    (log._run_id,),
+                )
+                if gt_cp_events:
+                    gt_data = json.loads(gt_cp_events[-1]["payload"])
+                    evidence["gold_checkpoints"] = gt_data.get("items", [])
+                    evidence["gold_count"] = gt_data.get("count", 0)
+            if dim == "audit-ground-truth" and audit_rows:
+                gt_wp_events = log.query(
+                    "SELECT payload FROM _events WHERE run_id=? AND event_type='ground_truth_workpaper'",
+                    (log._run_id,),
+                )
+                if gt_wp_events:
+                    evidence["human_workpapers"] = [
+                        json.loads(e["payload"]) for e in gt_wp_events
+                    ]
             if dim == "audit-json-correctness" and audit_rows:
                 assembled_findings = []
                 for ar in audit_rows:
