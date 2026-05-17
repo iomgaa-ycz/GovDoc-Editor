@@ -1,7 +1,6 @@
 import "@fontsource-variable/inter";
 import "@fontsource/geist-mono/400.css";
 import "./globals.css";
-import "./styles.css";
 
 import React from "react";
 import ReactDOM from "react-dom/client";
