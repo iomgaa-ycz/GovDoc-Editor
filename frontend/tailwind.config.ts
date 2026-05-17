@@ -19,7 +19,7 @@ const config: Config = {
       },
       fontFamily: { sans: ["Inter", "system-ui", "sans-serif"], mono: ["Geist Mono", "monospace"] },
       borderRadius: { btn: "6px", card: "8px", modal: "12px" },
-      width: { sidebar: "240px" },
+      spacing: { sidebar: "240px" },
       boxShadow: { card: "0 1px 3px rgba(0,0,0,0.06)", modal: "0 8px 32px rgba(0,0,0,0.12)" },
     },
   },

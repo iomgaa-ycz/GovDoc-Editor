@@ -1,0 +1,19 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true
+    },
+    "contextOptions": {
+      "viewport": { "width": 1440, "height": 900 },
+      "ignoreHTTPSErrors": true
+    }
+  },
+  "outputDir": "e2e/screenshots",
+  "outputMode": "stdout",
+  "allowUnrestrictedFileAccess": true,
+  "timeouts": {
+    "action": 10000,
+    "navigation": 30000
+  }
+}

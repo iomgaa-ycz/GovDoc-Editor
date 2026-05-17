@@ -72,7 +72,7 @@ deploy_backend() {
     # 1. Git 拉取
     log "  [1/5] git pull ($branch)..."
     ssh "$BACKEND_HOST" "
-        ${PROXY_ENV}
+        ${PROXY_ENV} && \
         cd ~/Project/${dir} && \
         git fetch origin && \
         git checkout ${branch} && \
@@ -83,8 +83,8 @@ deploy_backend() {
     # 2. 安装依赖
     log "  [2/5] pip install..."
     ssh "$BACKEND_HOST" "
-        ${PROXY_ENV}
-        ${CONDA_INIT}
+        ${PROXY_ENV} && \
+        ${CONDA_INIT} && \
         cd ~/Project/${dir} && pip install -e . --quiet
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 依赖已安装"
@@ -92,7 +92,7 @@ deploy_backend() {
     # 3. 数据库迁移
     log "  [3/5] alembic upgrade..."
     ssh "$BACKEND_HOST" "
-        ${CONDA_INIT}
+        ${CONDA_INIT} && \
         cd ~/Project/${dir} && alembic upgrade head
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 数据库已迁移"
