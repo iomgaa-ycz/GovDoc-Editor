@@ -68,9 +68,9 @@ ehthumbs.db
 !deploy/.env.runtime.example
 
 # ------------------------------
-# Claude Code worktrees
+# Claude Code（全部排除）
 # ------------------------------
-.claude/worktrees/
+.claude/
 
 # ------------------------------
 # Conda (from template)
@@ -163,7 +163,6 @@ docs/_build/
 tools/wiki-site/app/node_modules/
 tools/wiki-site/app/src/pages/
 tools/wiki-site/app/public/harness.db
-.claude/skills/
 real_data/
 
 # Harness 运行结果（每次重新生成）
