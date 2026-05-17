@@ -20,7 +20,8 @@
   qmd-py（混合检索引擎：SQLite + sqlite-vec + FTS5 + RRF + Reranker）
   ```
 - **后端**: Python 3.11 / FastAPI / SQLModel / SQLite / docxtpl / Pydantic v2 / Alembic
-- **前端**: Vite + React + TypeScript（MVP 可用 Swagger UI 替代）
+- **前端**: Vite + React + TypeScript + Tailwind CSS + shadcn/ui
+- **前端 E2E 测试**: `@playwright/cli`（**必须**使用此包，源自 [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli)；**禁止**使用 Python 版 `playwright`、`pytest-playwright` 或其他 Playwright 变体）
 - **版本管理**: Git（当前分支 `master`，开发分支约定 `feat/v3-p0-cleanup`）
 - **Conda 环境**: `govdoc-auditor-v3` (Python 3.11)
 - **LLM 后端**: 默认 glm-5.1（经私有网关 `http://110.42.53.85:11098`），经 Claude Agent SDK 走标准 `ANTHROPIC_*` env 自动识别
@@ -94,22 +95,20 @@ cd frontend && npx vite --host 0.0.0.0 --port 5173
 - 前端: http://localhost:5173
 - 后端 API: http://localhost:8000/docs（Swagger UI，MVP 可直接作为"前端"使用）
 
-### 2.3.1 访问部署环境（4090-server）
+### 2.3.1 访问部署环境
 
-部署目标为 4090-server (`yuchengzhang@100.83.164.94`)，通过 Tailscale 组网。
+后端部署在 4090-server（`yuchengzhang@100.83.164.94`，Tailscale），前端部署在律师服务器（`ubuntu@100.70.102.30`，公网 `175.178.131.134`）。
 
 > [!IMPORTANT]
-> 本地开发机需设置 **无代理** 才能直连 4090-server 的 HTTP 端口：
-> ```bash
-> export NO_PROXY=100.83.164.94
-> export no_proxy=100.83.164.94
-> ```
-> 或在 curl/httpx 命令前添加：`NO_PROXY=100.83.164.94`
+> - 本地开发机需设置 **无代理** 才能直连：`export NO_PROXY=100.83.164.94,100.70.102.30`
+> - 4090 上 git/pip 需要代理（mihomo）：`export http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890`
 
-| 环境 | 后端 | 前端 | 用途 |
-|------|------|------|------|
-| testing | `http://100.83.164.94:8001/docs` | `http://100.83.164.94:5174` | master 分支自动部署 |
-| stable | `http://100.83.164.94:8000/docs` | `http://100.83.164.94:5175` | tag `v*` 手动发布 |
+| 环境 | 后端 (4090) | 前端 (律师服务器) | 分支 | 用途 |
+|------|------------|-----------------|------|------|
+| testing | `http://100.83.164.94:8001/docs` | `http://175.178.131.134:8080` | master | 工程师验证 |
+| stable | `http://100.83.164.94:8000/docs` | `http://175.178.131.134` | stable | 律师正式使用 |
+
+**部署命令**：`bash scripts/deploy.sh --target <testing\|stable>`
 
 ### 2.4 数据库迁移（Alembic）
 
@@ -154,6 +153,12 @@ source activate govdoc-auditor-v3 && python -m pytest tests/integration/ -v
 
 # 覆盖率
 source activate govdoc-auditor-v3 && python -m pytest tests/ --cov=govdoc --cov-report=term-missing
+
+# 前端单元测试
+cd frontend && npm run test
+
+# 前端 E2E 测试（使用 @playwright/cli，禁止使用 Python playwright）
+cd frontend && npx playwright test
 ```
 
 ## 3. 标准作业程序 (Standard Operating Procedure)
@@ -204,6 +209,7 @@ source activate govdoc-auditor-v3 && python -m pytest tests/ --cov=govdoc --cov-
 | ✅ 领域模型单一真相 | 业务领域 pydantic 只定义在 `govdoc/schemas/`，不依赖外部 contracts 包 |
 | ✅ skills/ 与 agents/ 位置 | 放**项目根**（不放 `.claude/` 和 `govdoc/` 包内）；`.claude/skills` 是 symlink → `skills/`（EvoSkill 路径兼容，见 `INTEGRATION_ISSUES.md` ISSUE-001） |
 | ✅ Scrivai 缺口收口 | scrivai 与 design 的缺口统一收在 `govdoc/runtime.py`，**不得**改成 V2 风格 |
+| ❌ Python playwright | **禁止**安装或使用 `playwright` (Python)、`pytest-playwright`；前端 E2E 测试**必须**使用 `@playwright/cli`（npm，源自 [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli)） |
 
 ### 4.2 代码开发规范 (Code Style)
 
