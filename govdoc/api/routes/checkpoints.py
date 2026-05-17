@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import UpdateCheckpointRequest
 from govdoc.db.models import CheckpointFinal
 
@@ -91,7 +92,17 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
+            old_payload = final.payload_json
             final.payload_json = payload.payload_json
+            log_activity(
+                session,
+                actor=payload.modified_by,
+                action="update_checkpoint",
+                target_type="CheckpointFinal",
+                target_id=checkpoint_id,
+                before={"payload_json": old_payload},
+                after={"payload_json": payload.payload_json},
+            )
             session.add(final)
             session.commit()
             return _serialize_final(final)
@@ -104,6 +115,14 @@ async def delete_checkpoint(checkpoint_id: str) -> Response:
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
+            log_activity(
+                session,
+                actor="system",
+                action="delete_checkpoint",
+                target_type="CheckpointFinal",
+                target_id=checkpoint_id,
+                before={"payload_json": final.payload_json},
+            )
             session.delete(final)
             session.commit()
             return Response(status_code=204)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import CreateProjectRequest
 from govdoc.db.models import Project, TenderDoc
 from govdoc.runtime import get_document_store
@@ -94,6 +95,14 @@ async def upload_tender_doc(project_id: str, file: UploadFile = File(...)):
             qmd_collection=f"project_{project_id}_tender",
         )
         session.add(tender)
+        log_activity(
+            session,
+            actor="system",
+            action="upload_tender_doc",
+            target_type="TenderDoc",
+            target_id=tender.id,
+            after={"filename": tender.filename, "project_id": project_id},
+        )
         session.commit()
         session.refresh(tender)
         return {
