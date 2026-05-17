@@ -4,23 +4,24 @@ async page => {
 
   // Step 1: 进入 AI 审核页面
   await page.goto(BASE + '/ai-review');
-  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle');
   console.log('Step 1: 进入 AI 审核页面');
   await page.screenshot({ path: 'e2e/screenshots/05-audit-page.png' });
 
-  // Step 2: 创建新项目
+  // Step 2: 创建新项目 — 等待步骤2 UI 出现确认项目创建成功
   const projName = 'E2E-从化医院-' + Date.now().toString().slice(-6);
   await page.getByPlaceholder('输入项目名称').fill(projName);
   await page.getByRole('button', { name: /创建/ }).click();
-  await page.waitForTimeout(2000);
+  await page.getByText('主招标文书').waitFor({ timeout: 10000 });
   console.log('Step 2: 创建项目 ' + projName);
 
   // Step 3: 上传招标文件（单主文件）
   const fileInput = page.locator("input[type='file']").first();
+  await fileInput.waitFor({ state: 'attached', timeout: 10000 });
   await fileInput.setInputFiles(TENDER_PDF);
-  await page.waitForTimeout(500);
 
   const uploadBtn = page.getByRole('button', { name: /确认上传/ });
+  await uploadBtn.waitFor({ timeout: 5000 });
   await uploadBtn.click();
   console.log('Step 3: 上传招标文件');
 
@@ -53,7 +54,6 @@ async page => {
   await page.screenshot({ path: 'e2e/screenshots/05-audit-running.png' });
 
   // Step 7: 等待至少一个审核点完成（最长 60 分钟）
-  // 注意：不能用 .bg-status-ok，会匹配到侧边栏"系统正常运行"绿点。用审核要点列表内的已完成状态。
   console.log('Step 7: 等待审核点完成（最长 60 分钟）...');
   const completedBadge = page.locator('main').getByText('已完成').first();
   await completedBadge.waitFor({ timeout: 3600000 });
