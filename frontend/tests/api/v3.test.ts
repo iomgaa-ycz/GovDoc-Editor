@@ -276,6 +276,9 @@ describe("getAuditRunProgress() — GET /api/v1/audit/runs/{id}/progress", () =>
           status: "completed",
           error: null,
           finding_json: null,
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
         },
       ],
     };

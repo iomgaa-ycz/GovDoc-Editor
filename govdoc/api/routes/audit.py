@@ -11,7 +11,7 @@ from sqlmodel import select
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import AuditRunProgressResponse, CreateAuditRunRequest
-from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, TenderDoc
+from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
 logger = logging.getLogger(__name__)
@@ -136,10 +136,20 @@ async def list_audit_runs(project_id: str | None = None):
         if project_id:
             stmt = stmt.where(AuditRun.project_id == project_id)
         runs = session.exec(stmt).all()
+
+        project_ids = {r.project_id for r in runs}
+        projects = (
+            session.exec(select(Project).where(Project.id.in_(project_ids))).all()
+            if project_ids
+            else []
+        )
+        project_names = {p.id: p.name for p in projects}
+
         return [
             {
                 "id": r.id,
                 "project_id": r.project_id,
+                "project_name": project_names.get(r.project_id, ""),
                 "tender_doc_id": r.tender_doc_id,
                 "supplementary_doc_ids": _load_supplementary_doc_ids(r.supplementary_doc_ids),
                 "status": r.status,
@@ -158,9 +168,11 @@ async def get_audit_run(audit_run_id: str):
         run = session.get(AuditRun, audit_run_id)
         if run is None:
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        project = session.get(Project, run.project_id)
         return {
             "id": run.id,
             "project_id": run.project_id,
+            "project_name": project.name if project else "",
             "tender_doc_id": run.tender_doc_id,
             "supplementary_doc_ids": _load_supplementary_doc_ids(run.supplementary_doc_ids),
             "status": run.status,
@@ -193,6 +205,9 @@ async def get_audit_run_progress(audit_run_id: str):
                     "status": pr.status,
                     "error": pr.error,
                     "finding_json": pr.finding_json,
+                    "started_at": str(pr.started_at) if pr.started_at else None,
+                    "completed_at": str(pr.completed_at) if pr.completed_at else None,
+                    "current_phase": pr.current_phase,
                 }
                 for pr in point_runs
             ],

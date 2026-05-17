@@ -139,13 +139,21 @@ def _build_hooks() -> Any:
 
 
 def build_gov_extractor_pes(
-    *, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None
+    *,
+    workspace: Any,
+    runtime_context: dict[str, Any],
+    hooks: Any = None,
+    extra_hooks: list[Any] | None = None,
 ) -> GovDocExtractorPES:
+    mgr = hooks or _build_hooks()
+    if extra_hooks:
+        for h in extra_hooks:
+            mgr.register(h)
     return GovDocExtractorPES(
         config=get_gov_extractor_config(),
         model=get_model_config(),
         workspace=workspace,
-        hooks=hooks or _build_hooks(),
+        hooks=mgr,
         trajectory_store=get_trajectory_store(),
         runtime_context=runtime_context,
         prompt_manager=get_prompt_manager(),
@@ -153,13 +161,21 @@ def build_gov_extractor_pes(
 
 
 def build_gov_auditor_pes(
-    *, workspace: Any, runtime_context: dict[str, Any], hooks: Any = None
+    *,
+    workspace: Any,
+    runtime_context: dict[str, Any],
+    hooks: Any = None,
+    extra_hooks: list[Any] | None = None,
 ) -> GovDocAuditorPES:
+    mgr = hooks or _build_hooks()
+    if extra_hooks:
+        for h in extra_hooks:
+            mgr.register(h)
     return GovDocAuditorPES(
         config=get_gov_auditor_config(),
         model=get_model_config(),
         workspace=workspace,
-        hooks=hooks or _build_hooks(),
+        hooks=mgr,
         trajectory_store=get_trajectory_store(),
         runtime_context=runtime_context,
         prompt_manager=get_prompt_manager(),

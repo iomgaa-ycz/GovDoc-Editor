@@ -2,6 +2,8 @@ import type {
   AuditRun,
   AuditRunProgress,
   CheckpointItem,
+  Comment,
+  DashboardStats,
   Project,
   RuleSource,
   RuleUploadResult,
@@ -213,4 +215,42 @@ export function finalizeWorkpaper(
 export function getWorkpaperFinalDocxUrl(auditRunId: string): string {
   const base = resolveBaseUrl();
   return `${base}/api/v1/audit/runs/${auditRunId}/workpaper/final/docx`;
+}
+
+// ── Comments ──
+
+export function listComments(targetType: string, targetId: string): Promise<Comment[]> {
+  return request(`/api/v1/comments?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`);
+}
+
+export function createComment(
+  targetType: string,
+  targetId: string,
+  author: string,
+  text: string,
+): Promise<Comment> {
+  return request("/api/v1/comments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target_type: targetType, target_id: targetId, author, text }),
+  });
+}
+
+export function deleteComment(commentId: string): Promise<void> {
+  return request(`/api/v1/comments/${commentId}`, { method: "DELETE" });
+}
+
+// ── Dashboard ──
+
+export function getDashboardStats(): Promise<DashboardStats> {
+  return request("/api/v1/dashboard/stats");
+}
+
+// ── Extract preview ──
+
+export function getExtractRunPreview(
+  ruleId: string,
+  runId: string,
+): Promise<{ run_id: string; status: string; extracted_count: number }> {
+  return request(`/api/v1/rules/${ruleId}/extract-runs/${runId}/preview`);
 }

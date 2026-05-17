@@ -400,7 +400,18 @@ async def _run_single_point(
             phase_outcomes=replay.phase_outcomes,
         )
     else:
-        pes = build_gov_auditor_pes(workspace=workspace, runtime_context=runtime_context)
+        from govdoc.pipelines.phase_progress_hook import PhaseProgressHook
+        from govdoc.api.deps import get_db_session as _get_progress_session
+
+        progress_hook = PhaseProgressHook(
+            point_run_id=point_run.id,
+            session_factory=_get_progress_session,
+        )
+        pes = build_gov_auditor_pes(
+            workspace=workspace,
+            runtime_context=runtime_context,
+            extra_hooks=[progress_hook],
+        )
 
     files_desc = "data/tender.md"
     if supplementary_docs:
@@ -682,6 +693,8 @@ async def run_audit(
 
             checkpoint = GovCheckpoint.model_validate_json(checkpoint_row.payload_json)
             point_run.status = "running"
+            point_run.started_at = datetime.utcnow()
+            point_run.current_phase = None
             session.add(point_run)
             session.commit()
 
