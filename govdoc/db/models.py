@@ -59,6 +59,8 @@ class ExtractRun(SQLModel, table=True):
     error: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     heartbeat_at: datetime | None = None
+    started_at: datetime | None = None
+    current_phase: str | None = None
 
 
 class AuditRun(SQLModel, table=True):

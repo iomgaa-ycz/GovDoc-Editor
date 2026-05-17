@@ -1,4 +1,4 @@
-import { ArrowLeft, FileSpreadsheet, Pencil, Search, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Check, Clock, FileSpreadsheet, Loader2, Pencil, Search, Sparkles, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 
 import { useWorkbench } from "@/context/V3WorkbenchContext";
@@ -20,7 +20,7 @@ const SEVERITY_VARIANT: Record<string, "err" | "warn" | "default"> = { critical:
 const SEVERITY_LABEL: Record<string, string> = { critical: "严重", major: "重要", minor: "一般" };
 
 export function AuditLibraryPage() {
-  const { checkpoints, extractStatus, extractError, uploadRuleAndExtract, updateCheckpoint, deleteCheckpoint, importCheckpointFile } = useWorkbench();
+  const { checkpoints, extractStatus, extractError, extractCurrentPhase, uploadRuleAndExtract, updateCheckpoint, deleteCheckpoint, importCheckpointFile } = useWorkbench();
 
   const [mode, setMode] = useState<"list" | "extract" | "import">("list");
   const [search, setSearch] = useState("");
@@ -134,10 +134,8 @@ export function AuditLibraryPage() {
                     <FileDropzone title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(f) => setUploadFile(f[0] ?? null)} />
                   )}
                 </div>
-                {extractStatus && extractStatus !== "draft_ready" && (
-                  <div className={cn("rounded-btn p-3 text-sm", extractStatus === "failed" ? "bg-status-err-bg text-status-err" : "bg-status-info-bg text-status-info")}>
-                    {extractStatus === "pending" ? "等待处理..." : extractStatus === "running" ? "正在提取审核点..." : extractError ?? "处理失败"}
-                  </div>
+                {extractStatus === "failed" && (
+                  <div className="rounded-btn bg-status-err-bg p-3 text-sm text-status-err">{extractError ?? "处理失败"}</div>
                 )}
                 {extractStatus === "draft_ready" && (
                   <div className="rounded-btn bg-status-ok-bg p-3 text-sm text-status-ok">提取完成，审核点已入库。</div>
@@ -147,6 +145,10 @@ export function AuditLibraryPage() {
                 </Button>
               </CardContent>
             </Card>
+            {/* 提取进度（running 时显示） */}
+            {(extractStatus === "pending" || extractStatus === "running") && (
+              <ExtractProgressCard currentPhase={extractCurrentPhase} />
+            )}
             <Card>
               <CardHeader><CardTitle>提取说明</CardTitle></CardHeader>
               <CardContent>
@@ -317,5 +319,57 @@ export function AuditLibraryPage() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+const EXTRACT_STEPS = [
+  { label: "分析法规结构", phase: "plan" },
+  { label: "逐条提取审查要点", phase: "execute" },
+  { label: "汇总并入库", phase: "summarize" },
+] as const;
+
+const PHASE_ORDER: Record<string, number> = { plan: 0, execute: 1, summarize: 2 };
+
+function ExtractProgressCard({ currentPhase }: { currentPhase: string | null }) {
+  const phaseIdx = currentPhase ? (PHASE_ORDER[currentPhase] ?? -1) : -1;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>提取进度</CardTitle></CardHeader>
+      <CardContent className="space-y-0">
+        {EXTRACT_STEPS.map((step, i) => {
+          const isLast = i === EXTRACT_STEPS.length - 1;
+          const done = phaseIdx > i;
+          const active = phaseIdx === i;
+
+          return (
+            <div key={step.phase} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div className={cn(
+                  "flex h-[10px] w-[10px] shrink-0 items-center justify-center rounded-full",
+                  done && "bg-status-ok",
+                  active && "bg-accent",
+                  !done && !active && "border-2 border-gray-300",
+                )}>
+                  {done && <Check className="h-2.5 w-2.5 text-white" />}
+                  {active && <Loader2 className="h-2.5 w-2.5 text-white animate-spin" />}
+                </div>
+                {!isLast && <div className={cn("w-0.5 h-7", done ? "bg-status-ok" : "bg-gray-200")} />}
+              </div>
+              <div className="pb-3">
+                <p className={cn("text-[13px] font-medium",
+                  done && "text-text-primary",
+                  active && "text-accent",
+                  !done && !active && "text-text-muted",
+                )}>{step.label}</p>
+                <p className="text-[11px] text-text-muted">
+                  {done ? "已完成" : active ? "正在处理中..." : "等待中"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

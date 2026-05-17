@@ -66,7 +66,7 @@ function defaultValue(): WorkbenchContextValue {
     apiConnected: true, ruleSources: [], activeRuleSource: undefined,
     selectedRuleSourceId: null, setSelectedRuleSourceId: vi.fn(),
     checkpoints: [], finalCheckpoints: [],
-    extractingRuleSourceId: null, extractStatus: null, extractError: null,
+    extractingRuleSourceId: null, extractStatus: null, extractError: null, extractCurrentPhase: null,
     uploadRuleAndExtract: vi.fn(), pollExtractRun: vi.fn(),
     projects: [], activeProject: undefined,
     selectedProjectId: null, setSelectedProjectId: vi.fn(),
