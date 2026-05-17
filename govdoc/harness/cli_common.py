@@ -74,7 +74,7 @@ def update_run_status(db_path: str, run_id: str, status: str) -> None:
         conn.close()
 
 
-def setup_harness_cli(db_path: str, run_id_prefix: str) -> "tuple[str, SqliteHandler]":
+def setup_harness_cli(db_path: str, run_id_prefix: str) -> tuple[str, logging.Handler]:
     """配置 harness CLI 公共设施：logging + signal handler + sqlite handler。
 
     参数:

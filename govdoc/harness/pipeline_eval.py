@@ -7,20 +7,16 @@ import asyncio
 import json
 import logging
 import os
-import signal
-import sqlite3
 import sys
 import time
 import uuid
 from pathlib import Path
-from types import FrameType
-from typing import Any, NoReturn
+from typing import Any
 
 from sqlmodel import select
 
-from govdoc.harness.handler import SqliteHandler
 from govdoc.harness.judge import HarnessJudge, Verdict
-from govdoc.harness.log import HarnessLog, _now_iso
+from govdoc.harness.log import HarnessLog
 from govdoc.harness.schemas import create_all_tables
 
 logger = logging.getLogger(__name__)
@@ -890,51 +886,6 @@ def _run_semantic_evaluations(log: HarnessLog, rubric_dir: str, project_root: st
             logger.error("语义评估 %s 失败:\n%s", dim, tb)
 
 
-def _init_run_tables(conn: sqlite3.Connection) -> None:
-    """初始化 CLI 异常处理所需的固定表。"""
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS _runs (
-            run_id TEXT PRIMARY KEY,
-            git_sha TEXT,
-            started_at TEXT,
-            finished_at TEXT,
-            heartbeat_at TEXT,
-            config JSON,
-            status TEXT DEFAULT 'running'
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS _events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id TEXT,
-            timestamp TEXT,
-            event_type TEXT,
-            payload JSON
-        )
-    """)
-    conn.commit()
-
-
-def _update_run_status(db_path: str, run_id: str, status: str) -> None:
-    """确保运行记录存在，并更新最终状态。"""
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    try:
-        _init_run_tables(conn)
-        now = _now_iso()
-        conn.execute(
-            "INSERT OR IGNORE INTO _runs (run_id, started_at, status) VALUES (?, ?, ?)",
-            (run_id, now, "running"),
-        )
-        conn.execute(
-            "UPDATE _runs SET finished_at = ?, status = ? WHERE run_id = ?",
-            (now, status, run_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def _parse_args() -> argparse.Namespace:
     """解析 L1 管道评估 CLI 参数。"""
     parser = argparse.ArgumentParser(description="L1 管道 harness 评估")
@@ -947,22 +898,11 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """运行 L1 管道评估 CLI，并记录致命异常与中断信号。"""
+
+    from govdoc.harness.cli_common import setup_harness_cli, update_run_status
+
     args = _parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-
-    run_id = f"L1-{uuid.uuid4().hex[:8]}"
-    root_logger = logging.getLogger()
-    sqlite_handler = SqliteHandler(db_path=args.db_path, run_id=run_id)
-    root_logger.addHandler(sqlite_handler)
-
-    def _handle_signal(signum: int, frame: FrameType | None) -> NoReturn:
-        """将进程中断写入运行记录后退出。"""
-        del frame
-        _update_run_status(args.db_path, run_id, "interrupted")
-        raise SystemExit(128 + signum)
-
-    signal.signal(signal.SIGTERM, _handle_signal)
-    signal.signal(signal.SIGINT, _handle_signal)
+    run_id, sqlite_handler = setup_harness_cli(args.db_path, "L1")
 
     try:
         completed_run_id = asyncio.run(
@@ -977,10 +917,10 @@ def main() -> None:
         logger.info("L1 完成, run_id=%s", completed_run_id)
     except Exception:
         logger.critical("L1 管道评估发生致命异常", exc_info=True)
-        _update_run_status(args.db_path, run_id, "crashed")
+        update_run_status(args.db_path, run_id, "crashed")
         sys.exit(1)
     finally:
-        root_logger.removeHandler(sqlite_handler)
+        logging.getLogger().removeHandler(sqlite_handler)
         sqlite_handler.close()
 
 
