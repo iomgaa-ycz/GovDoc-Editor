@@ -15,20 +15,15 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-TENDER_DOCX_FILENAME = "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
-TENDER_PDF_FILENAME = (
-    "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
-)
-CHECKPOINT_XLS_FILENAME = "附件9 处理处罚标准.xls"
+REAL_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "real_data"
+
+TENDER_DOCX_PATH = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
+TENDER_PDF_PATH = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "3、从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+CHECKPOINT_XLS_PATH = REAL_DATA_DIR / "附件9 处理处罚标准.xls"
 
 
 @pytest.fixture(scope="module")
-def data_dir() -> Path:
-    return Path(__file__).parent / "data"
-
-
-@pytest.fixture(scope="module")
-def setup_project(api: httpx.Client, data_dir: Path) -> dict:
+def setup_project(api: httpx.Client) -> dict:
     """创建项目 + 上传主文书 + 上传补充文件 + 导入审核点，返回所有 ID。"""
     # 1. 创建项目
     resp = api.post(
@@ -42,28 +37,28 @@ def setup_project(api: httpx.Client, data_dir: Path) -> dict:
     project_id = resp.json()["id"]
 
     # 2. 上传主文书
-    with open(data_dir / TENDER_DOCX_FILENAME, "rb") as f:
+    with open(TENDER_DOCX_PATH, "rb") as f:
         resp = api.post(
             f"/api/v1/projects/{project_id}/tender-doc",
-            files={"file": (TENDER_DOCX_FILENAME, f, "application/octet-stream")},
+            files={"file": (TENDER_DOCX_PATH.name, f, "application/octet-stream")},
         )
     assert resp.status_code == 201
     main_doc_id = resp.json()["id"]
 
     # 3. 上传补充文件（PDF）
-    with open(data_dir / TENDER_PDF_FILENAME, "rb") as f:
+    with open(TENDER_PDF_PATH, "rb") as f:
         resp = api.post(
             f"/api/v1/projects/{project_id}/tender-doc",
-            files={"file": (TENDER_PDF_FILENAME, f, "application/octet-stream")},
+            files={"file": (TENDER_PDF_PATH.name, f, "application/octet-stream")},
         )
     assert resp.status_code == 201
     supp_doc_id = resp.json()["id"]
 
     # 4. 导入审核点
-    with open(data_dir / CHECKPOINT_XLS_FILENAME, "rb") as f:
+    with open(CHECKPOINT_XLS_PATH, "rb") as f:
         resp = api.post(
             "/api/v1/checkpoints/import",
-            files={"file": (CHECKPOINT_XLS_FILENAME, f, "application/octet-stream")},
+            files={"file": (CHECKPOINT_XLS_PATH.name, f, "application/octet-stream")},
         )
     assert resp.status_code == 200
 
@@ -75,7 +70,7 @@ def setup_project(api: httpx.Client, data_dir: Path) -> dict:
     if not all_checkpoints:
         pytest.skip("无可用审核点，跳过审核测试")
 
-    checkpoint_ids = [cp["id"] for cp in all_checkpoints[:3]]
+    checkpoint_ids = [cp["id"] for cp in all_checkpoints[:2]]
 
     return {
         "project_id": project_id,

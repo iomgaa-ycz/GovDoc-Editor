@@ -26,6 +26,10 @@ export interface ProjectWorkflow {
   supplementaryFiles: File[];
   /** 更新待上传附件列表 */
   setSupplementaryFiles: (files: File[]) => void;
+  /** 追加一批附件到待上传列表 */
+  addSupplementaryFiles: (files: File[]) => void;
+  /** 按索引移除一个待上传附件 */
+  removeSupplementaryFile: (index: number) => void;
   /** 正在调用 createProject */
   creating: boolean;
   /** 正在调用 uploadTenderDoc */
@@ -47,6 +51,14 @@ export function useProjectWorkflow(): ProjectWorkflow {
   const [supplementaryFiles, setSupplementaryFiles] = useState<File[]>([]);
   const [uploadingTender, setUploadingTender] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  function addSupplementaryFiles(files: File[]): void {
+    setSupplementaryFiles((prev) => [...prev, ...files]);
+  }
+
+  function removeSupplementaryFile(index: number): void {
+    setSupplementaryFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function setMainTenderFile(f: File | null) {
     setMainTenderFileRaw(f);
@@ -91,6 +103,8 @@ export function useProjectWorkflow(): ProjectWorkflow {
     setMainTenderFile,
     supplementaryFiles,
     setSupplementaryFiles,
+    addSupplementaryFiles,
+    removeSupplementaryFile,
     creating,
     uploadingTender,
     uploadError,

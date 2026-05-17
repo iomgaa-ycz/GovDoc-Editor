@@ -74,6 +74,8 @@ export interface WorkbenchContextValue {
 
   // Tender docs (per project)
   auditInputDocs: Record<string, AuditInputDocs>;
+  /** 清空指定项目的已上传文档状态（主文件+附件），回退到上传步骤 */
+  resetProjectDocs: (projectId: string) => void;
   /** Deprecated compatibility alias for the current project's main tender doc. */
   tenderDocs: Record<string, TenderDoc>;
 
@@ -345,6 +347,14 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     return { mainDoc, supplementaryDocs };
   }
 
+  function resetProjectDocs(projectId: string): void {
+    setAuditInputDocs((prev) => {
+      const next = { ...prev };
+      delete next[projectId];
+      return next;
+    });
+  }
+
   // ── Audit runs ──
 
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -573,6 +583,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     uploadTenderDoc: handleUploadTenderDoc,
     uploadAuditInputDocs: handleUploadAuditInputDocs,
     auditInputDocs,
+    resetProjectDocs,
     tenderDocs,
     auditRuns,
     activeAuditRun,

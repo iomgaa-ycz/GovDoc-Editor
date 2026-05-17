@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-17 04:31 UTC
+> 自动生成，更新时间：2026-05-17 16:12 UTC
 
 ## design (7)
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
@@ -16,7 +16,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (20)
+## plan (24)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -24,15 +24,19 @@
 - [2026-05-15-l2-final-fixes](plans/2026-05-15-l2-final-fixes.md) `plan:2026-05-15-l2-final-fixes`
 - [2026-05-15-l2-harness-final-two-fixes](plans/2026-05-15-l2-harness-final-two-fixes.md) `plan:2026-05-15-l2-harness-final-two-fixes`
 - [2026-05-16-harness-ground-truth-eval](plans/2026-05-16-harness-ground-truth-eval.md) `plan:2026-05-16-harness-ground-truth-eval`
+- [2026-05-17-frontend-redesign-backend-gaps](plans/2026-05-17-frontend-redesign-backend-gaps.md) `plan:2026-05-17-frontend-redesign-backend-gaps`
+- [2026-05-17-frontend-tailwind-refactor](plans/2026-05-17-frontend-tailwind-refactor.md) `plan:2026-05-17-frontend-tailwind-refactor`
+- [2026-05-17-issue-17-multifile-upload](plans/2026-05-17-issue-17-multifile-upload.md) `plan:2026-05-17-issue-17-multifile-upload`
 - [2026-05-17-pre-beta-code-cleanup](plans/2026-05-17-pre-beta-code-cleanup.md) `plan:2026-05-17-pre-beta-code-cleanup`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`
 - [E2E 测试清单](plans/e2e-test-checklist.md) `plan:e2e-test-checklist`
-- [L2 Harness Ground Truth 评估维度](plans/harness-ground-truth-eval.md) `plan:harness-ground-truth-eval`
+- [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
 - [Wiki-Site 渲染站点搭建实施计划](plans/wiki-site-setup-impl.md) `plan:wiki-site-setup-impl`
-- [内测前代码清理实施计划](plans/pre-beta-code-cleanup.md) `plan:pre-beta-code-cleanup`
 - [前端契约测试基础设施计划](plans/frontend-contract-tests.md) `plan:frontend-contract-tests`
+- [前端重构：Tailwind CSS + shadcn/ui](plans/frontend-tailwind-refactor.md) `plan:frontend-tailwind-refactor`
+- [前端重设计后端接口补全](plans/frontend-redesign-backend-gaps.md) `plan:frontend-redesign-backend-gaps`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
