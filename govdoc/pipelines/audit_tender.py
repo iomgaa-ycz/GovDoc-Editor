@@ -663,7 +663,7 @@ async def run_audit(
         replay=replay_dir is not None,
     )
 
-    point_timeout_s = int(os.environ.get("GOVDOC_POINT_TIMEOUT", "900"))
+    point_timeout_s = int(os.environ.get("GOVDOC_POINT_TIMEOUT", str(cfg.audit.point_timeout_s)))
 
     try:
         # 逐个 AuditPointRun 审核，每个点独立 workspace

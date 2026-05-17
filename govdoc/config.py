@@ -25,8 +25,6 @@ class GovDocEnvOverrides(BaseSettings):
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    host: str = "0.0.0.0"
-    port: int = 8000
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
     ocr_base_url: str | None = None
@@ -69,6 +67,16 @@ class HarnessConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     db_path: str = "./results/harness.db"
+    judge_model: str = "glm-5.1"
+    judge_base_url: str = "http://110.42.53.85:11098/v1"
+
+
+class AuditConfig(BaseModel):
+    """审核管道配置。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    point_timeout_s: int = 900
 
 
 class GovDocConfig(BaseModel):
@@ -80,6 +88,7 @@ class GovDocConfig(BaseModel):
     workspace: WorkspaceConfig
     evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
     harness: HarnessConfig = Field(default_factory=HarnessConfig)
+    audit: AuditConfig = Field(default_factory=AuditConfig)
 
     @property
     def project_root(self) -> Path:

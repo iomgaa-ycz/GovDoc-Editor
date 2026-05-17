@@ -1,6 +1,4 @@
 app:
-  host: 0.0.0.0
-  port: 8000
   storage_root: ./data/storage
   database_url: sqlite:///./data/app.sqlite
   ocr_base_url: null
@@ -27,4 +25,9 @@ evolution:
 
 harness:
   db_path: ./results/harness.db
+  judge_model: "glm-5.1"
+  judge_base_url: "http://110.42.53.85:11098/v1"
+
+audit:
+  point_timeout_s: 900
 

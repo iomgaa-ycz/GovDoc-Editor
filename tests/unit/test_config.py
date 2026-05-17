@@ -10,8 +10,6 @@ def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
         "\n".join(
             [
                 "app:",
-                "  host: 127.0.0.1",
-                "  port: 9000",
                 "  storage_root: ./data/storage",
                 "  database_url: sqlite:///./data/app.sqlite",
                 "model:",
