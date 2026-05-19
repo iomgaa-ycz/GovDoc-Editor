@@ -1,9 +1,10 @@
 import { ArrowRight, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { getDashboardStats } from "@/api/v3";
 import type { DashboardStats, RecentProject } from "@/types/ui";
+import { useWorkbench } from "@/context/V3WorkbenchContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +16,19 @@ const AUDIT_STATUS_VARIANT: Record<string, "muted" | "default" | "ok"> = { idle:
 
 export function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const navigate = useNavigate();
+  const { auditRuns, setSelectedAuditRunId } = useWorkbench();
+
+  function findLatestAuditRun(projectId: string) {
+    return auditRuns.find((r) => r.project_id === projectId);
+  }
+
+  function goToAuditResult(projectId: string) {
+    const run = findLatestAuditRun(projectId);
+    if (!run) return;
+    setSelectedAuditRunId(run.id);
+    navigate("/audit-results");
+  }
 
   useEffect(() => { getDashboardStats().then(setStats).catch(() => {}); }, []);
 
@@ -52,19 +66,32 @@ export function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(stats?.recent_projects ?? []).map((p: RecentProject) => (
-                    <TableRow key={p.project_id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.point_count}</TableCell>
-                      <TableCell>{p.issue_count}</TableCell>
-                      <TableCell>
-                        <Badge variant={AUDIT_STATUS_VARIANT[p.audit_status] ?? "muted"}>
-                          {AUDIT_STATUS_LABEL[p.audit_status] ?? p.audit_status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell><Link to="/audit-results" className="text-accent hover:underline"><ArrowRight className="h-4 w-4" /></Link></TableCell>
-                    </TableRow>
-                  ))}
+                  {(stats?.recent_projects ?? []).map((p: RecentProject) => {
+                    const latestRun = findLatestAuditRun(p.project_id);
+                    return (
+                      <TableRow key={p.project_id}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell>{p.point_count}</TableCell>
+                        <TableCell>{p.issue_count}</TableCell>
+                        <TableCell>
+                          <Badge variant={AUDIT_STATUS_VARIANT[p.audit_status] ?? "muted"}>
+                            {AUDIT_STATUS_LABEL[p.audit_status] ?? p.audit_status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            disabled={!latestRun}
+                            onClick={() => goToAuditResult(p.project_id)}
+                            className="text-accent hover:underline disabled:cursor-not-allowed disabled:text-text-muted disabled:no-underline"
+                            aria-label={`查看 ${p.name} 的审核结果`}
+                            title={latestRun ? "查看审核结果" : "暂无可查看的审核运行"}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {(stats?.recent_projects ?? []).length === 0 && (
                     <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8">暂无审核记录</TableCell></TableRow>
                   )}

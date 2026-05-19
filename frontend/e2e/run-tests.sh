@@ -39,7 +39,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── 测试清单 ──
-ALL_TESTS=("01-navigation" "02-import-checkpoints" "03-doc-compare" "04-ai-extract" "05-ai-audit" "06-ai-audit-multifile")
+ALL_TESTS=("01-navigation" "02-import-checkpoints" "03-doc-compare" "04-ai-extract" "05-ai-audit" "06-ai-audit-multifile" "07-audit-results-history")
 QUICK_TESTS=("01-navigation" "02-import-checkpoints" "03-doc-compare")
 
 if [ -n "$ONLY" ]; then

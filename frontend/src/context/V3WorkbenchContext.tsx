@@ -159,6 +159,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [selectedAuditRunId, setSelectedAuditRunId] = useState<string | null>(null);
   const [auditProgress, setAuditProgress] = useState<AuditRunProgress | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const selectedAuditRunIdRef = useRef<string | null>(null);
+  selectedAuditRunIdRef.current = selectedAuditRunId;
 
   // Point runs
   const [selectedPointRunId, setSelectedPointRunId] = useState<string | null>(null);
@@ -239,6 +241,30 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     const id = setInterval(() => { refreshAll(); }, 3000);
     return () => clearInterval(id);
   }, [apiConnected]);
+
+  // 选中审核运行时自动加载对应的 progress
+  useEffect(() => {
+    if (!selectedAuditRunId) {
+      setAuditProgress(null);
+      setSelectedPointRunId(null);
+      setLogs([]);
+      return;
+    }
+
+    setAuditProgress((current) =>
+      current?.audit_run_id === selectedAuditRunId ? current : null,
+    );
+    setSelectedPointRunId(null);
+    setLogs([]);
+
+    let cancelled = false;
+    api.getAuditRunProgress(selectedAuditRunId).then((progress) => {
+      if (!cancelled && selectedAuditRunIdRef.current === progress.audit_run_id) {
+        syncAuditProgress(progress);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedAuditRunId]);
 
   // Auto-correct selections
   useEffect(() => {
@@ -361,7 +387,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const terminalAuditStatuses = ["draft_ready", "partial_ready", "finalized", "failed", "waiting_retry"];
 
   function syncAuditProgress(progress: AuditRunProgress) {
-    setAuditProgress(progress);
     setAuditRuns((prev) =>
       prev.map((r) =>
         r.id === progress.audit_run_id
@@ -370,6 +395,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       ),
     );
 
+    if (selectedAuditRunIdRef.current !== progress.audit_run_id) return;
+
+    setAuditProgress(progress);
     const newLogs: LogEntry[] = [];
     for (const pr of progress.point_runs) {
       const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
@@ -377,6 +405,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       newLogs.push(pointRunToLog(pr, title));
     }
     setLogs(newLogs);
+    setSelectedPointRunId((current) =>
+      progress.point_runs.some((pr) => pr.id === current)
+        ? current
+        : progress.point_runs[0]?.id ?? null,
+    );
   }
 
   function startAuditProgressPolling(runId: string) {
