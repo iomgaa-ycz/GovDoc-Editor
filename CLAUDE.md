@@ -84,6 +84,8 @@ cd frontend && npm install && cd ..
 
 ### 2.3 启动服务
 
+我现在调用的后端是8002！！！以8002为准
+
 ```bash
 # 后端（FastAPI）
 source activate govdoc-auditor-v3 && uvicorn govdoc.api.main:app --host 0.0.0.0 --port 8000
