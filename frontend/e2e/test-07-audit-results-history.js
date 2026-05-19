@@ -1,11 +1,12 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
 
-  // Step 1: 进入 Dashboard，等待 table 加载
+  // Step 1: 进入 Dashboard，等待表格行加载（API 异步数据）
   console.log('Step 1: 进入 Dashboard，等待 table 加载');
   await page.goto(BASE + '/');
-  await page.waitForLoadState('domcontentloaded');
-  await page.locator('table').waitFor({ timeout: 15000 });
+  await page.waitForLoadState('networkidle');
+  const firstRow = page.locator('table tbody tr').first();
+  await firstRow.waitFor({ timeout: 15000 });
 
   // Step 2: 检查箭头按钮状态
   console.log('Step 2: 检查箭头按钮状态');
