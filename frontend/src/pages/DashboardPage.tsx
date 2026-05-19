@@ -1,9 +1,10 @@
 import { ArrowRight, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { getDashboardStats } from "@/api/v3";
 import type { DashboardStats, RecentProject } from "@/types/ui";
+import { useWorkbench } from "@/context/V3WorkbenchContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +16,14 @@ const AUDIT_STATUS_VARIANT: Record<string, "muted" | "default" | "ok"> = { idle:
 
 export function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const navigate = useNavigate();
+  const { auditRuns, setSelectedAuditRunId } = useWorkbench();
+
+  function goToAuditResult(projectId: string) {
+    const run = auditRuns.find((r) => r.project_id === projectId);
+    if (run) setSelectedAuditRunId(run.id);
+    navigate("/audit-results");
+  }
 
   useEffect(() => { getDashboardStats().then(setStats).catch(() => {}); }, []);
 
@@ -62,7 +71,7 @@ export function DashboardPage() {
                           {AUDIT_STATUS_LABEL[p.audit_status] ?? p.audit_status}
                         </Badge>
                       </TableCell>
-                      <TableCell><Link to="/audit-results" className="text-accent hover:underline"><ArrowRight className="h-4 w-4" /></Link></TableCell>
+                      <TableCell><button onClick={() => goToAuditResult(p.project_id)} className="text-accent hover:underline"><ArrowRight className="h-4 w-4" /></button></TableCell>
                     </TableRow>
                   ))}
                   {(stats?.recent_projects ?? []).length === 0 && (
