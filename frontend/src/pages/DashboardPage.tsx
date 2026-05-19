@@ -19,9 +19,14 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { auditRuns, setSelectedAuditRunId } = useWorkbench();
 
+  function findLatestAuditRun(projectId: string) {
+    return auditRuns.find((r) => r.project_id === projectId);
+  }
+
   function goToAuditResult(projectId: string) {
-    const run = auditRuns.find((r) => r.project_id === projectId);
-    if (run) setSelectedAuditRunId(run.id);
+    const run = findLatestAuditRun(projectId);
+    if (!run) return;
+    setSelectedAuditRunId(run.id);
     navigate("/audit-results");
   }
 
@@ -61,19 +66,32 @@ export function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(stats?.recent_projects ?? []).map((p: RecentProject) => (
-                    <TableRow key={p.project_id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.point_count}</TableCell>
-                      <TableCell>{p.issue_count}</TableCell>
-                      <TableCell>
-                        <Badge variant={AUDIT_STATUS_VARIANT[p.audit_status] ?? "muted"}>
-                          {AUDIT_STATUS_LABEL[p.audit_status] ?? p.audit_status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell><button onClick={() => goToAuditResult(p.project_id)} className="text-accent hover:underline"><ArrowRight className="h-4 w-4" /></button></TableCell>
-                    </TableRow>
-                  ))}
+                  {(stats?.recent_projects ?? []).map((p: RecentProject) => {
+                    const latestRun = findLatestAuditRun(p.project_id);
+                    return (
+                      <TableRow key={p.project_id}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell>{p.point_count}</TableCell>
+                        <TableCell>{p.issue_count}</TableCell>
+                        <TableCell>
+                          <Badge variant={AUDIT_STATUS_VARIANT[p.audit_status] ?? "muted"}>
+                            {AUDIT_STATUS_LABEL[p.audit_status] ?? p.audit_status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            disabled={!latestRun}
+                            onClick={() => goToAuditResult(p.project_id)}
+                            className="text-accent hover:underline disabled:cursor-not-allowed disabled:text-text-muted disabled:no-underline"
+                            aria-label={`查看 ${p.name} 的审核结果`}
+                            title={latestRun ? "查看审核结果" : "暂无可查看的审核运行"}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {(stats?.recent_projects ?? []).length === 0 && (
                     <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8">暂无审核记录</TableCell></TableRow>
                   )}
