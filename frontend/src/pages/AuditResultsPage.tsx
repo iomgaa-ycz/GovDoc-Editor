@@ -21,7 +21,9 @@ export function AuditResultsPage() {
     selectedPointRunId, setSelectedPointRunId, finalCheckpoints, retryPointRun,
   } = useWorkbench();
 
-  const pointRuns = auditProgress?.point_runs ?? [];
+  const selectedAuditProgress =
+    auditProgress?.audit_run_id === selectedAuditRunId ? auditProgress : null;
+  const pointRuns = selectedAuditProgress?.point_runs ?? [];
   const activePr = pointRuns.find((pr) => pr.id === selectedPointRunId);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -29,8 +31,19 @@ export function AuditResultsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (auditRuns.length === 0) return;
+    if (selectedAuditRunId && auditRuns.some((r) => r.id === selectedAuditRunId)) return;
+    setSelectedAuditRunId(auditRuns[0].id);
+  }, [auditRuns, selectedAuditRunId, setSelectedAuditRunId]);
+
+  useEffect(() => {
+    setComments([]);
     if (!selectedPointRunId) return;
-    listComments("AuditPointRun", selectedPointRunId).then(setComments).catch(() => {});
+    let cancelled = false;
+    listComments("AuditPointRun", selectedPointRunId).then((nextComments) => {
+      if (!cancelled) setComments(nextComments);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [selectedPointRunId]);
 
   async function handleRetry(prId: string) {
@@ -76,7 +89,7 @@ export function AuditResultsPage() {
             <ScrollArea className="h-[calc(100vh-120px)]">
               {pointRuns.map((pr) => {
                 const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-                const title = cp?.parsed?.title ?? pr.checkpoint_final_id.slice(0, 8);
+                const title = cp?.parsed?.title ?? "（已失效）";
                 const finding = parseFindingJson(pr.finding_json);
                 return (
                   <button key={pr.id} className={cn("flex w-full items-center justify-between px-4 py-3 text-left border-b hover:bg-surface transition-colors", pr.id === selectedPointRunId && "bg-accent-light border-l-2 border-l-accent")} onClick={() => setSelectedPointRunId(pr.id)}>
@@ -92,7 +105,7 @@ export function AuditResultsPage() {
             {activePr ? (() => {
               const cp = finalCheckpoints.find((c) => c.id === activePr.checkpoint_final_id);
               const finding = parseFindingJson(activePr.finding_json);
-              if (!cp?.parsed) return <EmptyState title="无法加载" description="找不到该审核点数据。" />;
+              if (!cp?.parsed) return <EmptyState title="审核点数据已失效" description="该审核点对应的审查标准已被删除或重新导入，无法显示详细结果。请使用当前审查标准重新发起审核。" />;
               return (
                 <>
                   <PointInsight checkpoint={cp.parsed} finding={finding} pointStatus={activePr.status} />
