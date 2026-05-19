@@ -12,7 +12,7 @@
 #
 # 环境：
 #   testing = master 分支，端口 8001/8080，工程师验证
-#   stable  = stable 分支，端口 8000/80，  律师正式使用
+#   stable  = stable 分支，端口 8000/1181，律师正式使用
 #
 # 服务器：
 #   后端: yuchengzhang@100.83.164.94 (4090 Server, Tailscale)
@@ -28,7 +28,7 @@ FRONTEND_PUBLIC_IP="175.178.131.134"
 
 STABLE_BACKEND_PORT=8000
 TESTING_BACKEND_PORT=8001
-STABLE_FRONTEND_PORT=80
+STABLE_FRONTEND_PORT=1181
 TESTING_FRONTEND_PORT=8080
 
 STABLE_DIR="GovDoc-Editor"
