@@ -33,7 +33,7 @@ class EndpointSpec:
         description: 端点描述。
         body: 请求体 JSON。
         form_data: 表单数据。
-        files: 上传文件字典。
+        files: 上传文件字典或重复字段列表。
         response_model: 响应 Pydantic 模型（可选）。
         is_async: 是否为异步端点。
         path_params: 路径参数替换字典。
@@ -45,7 +45,7 @@ class EndpointSpec:
     description: str
     body: dict[str, Any] | None = None
     form_data: dict[str, Any] | None = None
-    files: dict[str, Any] | None = None
+    files: Any | None = None
     response_model: Type[BaseModel] | None = None
     is_async: bool = False
     path_params: dict[str, str] = field(default_factory=dict)
@@ -1148,10 +1148,10 @@ async def _run_compare_check(client: Any, log: HarnessLog, project_root: str) ->
             path="/api/v1/compare",
             expected_status=200,
             description="文档对比",
-            files={
-                "first_file": (first_file.name, first_file.read_bytes()),
-                "second_file": (second_file.name, second_file.read_bytes()),
-            },
+            files=[
+                ("files", (first_file.name, first_file.read_bytes())),
+                ("files", (second_file.name, second_file.read_bytes())),
+            ],
         ),
         log,
     )

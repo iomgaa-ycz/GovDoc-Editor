@@ -108,9 +108,9 @@ ssh yuchengzhang@100.83.164.94 "docker ps --format 'table {{.Names}}\t{{.Status}
 
 | # | 用例 | 方法 | 端点 | 验证要点 |
 |---|------|------|------|----------|
-| B19 | 对比两个 DOCX | POST | `/api/v1/compare` | 返回 review_id + matches 数组（paragraph/sentence/segment） |
-| B20 | 下载高亮文档 A | GET | `/api/v1/compare/{id}/download/first` | Content-Type 为 DOCX，文件可打开 |
-| B21 | 下载高亮文档 B | GET | `/api/v1/compare/{id}/download/second` | Content-Type 为 DOCX，文件可打开 |
+| B19 | 对比多份 DOCX/PDF | POST | `/api/v1/compare` | 使用重复字段 `files` 上传，返回 review_id + documents.files + matches |
+| B20 | 下载第 1 份高亮副本 | GET | `/api/v1/compare/{id}/download/0` | Content-Type 为 DOCX，文件可打开 |
+| B21 | 下载第 2 份高亮副本 | GET | `/api/v1/compare/{id}/download/1` | Content-Type 为 DOCX，文件可打开 |
 
 ### 2.7 工作底稿
 
