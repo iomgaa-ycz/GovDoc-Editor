@@ -22,6 +22,8 @@ dependencies = [
     "json5>=0.9.28",
     "xlrd>=2.0",
     "openpyxl>=3.1",
+    "PyJWT>=2.8",
+    "passlib[bcrypt]>=1.7",
 ]
 
 [project.optional-dependencies]

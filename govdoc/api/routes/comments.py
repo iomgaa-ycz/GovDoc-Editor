@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
-from govdoc.db.models import Comment
+from govdoc.db.models import Comment, User
 from govdoc.schemas.common import GovDocModel
 
 router = APIRouter(prefix="/api/v1/comments", tags=["comments"])
@@ -23,19 +23,22 @@ class CreateCommentRequest(GovDocModel):
 
 
 @router.post("", status_code=201)
-async def create_comment(payload: CreateCommentRequest):
+async def create_comment(
+    payload: CreateCommentRequest,
+    current_user: User = Depends(get_current_user),
+):
     """创建一条评论/批注。"""
     with get_db_session() as session:
         comment = Comment(
             target_type=payload.target_type,
             target_id=payload.target_id,
-            author=payload.author,
+            author=current_user.username,
             text=payload.text,
         )
         session.add(comment)
         log_activity(
             session,
-            actor=payload.author,
+            actor=current_user.username,
             action="create_comment",
             target_type=payload.target_type,
             target_id=payload.target_id,
@@ -77,7 +80,10 @@ async def list_comments(target_type: str | None = None, target_id: str | None = 
 
 
 @router.delete("/{comment_id}", status_code=204)
-async def delete_comment(comment_id: str) -> Response:
+async def delete_comment(
+    comment_id: str,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """删除一条评论。"""
     with get_db_session() as session:
         comment = session.get(Comment, comment_id)
@@ -85,7 +91,7 @@ async def delete_comment(comment_id: str) -> Response:
             raise HTTPException(status_code=404, detail="Comment 不存在")
         log_activity(
             session,
-            actor=comment.author,
+            actor=current_user.username,
             action="delete_comment",
             target_type=comment.target_type,
             target_id=comment.target_id,

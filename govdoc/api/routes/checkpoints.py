@@ -5,13 +5,13 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import UpdateCheckpointRequest
-from govdoc.db.models import CheckpointFinal
+from govdoc.db.models import CheckpointFinal, User
 
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
 
@@ -39,7 +39,10 @@ _ALLOWED_EXTENSIONS = {".xls", ".xlsx", ".csv"}
 
 
 @router.post("/import")
-async def import_checkpoints(file: UploadFile = File(...)):
+async def import_checkpoints(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     """上传审查点表格（xls/xlsx/csv），批量写入审核点库。"""
     filename = file.filename or ""
     suffix = Path(filename).suffix.lower()
@@ -88,7 +91,11 @@ async def import_checkpoints(file: UploadFile = File(...)):
 
 
 @router.put("/{checkpoint_id}")
-async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest):
+async def update_checkpoint(
+    checkpoint_id: str,
+    payload: UpdateCheckpointRequest,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
@@ -96,7 +103,7 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
             final.payload_json = payload.payload_json
             log_activity(
                 session,
-                actor=payload.modified_by,
+                actor=current_user.username,
                 action="update_checkpoint",
                 target_type="CheckpointFinal",
                 target_id=checkpoint_id,
@@ -111,13 +118,16 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
 
 
 @router.delete("/{checkpoint_id}", status_code=204)
-async def delete_checkpoint(checkpoint_id: str) -> Response:
+async def delete_checkpoint(
+    checkpoint_id: str,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
             log_activity(
                 session,
-                actor="system",
+                actor=current_user.username,
                 action="delete_checkpoint",
                 target_type="CheckpointFinal",
                 target_id=checkpoint_id,

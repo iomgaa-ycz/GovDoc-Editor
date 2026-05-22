@@ -1,6 +1,7 @@
-import { Bot, FileText, GitCompareArrows, LayoutDashboard, LibraryBig, ScrollText } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Bot, FileText, GitCompareArrows, LayoutDashboard, LibraryBig, LogOut, ScrollText } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { to: "/", label: "工作台总览", icon: LayoutDashboard },
@@ -12,6 +13,14 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
+
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-sidebar flex-col bg-sidebar">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -49,9 +58,18 @@ export function Sidebar() {
       </nav>
 
       <div className="mx-3 mb-3 rounded-btn bg-sidebar-active p-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-status-ok" />
-          <span className="text-xs text-gray-400">系统正常运行</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-status-ok" />
+            <span className="text-xs text-gray-300">{user?.display_name || user?.username || "..."}</span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="rounded p-1 text-gray-500 transition-colors hover:bg-sidebar-hover hover:text-white"
+            title="退出登录"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </aside>

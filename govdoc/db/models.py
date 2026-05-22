@@ -149,6 +149,8 @@ class Comment(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
-    username: str
+    username: str = Field(unique=True, index=True)
+    password_hash: str
     display_name: str
     role: str = "reviewer"
+    is_active: bool = True

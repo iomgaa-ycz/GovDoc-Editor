@@ -20,6 +20,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from govdoc.api.deps import get_db_session
+from govdoc.api.routes.auth import router as auth_router
 from govdoc.api.routes.audit import router as audit_router
 from govdoc.api.routes.checkpoints import router as checkpoints_router
 from govdoc.api.routes.compare import router as compare_router
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
             session.commit()
         _logger.info("孤儿任务扫描完成")
 
+    app.include_router(auth_router)
     app.include_router(projects_router)
     app.include_router(rules_router)
     app.include_router(checkpoints_router)

@@ -28,6 +28,8 @@ class AppConfig(BaseModel):
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
     ocr_base_url: str | None = None
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_expire_hours: int = 24
 
 
 class ModelServiceConfig(BaseModel):
