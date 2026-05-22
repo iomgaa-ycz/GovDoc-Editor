@@ -33,7 +33,9 @@ export async function request<T>(
   const res = await fetch(`${base}${path}`, { ...init, headers });
   if (res.status === 401) {
     localStorage.removeItem("token");
-    throw new Error("API 401: 登录已过期");
+    window.dispatchEvent(new Event("auth:expired"));
+    const body = await res.text().catch(() => "");
+    throw new Error(`API 401: ${body || "登录已过期"}`);
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");

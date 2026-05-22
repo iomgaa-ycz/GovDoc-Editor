@@ -17,7 +17,10 @@ router = APIRouter(prefix="/api/v1/audit/runs", tags=["workpapers"])
 
 
 @router.get("/{audit_run_id}/workpaper/draft")
-async def get_workpaper_draft(audit_run_id: str):
+async def get_workpaper_draft(
+    audit_run_id: str,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         drafts = session.exec(
             select(WorkpaperDraft)
@@ -161,7 +164,10 @@ async def finalize_workpaper_endpoint(
 
 
 @router.get("/{audit_run_id}/workpaper/final/docx", response_class=StreamingResponse)
-async def download_final_workpaper_docx(audit_run_id: str):
+async def download_final_workpaper_docx(
+    audit_run_id: str,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         finals = session.exec(
             select(WorkpaperFinal).where(WorkpaperFinal.audit_run_id == audit_run_id)

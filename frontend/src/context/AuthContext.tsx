@@ -90,6 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  // 监听 API 层 401 事件，同步清理状态
+  useEffect(() => {
+    function onExpired() {
+      setToken(null);
+      setUser(null);
+    }
+    window.addEventListener("auth:expired", onExpired);
+    return () => window.removeEventListener("auth:expired", onExpired);
+  }, []);
+
   return (
     <AuthContext.Provider value={{ token, user, initialized, isAuthenticated, login, register, logout }}>
       {children}

@@ -162,10 +162,9 @@ def load_config(path: str | Path | None = None) -> GovDocConfig:
     # JWT secret 安全校验
     secret = cfg.app.jwt_secret_key
     if not secret or secret.startswith("$") or secret == "change-me-in-production":
-        import logging
-
-        logging.getLogger("govdoc").warning(
-            "JWT secret 未正确配置（当前值: %s），请设置 JWT_SECRET_KEY 环境变量", secret
+        raise ValueError(
+            f"JWT secret 未正确配置（当前值: {secret!r}），"
+            "请在 .env 中设置 JWT_SECRET_KEY=<64字符随机hex>"
         )
 
     return cfg

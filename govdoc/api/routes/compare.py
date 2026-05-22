@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import Literal
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from govdoc.api.deps import get_current_user
 from govdoc.compare.service import create_compare_bundle_from_bytes, get_compare_download
+from govdoc.db.models import User
 from govdoc.schemas.compare import CompareResponse
 
 
@@ -31,6 +33,7 @@ def _ensure_docx(filename: str) -> None:
 async def compare_uploaded_docx(
     first_file: UploadFile = File(...),
     second_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ) -> CompareResponse:
     """接收两份 DOCX 文件并返回文档对比结果。"""
     first_name = first_file.filename or "first.docx"
@@ -53,6 +56,7 @@ async def compare_uploaded_docx(
 def download_compare_docx(
     review_id: str,
     side: Literal["first", "second"],
+    current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     """下载指定 review 的高亮 DOCX 副本。"""
     try:
