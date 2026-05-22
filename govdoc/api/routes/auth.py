@@ -4,19 +4,17 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from govdoc.api.deps import get_current_user, get_db_session
+from govdoc.api.deps import get_current_user, get_db_session_dep
 from govdoc.config import load_config
 from govdoc.db.models import User
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ── 请求/响应模型 ──
@@ -69,7 +67,7 @@ def _user_response(user: User) -> UserResponse:
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, session: Session = Depends(get_db_session)) -> UserResponse:
+def register(payload: RegisterRequest, session: Session = Depends(get_db_session_dep)) -> UserResponse:
     """注册新用户。"""
     existing = session.exec(select(User).where(User.username == payload.username)).first()
     if existing is not None:
@@ -77,7 +75,7 @@ def register(payload: RegisterRequest, session: Session = Depends(get_db_session
 
     user = User(
         username=payload.username,
-        password_hash=pwd_ctx.hash(payload.password),
+        password_hash=bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt()).decode(),
         display_name=payload.display_name,
     )
     session.add(user)
@@ -87,10 +85,10 @@ def register(payload: RegisterRequest, session: Session = Depends(get_db_session
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, session: Session = Depends(get_db_session)) -> LoginResponse:
+def login(payload: LoginRequest, session: Session = Depends(get_db_session_dep)) -> LoginResponse:
     """用户名密码登录，返回 JWT token。"""
     user = session.exec(select(User).where(User.username == payload.username)).first()
-    if user is None or not pwd_ctx.verify(payload.password, user.password_hash):
+    if user is None or not bcrypt.checkpw(payload.password.encode(), user.password_hash.encode()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已禁用")

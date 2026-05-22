@@ -23,9 +23,15 @@ def get_db_session() -> Iterator[Session]:
         yield session
 
 
+def get_db_session_dep() -> Iterator[Session]:
+    """FastAPI Depends 用的 session 生成器（不能用 @contextmanager）。"""
+    with Session(get_engine()) as session:
+        yield session
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db_session_dep),
 ) -> User:
     """从 Bearer token 解析当前登录用户。"""
     cfg = load_config()
