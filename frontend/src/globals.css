@@ -19,4 +19,31 @@
   .gradient-btn {
     background: linear-gradient(180deg, #2563EB 0%, #0062FF 100%);
   }
+
+  .audit-points-scrollbar {
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f8fafc;
+  }
+
+  .audit-points-scrollbar::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  .audit-points-scrollbar::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-left: 1px solid #e5e7eb;
+  }
+
+  .audit-points-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border: 3px solid #f8fafc;
+    border-radius: 9999px;
+  }
+
+  .audit-points-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 }

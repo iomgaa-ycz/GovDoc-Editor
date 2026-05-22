@@ -1,5 +1,5 @@
 import { Check, ChevronRight, FileText, Loader2, Paperclip, Plus, Upload, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useWorkbench } from "@/context/V3WorkbenchContext";
 import { useProjectWorkflow } from "@/hooks/useProjectWorkflow";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FileDropzone } from "@/components/FileDropzone";
@@ -27,7 +26,6 @@ export function AIReviewPage() {
 
   const wf = useProjectWorkflow();
   const auditRun = useAuditRun();
-  const [detailPrId, setDetailPrId] = useState<string | null>(null);
   const [selectedTimelinePrId, setSelectedTimelinePrId] = useState<string | null>(null);
 
   const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
@@ -39,7 +37,27 @@ export function AIReviewPage() {
   const completedCount = pointRuns.filter((p) => p.status === "completed").length;
   const failedCount = pointRuns.filter((p) => p.status === "failed").length;
   const runningCount = pointRuns.filter((p) => p.status === "running").length;
-  const selectedTimelinePr = pointRuns.find((p) => p.id === selectedTimelinePrId) ?? pointRuns.find((p) => p.status === "running") ?? pointRuns[0];
+  const checkpointById = useMemo(
+    () => new Map(finalCheckpoints.map((checkpoint) => [checkpoint.id, checkpoint])),
+    [finalCheckpoints],
+  );
+  const pointRunViews = useMemo(() => pointRuns.map((pr) => {
+    const checkpoint = checkpointById.get(pr.checkpoint_final_id)?.parsed ?? null;
+    const finding = parseFindingJson(pr.finding_json ?? null);
+    const verdict = finding?.verdict?.verdict;
+    return {
+      pr,
+      checkpoint,
+      finding,
+      verdict,
+      displayStatus: verdict ?? pr.status,
+      title: checkpoint?.title ?? pr.checkpoint_final_id.slice(0, 8),
+    };
+  }), [checkpointById, pointRuns]);
+  const selectedTimeline =
+    pointRunViews.find((item) => item.pr.id === selectedTimelinePrId)
+    ?? pointRunViews.find((item) => item.pr.status === "running")
+    ?? pointRunViews[0];
 
   if (isRunning) {
     return (
@@ -77,43 +95,56 @@ export function AIReviewPage() {
                 <CardHeader><CardTitle>审核要点</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   <div className="max-h-[400px] overflow-auto">
-                    {pointRuns.map((pr) => {
-                      const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-                      const title = cp?.parsed?.title ?? pr.checkpoint_final_id.slice(0, 8);
+                    {pointRunViews.map(({ pr, title, verdict, displayStatus }) => {
                       return (
-                        <button key={pr.id} className={cn("flex w-full items-center justify-between px-4 py-3 text-left border-b last:border-0 hover:bg-surface transition-colors", pr.id === selectedTimelinePr?.id && "bg-accent-light")} onClick={() => setSelectedTimelinePrId(pr.id)}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={cn("h-2 w-2 shrink-0 rounded-full", pr.status === "completed" && "bg-status-ok", pr.status === "running" && "bg-accent", pr.status === "failed" && "bg-status-err", pr.status === "pending" && "bg-gray-300")} />
+                        <button
+                          key={pr.id}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 border-b border-l-4 border-l-transparent px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface",
+                            verdict === "合规" && "border-l-status-ok/70 bg-status-ok-bg/40 hover:bg-status-ok-bg",
+                            verdict === "不合规" && "border-l-status-err bg-status-err-bg hover:bg-red-50",
+                            verdict === "存疑" && "border-l-status-warn bg-status-warn-bg hover:bg-amber-50",
+                            pr.id === selectedTimeline?.pr.id && "ring-1 ring-inset ring-accent",
+                          )}
+                          onClick={() => setSelectedTimelinePrId(pr.id)}
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className={cn(
+                              "h-2.5 w-2.5 shrink-0 rounded-full",
+                              verdict === "合规" && "bg-status-ok",
+                              verdict === "不合规" && "bg-status-err",
+                              verdict === "存疑" && "bg-status-warn",
+                              !verdict && pr.status === "completed" && "bg-status-ok",
+                              !verdict && pr.status === "running" && "bg-accent",
+                              !verdict && pr.status === "failed" && "bg-status-err",
+                              !verdict && pr.status === "pending" && "bg-gray-300",
+                            )} />
                             <span className="text-sm truncate">{title}</span>
                           </div>
-                          <StatusBadge status={pr.status} />
+                          <StatusBadge status={displayStatus} size={verdict ? "md" : "sm"} emphasis={verdict ? "strong" : "subtle"} showIcon={!!verdict} className="shrink-0" />
                         </button>
                       );
                     })}
                   </div>
                 </CardContent>
               </Card>
-              {selectedTimelinePr && (
-                <ProgressTimeline
-                  pointRun={selectedTimelinePr}
-                  checkpoint={finalCheckpoints.find((c) => c.id === selectedTimelinePr.checkpoint_final_id)?.parsed ?? null}
-                  onRetry={selectedTimelinePr.status === "failed" ? () => retryPointRun(selectedTimelinePr.id) : undefined}
-                />
+              {selectedTimeline && (
+                <div className="space-y-4">
+                  {selectedTimeline.checkpoint && (selectedTimeline.finding || selectedTimeline.pr.status === "completed") && (
+                    <div className="rounded-card border bg-surface-card p-5">
+                      <PointInsight checkpoint={selectedTimeline.checkpoint} finding={selectedTimeline.finding} pointStatus={selectedTimeline.pr.status} />
+                    </div>
+                  )}
+                  <ProgressTimeline
+                    pointRun={selectedTimeline.pr}
+                    checkpoint={selectedTimeline.checkpoint}
+                    onRetry={selectedTimeline.pr.status === "failed" ? () => retryPointRun(selectedTimeline.pr.id) : undefined}
+                  />
+                </div>
               )}
             </div>
           </div>
         </div>
-        <Dialog open={detailPrId != null} onOpenChange={(o: boolean) => { if (!o) setDetailPrId(null); }}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle>审核点详情</DialogTitle></DialogHeader>
-            {detailPrId && (() => {
-              const pr = pointRuns.find((p) => p.id === detailPrId);
-              const cp = pr ? finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id)?.parsed ?? null : null;
-              if (!cp || !pr) return <EmptyState title="无法加载" description="找不到该审核点的数据。" />;
-              return <div className="p-5"><PointInsight checkpoint={cp} finding={parseFindingJson(pr.finding_json ?? null)} pointStatus={pr.status} /></div>;
-            })()}
-          </DialogContent>
-        </Dialog>
       </>
     );
   }

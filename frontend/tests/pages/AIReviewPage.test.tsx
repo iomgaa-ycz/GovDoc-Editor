@@ -46,6 +46,7 @@ import type {
   AuditRunProgress,
   CheckpointItem,
   GovCheckpointPayload,
+  GovFinding,
   Project,
   TenderDoc,
 } from "@/types/ui";
@@ -59,6 +60,20 @@ function makePayload(id: string, title: string): GovCheckpointPayload {
 function makeFinal(id: string, title: string): FinalCheckpoint {
   const payload = makePayload(id, title);
   return { id, kind: "final", status: "approved", payload_json: JSON.stringify(payload), approved_by: "admin", parsed: payload };
+}
+
+function makeFinding(checkpoint: GovCheckpointPayload, verdict: GovFinding["verdict"]["verdict"]): string {
+  return JSON.stringify({
+    checkpoint,
+    verdict: {
+      verdict,
+      rationale: "测试理由",
+      evidence_quotes: [],
+      suggestion: "",
+    },
+    evidence_refs: [],
+    case_refs: [],
+  } satisfies GovFinding);
 }
 
 function defaultValue(): WorkbenchContextValue {
@@ -217,8 +232,8 @@ describe("AIReviewPage · Running 模式", () => {
     total_count: 5,
     processed_count: 2,
     point_runs: [
-      { id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
-      { id: "pr-2", checkpoint_final_id: "cp-2", status: "completed", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
+      { id: "pr-1", checkpoint_final_id: "cp-1", status: "completed", error: null, finding_json: makeFinding(sampleCheckpoints[0].parsed, "合规"), started_at: null, completed_at: null, current_phase: null },
+      { id: "pr-2", checkpoint_final_id: "cp-2", status: "completed", error: null, finding_json: makeFinding(sampleCheckpoints[1].parsed, "不合规"), started_at: null, completed_at: null, current_phase: null },
       { id: "pr-3", checkpoint_final_id: "cp-3", status: "failed", error: "oops", finding_json: null, started_at: null, completed_at: null, current_phase: null },
       { id: "pr-4", checkpoint_final_id: "cp-4", status: "running", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: "execute" },
       { id: "pr-5", checkpoint_final_id: "cp-5", status: "pending", error: null, finding_json: null, started_at: null, completed_at: null, current_phase: null },
@@ -260,14 +275,14 @@ describe("AIReviewPage · Running 模式", () => {
     expect(screen.getByText(/已完成 2\/5/)).toBeInTheDocument();
   });
 
-  it("审核点列表中 completed 状态通过 StatusBadge 渲染为「已完成」", () => {
+  it("审核点列表中 completed finding 优先渲染合规结论", () => {
     renderPage({
       projects: [sampleProject], activeProject: sampleProject, selectedProjectId: sampleProject.id,
       auditInputDocs: { [sampleProject.id]: { mainDoc: sampleTenderDoc, supplementaryDocs: [] } },
       auditProgress: makeProgress(), finalCheckpoints: sampleCheckpoints,
     });
 
-    const badges = screen.getAllByText("已完成");
-    expect(badges.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("合规通过")).toBeInTheDocument();
+    expect(screen.getByText("不合规")).toBeInTheDocument();
   });
 });

@@ -27,7 +27,6 @@ import {
   parseCheckpointPayload,
   parseFindingJson,
   pointRunToLog,
-  verdictToStatus,
 } from "../adapters/backendToUi";
 
 // ── Context value ──
