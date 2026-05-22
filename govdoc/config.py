@@ -157,4 +157,15 @@ def load_config(path: str | Path | None = None) -> GovDocConfig:
         raise FileNotFoundError(f"未找到 GovDoc 配置文件: {config_path}")
 
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    return GovDocConfig.model_validate(_expand_env(payload))
+    cfg = GovDocConfig.model_validate(_expand_env(payload))
+
+    # JWT secret 安全校验
+    secret = cfg.app.jwt_secret_key
+    if not secret or secret.startswith("$") or secret == "change-me-in-production":
+        import logging
+
+        logging.getLogger("govdoc").warning(
+            "JWT secret 未正确配置（当前值: %s），请设置 JWT_SECRET_KEY 环境变量", secret
+        )
+
+    return cfg

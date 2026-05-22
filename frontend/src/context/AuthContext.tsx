@@ -10,6 +10,7 @@ export interface AuthUser {
 interface AuthState {
   token: string | null;
   user: AuthUser | null;
+  initialized: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string, displayName: string) => Promise<void>;
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   const isAuthenticated = token !== null && user !== null;
 
@@ -28,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) {
       setUser(null);
+      setInitialized(true);
       return;
     }
     const base = import.meta.env.VITE_GOVDOC_API_BASE_URL || "";
@@ -38,11 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!res.ok) throw new Error("token 无效");
         return res.json();
       })
-      .then((data) => setUser(data))
+      .then((data) => {
+        setUser(data);
+        setInitialized(true);
+      })
       .catch(() => {
         localStorage.removeItem("token");
         setToken(null);
         setUser(null);
+        setInitialized(true);
       });
   }, [token]);
 
@@ -74,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const body = await res.text().catch(() => "");
       throw new Error(body || "注册失败");
     }
-    // 注册成功后自动登录
     await login(username, password);
   }
 
@@ -85,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, isAuthenticated, login, register, logout }}>
+    <AuthContext.Provider value={{ token, user, initialized, isAuthenticated, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

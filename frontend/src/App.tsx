@@ -12,7 +12,10 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { initialized, isAuthenticated } = useAuth();
+  if (!initialized) {
+    return null;
+  }
   if (!isAuthenticated) {
     return <Navigate replace to="/login" />;
   }

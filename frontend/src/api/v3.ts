@@ -33,8 +33,7 @@ export async function request<T>(
   const res = await fetch(`${base}${path}`, { ...init, headers });
   if (res.status === 401) {
     localStorage.removeItem("token");
-    window.location.href = "/login";
-    throw new Error("登录已过期");
+    throw new Error("API 401: 登录已过期");
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");

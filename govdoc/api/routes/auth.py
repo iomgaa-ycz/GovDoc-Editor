@@ -88,7 +88,13 @@ def register(payload: RegisterRequest, session: Session = Depends(get_db_session
 def login(payload: LoginRequest, session: Session = Depends(get_db_session_dep)) -> LoginResponse:
     """用户名密码登录，返回 JWT token。"""
     user = session.exec(select(User).where(User.username == payload.username)).first()
-    if user is None or not bcrypt.checkpw(payload.password.encode(), user.password_hash.encode()):
+    password_ok = False
+    if user is not None:
+        try:
+            password_ok = bcrypt.checkpw(payload.password.encode(), user.password_hash.encode())
+        except (ValueError, TypeError):
+            password_ok = False
+    if user is None or not password_ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已禁用")
