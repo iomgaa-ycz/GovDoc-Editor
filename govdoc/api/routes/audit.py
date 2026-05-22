@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import AuditRunProgressResponse, CreateAuditRunRequest
-from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
+from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc, User
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ def _load_supplementary_doc_ids(raw: str | None) -> list[str]:
 async def create_audit_run(
     payload: CreateAuditRunRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     with get_db_session() as session:
         main_doc = session.get(TenderDoc, payload.tender_doc_id)
@@ -72,10 +73,10 @@ async def create_audit_run(
         )
         session.add(audit_run)
         if hasattr(audit_run, "created_by"):
-            audit_run.created_by = payload.created_by
+            audit_run.created_by = current_user.username
         log_activity(
             session,
-            actor=payload.created_by,
+            actor=current_user.username,
             action="create_audit_run",
             target_type="AuditRun",
             target_id=audit_run.id,
@@ -215,7 +216,10 @@ async def get_audit_run_progress(audit_run_id: str):
 
 
 @router.post("/runs/{audit_run_id}/cancel", status_code=200)
-async def cancel_audit_run(audit_run_id: str):
+async def cancel_audit_run(
+    audit_run_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """取消一个正在运行的审核。后台任务会在下一个审核点开始前检查并停止。"""
     with get_db_session() as session:
         run = session.get(AuditRun, audit_run_id)
@@ -227,7 +231,7 @@ async def cancel_audit_run(audit_run_id: str):
         run.status = "cancelled"
         log_activity(
             session,
-            actor="system",
+            actor=current_user.username,
             action="cancel_audit_run",
             target_type="AuditRun",
             target_id=run.id,
@@ -243,6 +247,7 @@ async def cancel_audit_run(audit_run_id: str):
 async def retry_point_run(
     point_run_id: str,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     from govdoc.pipelines.audit_tender import prepare_point_run_retry as _prepare
     from govdoc.pipelines.audit_tender import retry_point_run as _retry

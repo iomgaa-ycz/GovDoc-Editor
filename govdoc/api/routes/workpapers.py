@@ -4,20 +4,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import FinalizeWorkpaperRequest, UpdateWorkpaperDraftRequest
-from govdoc.db.models import AuditRun, WorkpaperDraft, WorkpaperFinal
+from govdoc.db.models import AuditRun, User, WorkpaperDraft, WorkpaperFinal
 
 router = APIRouter(prefix="/api/v1/audit/runs", tags=["workpapers"])
 
 
 @router.get("/{audit_run_id}/workpaper/draft")
-async def get_workpaper_draft(audit_run_id: str):
+async def get_workpaper_draft(
+    audit_run_id: str,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         drafts = session.exec(
             select(WorkpaperDraft)
@@ -36,7 +39,11 @@ async def get_workpaper_draft(audit_run_id: str):
 
 
 @router.put("/{audit_run_id}/workpaper/draft")
-async def update_workpaper_draft(audit_run_id: str, payload: UpdateWorkpaperDraftRequest):
+async def update_workpaper_draft(
+    audit_run_id: str,
+    payload: UpdateWorkpaperDraftRequest,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         current_drafts = session.exec(
             select(WorkpaperDraft)
@@ -62,7 +69,7 @@ async def update_workpaper_draft(audit_run_id: str, payload: UpdateWorkpaperDraf
         session.add(draft)
         log_activity(
             session,
-            actor=payload.modified_by,
+            actor=current_user.username,
             action="update_workpaper_draft",
             target_type="WorkpaperDraft",
             target_id=draft.id,
@@ -78,6 +85,7 @@ async def finalize_workpaper_partial(
     audit_run_id: str,
     payload: FinalizeWorkpaperRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     with get_db_session() as session:
         run = session.get(AuditRun, audit_run_id)
@@ -89,7 +97,7 @@ async def finalize_workpaper_partial(
     with get_db_session() as log_session:
         log_activity(
             log_session,
-            actor=payload.approved_by,
+            actor=current_user.username,
             action="finalize_workpaper",
             target_type="AuditRun",
             target_id=audit_run_id,
@@ -104,7 +112,7 @@ async def finalize_workpaper_partial(
             try:
                 await finalize_workpaper(
                     audit_run_id,
-                    approved_by=payload.approved_by,
+                    approved_by=current_user.username,
                     session=s,
                     partial=True,
                 )
@@ -120,6 +128,7 @@ async def finalize_workpaper_endpoint(
     audit_run_id: str,
     payload: FinalizeWorkpaperRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     with get_db_session() as session:
         run = session.get(AuditRun, audit_run_id)
@@ -129,7 +138,7 @@ async def finalize_workpaper_endpoint(
     with get_db_session() as log_session:
         log_activity(
             log_session,
-            actor=payload.approved_by,
+            actor=current_user.username,
             action="finalize_workpaper",
             target_type="AuditRun",
             target_id=audit_run_id,
@@ -144,7 +153,7 @@ async def finalize_workpaper_endpoint(
             try:
                 await finalize_workpaper(
                     audit_run_id,
-                    approved_by=payload.approved_by,
+                    approved_by=current_user.username,
                     session=s,
                 )
             except Exception:
@@ -155,7 +164,10 @@ async def finalize_workpaper_endpoint(
 
 
 @router.get("/{audit_run_id}/workpaper/final/docx", response_class=StreamingResponse)
-async def download_final_workpaper_docx(audit_run_id: str):
+async def download_final_workpaper_docx(
+    audit_run_id: str,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         finals = session.exec(
             select(WorkpaperFinal).where(WorkpaperFinal.audit_run_id == audit_run_id)

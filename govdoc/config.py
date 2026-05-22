@@ -28,6 +28,8 @@ class AppConfig(BaseModel):
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
     ocr_base_url: str | None = None
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_expire_hours: int = 24
 
 
 class ModelServiceConfig(BaseModel):
@@ -155,4 +157,14 @@ def load_config(path: str | Path | None = None) -> GovDocConfig:
         raise FileNotFoundError(f"未找到 GovDoc 配置文件: {config_path}")
 
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    return GovDocConfig.model_validate(_expand_env(payload))
+    cfg = GovDocConfig.model_validate(_expand_env(payload))
+
+    # JWT secret 安全校验
+    secret = cfg.app.jwt_secret_key
+    if not secret or secret.startswith("$") or secret == "change-me-in-production":
+        raise ValueError(
+            f"JWT secret 未正确配置（当前值: {secret!r}），"
+            "请在 .env 中设置 JWT_SECRET_KEY=<64字符随机hex>"
+        )
+
+    return cfg

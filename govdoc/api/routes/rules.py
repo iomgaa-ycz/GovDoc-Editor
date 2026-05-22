@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
-from govdoc.db.models import CheckpointFinal, ExtractRun, RuleSource
+from govdoc.db.models import CheckpointFinal, ExtractRun, RuleSource, User
 from govdoc.runtime import get_document_store, get_libraries
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
@@ -36,6 +36,7 @@ async def upload_rule(
     background_tasks: BackgroundTasks,
     title: str = Form(...),
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ):
     store = get_document_store()
     content = await file.read()
@@ -63,7 +64,7 @@ async def upload_rule(
         session.add(rule_source)
         log_activity(
             session,
-            actor="system",
+            actor=current_user.username,
             action="upload_rule",
             target_type="RuleSource",
             target_id=rule_source.id,

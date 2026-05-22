@@ -2,22 +2,25 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import select
 
-from govdoc.api.deps import get_db_session
+from govdoc.api.deps import get_current_user, get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import CreateProjectRequest
-from govdoc.db.models import Project, TenderDoc
+from govdoc.db.models import Project, TenderDoc, User
 from govdoc.runtime import get_document_store
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
 
 @router.post("", status_code=201)
-async def create_project(payload: CreateProjectRequest):
+async def create_project(
+    payload: CreateProjectRequest,
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
-        project = Project(name=payload.name, created_by=payload.created_by)
+        project = Project(name=payload.name, created_by=current_user.username)
         session.add(project)
         session.commit()
         session.refresh(project)
@@ -72,7 +75,11 @@ async def list_tender_docs(project_id: str):
 
 
 @router.post("/{project_id}/tender-doc", status_code=201)
-async def upload_tender_doc(project_id: str, file: UploadFile = File(...)):
+async def upload_tender_doc(
+    project_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     with get_db_session() as session:
         project = session.get(Project, project_id)
         if project is None:
@@ -97,7 +104,7 @@ async def upload_tender_doc(project_id: str, file: UploadFile = File(...)):
         session.add(tender)
         log_activity(
             session,
-            actor="system",
+            actor=current_user.username,
             action="upload_tender_doc",
             target_type="TenderDoc",
             target_id=tender.id,

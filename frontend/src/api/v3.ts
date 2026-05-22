@@ -23,7 +23,20 @@ export async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const base = resolveBaseUrl();
-  const res = await fetch(`${base}${path}`, init);
+  const token = localStorage.getItem("token");
+
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${base}${path}`, { ...init, headers });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("auth:expired"));
+    const body = await res.text().catch(() => "");
+    throw new Error(`API 401: ${body || "登录已过期"}`);
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${body || res.statusText}`);
