@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from govdoc.compare.extractor import extract_docx_full_text, extract_docx_paragraphs
+from govdoc.compare.extractor import (
+    extract_docx_full_text,
+    extract_docx_paragraphs,
+    extract_markdown_paragraphs,
+)
 
 
 def _write_docx(path: Path) -> None:
@@ -85,3 +89,36 @@ def test_extract_zip_without_document_xml_raises_value_error(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="not a valid DOCX"):
         extract_docx_paragraphs(zip_path)
+
+
+def test_extract_markdown_paragraphs_cleans_common_markers() -> None:
+    """Markdown 提取应清理标题、列表、链接和表格分隔符。"""
+    markdown = """
+# 项目名称
+
+- 供应商应具有独立承担民事责任的能力。
+- [合同履行期限](https://example.com)：30日。
+
+| 项目 | 数量 |
+| --- | --- |
+| 设备 | 2 |
+
+![图片](a.png)
+"""
+
+    paragraphs = extract_markdown_paragraphs(markdown)
+
+    assert paragraphs == [
+        "项目名称",
+        "供应商应具有独立承担民事责任的能力。 合同履行期限：30日。",
+        "项目 数量 设备 2",
+    ]
+
+
+def test_extract_markdown_paragraphs_merges_hard_wrapped_lines() -> None:
+    """OCR 硬换行产生的同一段多行文本应合并为一个段落。"""
+    markdown = "第一行内容\n第二行内容\n\n下一段"
+
+    paragraphs = extract_markdown_paragraphs(markdown)
+
+    assert paragraphs == ["第一行内容 第二行内容", "下一段"]

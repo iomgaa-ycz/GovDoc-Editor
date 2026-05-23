@@ -1,4 +1,4 @@
-"""DOCX 文档对比响应 schema。"""
+"""文档对比响应 schema。"""
 
 from __future__ import annotations
 
@@ -27,16 +27,28 @@ class CompareModel(GovDocModel):
 
 
 class CompareCategory(CompareModel):
+    """文档对比匹配类别。"""
+
     id: CompareCategoryId
     label: str
     color: str
 
 
+class CompareFileMeta(CompareModel):
+    """单个参与对比文件的元信息。"""
+
+    file_index: int
+    name: str
+    suffix: str
+    paragraph_count: int
+    block_count: int
+
+
 class CompareSummary(CompareModel):
-    first_file_name: str
-    second_file_name: str
-    first_paragraph_count: int
-    second_paragraph_count: int
+    """N 文件对比摘要统计。"""
+
+    file_count: int
+    files: list[CompareFileMeta]
     common_paragraph_count: int
     common_sentence_count: int
     common_segment_count: int
@@ -45,6 +57,8 @@ class CompareSummary(CompareModel):
 
 
 class CompareBlockSegment(CompareModel):
+    """前端渲染段落时的一段连续文本。"""
+
     text: str
     match_ids: list[str]
     categories: list[CompareCategoryId]
@@ -52,6 +66,8 @@ class CompareBlockSegment(CompareModel):
 
 
 class CompareDocumentBlock(CompareModel):
+    """前端渲染的单个段落块。"""
+
     id: str
     index: int
     text: str
@@ -59,17 +75,25 @@ class CompareDocumentBlock(CompareModel):
 
 
 class CompareDocument(CompareModel):
+    """前端渲染单个文件所需的段落块结构。"""
+
+    file_index: int
     name: str
+    suffix: str
     block_count: int
     blocks: list[CompareDocumentBlock]
 
 
 class CompareDocuments(CompareModel):
-    first: CompareDocument
-    second: CompareDocument
+    """所有参与对比的文件。"""
+
+    files: list[CompareDocument]
 
 
 class CompareOccurrenceSegment(CompareModel):
+    """匹配范围落在某个段落块内的一段。"""
+
+    file_index: int
     block_id: str
     block_index: int
     start: int
@@ -77,36 +101,46 @@ class CompareOccurrenceSegment(CompareModel):
 
 
 class CompareOccurrence(CompareModel):
+    """某个匹配在某个文件中的一次出现。"""
+
+    file_index: int
     start: int
     end: int
     segments: list[CompareOccurrenceSegment]
 
 
 class CompareMatch(CompareModel):
+    """一条跨文件匹配记录。"""
+
     id: str
     category: CompareCategoryId
     label: str
     color: str
     text: str
     length: int
-    first_occurrences: list[CompareOccurrence]
-    second_occurrences: list[CompareOccurrence]
-    first_count: int
-    second_count: int
+    file_indices: list[int]
+    occurrences: dict[str, list[CompareOccurrence]]
+    per_file_counts: dict[str, int]
+    file_count: int
+    occurrence_count: int
 
 
 class CompareDownloads(CompareModel):
-    first: str
-    second: str
+    """每个文件的高亮 DOCX 下载链接。"""
+
+    files: dict[str, str]
 
 
 class CompareArtifacts(CompareModel):
+    """服务端生成物信息。"""
+
     review_dir: str
-    first_download_name: str
-    second_download_name: str
+    download_names: dict[str, str]
 
 
 class CompareResponse(CompareModel):
+    """文档对比完整响应。"""
+
     review_id: str
     summary: CompareSummary
     documents: CompareDocuments

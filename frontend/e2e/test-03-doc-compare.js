@@ -9,11 +9,10 @@ async page => {
   console.log('Step 1: 进入文档对比页');
   await page.screenshot({ path: 'e2e/screenshots/03-compare-empty.png' });
 
-  // Step 2: 上传两份文档
+  // Step 2: 上传多份文档
   const fileInputs = page.locator("input[type='file']");
-  await fileInputs.nth(0).setInputFiles(DOC_A);
-  await fileInputs.nth(1).setInputFiles(DOC_B);
-  console.log('Step 2: 已选择两份 DOCX 文件');
+  await fileInputs.nth(0).setInputFiles([DOC_A, DOC_B, DOC_A]);
+  console.log('Step 2: 已选择多份 DOCX 文件');
 
   // Step 3: 点击「开始对比」
   const compareBtn = page.getByRole('button', { name: /开始对比/ });
@@ -36,6 +35,11 @@ async page => {
   const matchList = page.getByText('匹配清单').first();
   if (!(await matchList.isVisible())) throw new Error('缺少匹配清单');
   console.log('Step 6: 匹配清单存在');
+
+  // Step 7: 验证多个文件栏存在
+  const fileCol = page.getByText(/文件 1 ·/).first();
+  if (!(await fileCol.isVisible())) throw new Error('缺少文件栏');
+  console.log('Step 7: 多文件栏存在');
 
   console.log('== test-03-doc-compare 全部通过 ==');
 }

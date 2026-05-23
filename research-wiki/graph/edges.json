@@ -104,6 +104,11 @@
       "id": "plan:audit-status-ui-v2-impl",
       "label": "审核状态 UI 改进版实现计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:pr27-merge-fixups",
+      "label": "PR#27 合并前修复",
+      "type": "plan"
     }
   ],
   "links": [
@@ -113,13 +118,6 @@
       "relation": "implements",
       "evidence": "实施 wiki-site-setup 设计方案",
       "added": "2026-05-13T08:44:05.970746+00:00"
-    },
-    {
-      "source": "plan:audit-status-ui-v2-impl",
-      "target": "design:audit-status-ui-v2",
-      "relation": "implements",
-      "evidence": "实现 PR#26 减一层设计方案",
-      "added": "2026-05-23T03:48:20.550360+00:00"
     }
   ]
 }

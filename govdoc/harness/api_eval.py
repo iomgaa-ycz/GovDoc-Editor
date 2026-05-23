@@ -33,7 +33,7 @@ class EndpointSpec:
         description: 端点描述。
         body: 请求体 JSON。
         form_data: 表单数据。
-        files: 上传文件字典。
+        files: 上传文件字典或重复字段列表。
         response_model: 响应 Pydantic 模型（可选）。
         is_async: 是否为异步端点。
         path_params: 路径参数替换字典。
@@ -45,7 +45,7 @@ class EndpointSpec:
     description: str
     body: dict[str, Any] | None = None
     form_data: dict[str, Any] | None = None
-    files: dict[str, Any] | None = None
+    files: Any | None = None
     response_model: Type[BaseModel] | None = None
     is_async: bool = False
     path_params: dict[str, str] = field(default_factory=dict)
@@ -117,6 +117,23 @@ def check_response_schema(
         return False, str(e)
 
 
+async def _dispatch_request(client: Any, spec: EndpointSpec, path: str) -> Any:
+    """根据 HTTP 方法分发请求。"""
+    if spec.method == "GET":
+        return await client.get(path)
+    if spec.method == "POST":
+        if spec.files:
+            return await client.post(path, files=spec.files, data=spec.form_data or {})
+        if spec.body:
+            return await client.post(path, json=spec.body)
+        return await client.post(path)
+    if spec.method == "PUT":
+        return await client.put(path, json=spec.body)
+    if spec.method == "DELETE":
+        return await client.delete(path)
+    raise ValueError(f"不支持的 HTTP 方法: {spec.method}")
+
+
 async def call_endpoint(
     client: Any,
     spec: EndpointSpec,
@@ -138,21 +155,7 @@ async def call_endpoint(
 
     t0 = time.time()
     try:
-        if spec.method == "GET":
-            resp = await client.get(path)
-        elif spec.method == "POST":
-            if spec.files:
-                resp = await client.post(path, files=spec.files, data=spec.form_data or {})
-            elif spec.body:
-                resp = await client.post(path, json=spec.body)
-            else:
-                resp = await client.post(path)
-        elif spec.method == "PUT":
-            resp = await client.put(path, json=spec.body)
-        elif spec.method == "DELETE":
-            resp = await client.delete(path)
-        else:
-            raise ValueError(f"不支持的 HTTP 方法: {spec.method}")
+        resp = await _dispatch_request(client, spec, path)
 
         duration_ms = (time.time() - t0) * 1000
         content_type = resp.headers.get("content-type", "")
@@ -1148,10 +1151,10 @@ async def _run_compare_check(client: Any, log: HarnessLog, project_root: str) ->
             path="/api/v1/compare",
             expected_status=200,
             description="文档对比",
-            files={
-                "first_file": (first_file.name, first_file.read_bytes()),
-                "second_file": (second_file.name, second_file.read_bytes()),
-            },
+            files=[
+                ("files", (first_file.name, first_file.read_bytes())),
+                ("files", (second_file.name, second_file.read_bytes())),
+            ],
         ),
         log,
     )

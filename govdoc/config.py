@@ -79,6 +79,16 @@ class AuditConfig(BaseModel):
     point_timeout_s: int = 900
 
 
+class CompareConfig(BaseModel):
+    """文档对比功能配置。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_files: int | None = None
+    min_segment_length: int = 16
+    pdf_timeout_s: int = 300
+
+
 class GovDocConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -89,6 +99,7 @@ class GovDocConfig(BaseModel):
     evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
     harness: HarnessConfig = Field(default_factory=HarnessConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
+    compare: CompareConfig = Field(default_factory=CompareConfig)
 
     @property
     def project_root(self) -> Path:
