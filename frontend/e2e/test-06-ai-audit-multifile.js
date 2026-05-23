@@ -81,7 +81,59 @@ async page => {
   console.log('Step 11: 上传完成');
   await page.screenshot({ path: 'e2e/screenshots/06-uploaded.png' });
 
-  // Step 12: 最终截图
+  // Step 12: 选择审核点并启动审核
+  const checkboxes = page.locator("input[type='checkbox']");
+  await checkboxes.first().waitFor({ timeout: 10000 });
+  const cpCount = await checkboxes.count();
+  const selectCount = Math.min(cpCount, 2);
+  for (let i = 0; i < selectCount; i++) await checkboxes.nth(i).check();
+
+  const startBtn = page.getByRole('button', { name: /开始审核/ });
+  await startBtn.click();
+  console.log('Step 12: 启动审核（' + selectCount + ' 个审核点）');
+
+  const running = page.getByText('审核进行中');
+  await running.waitFor({ timeout: 30000 });
+
+  // Step 13: 等待至少一个审核点完成
+  console.log('Step 13: 等待审核点完成（最长 60 分钟）...');
+  const completedBadge = page.locator('main').getByText('已完成').first();
+  await completedBadge.waitFor({ timeout: 3600000 });
+  console.log('Step 13: 至少一个审核点已完成');
+
+  // Step 14: 验证质量
+  console.log('Step 14: 验证审核结论质量');
+  const VALID_VERDICTS = ['合规', '不合规', '存疑'];
+  const pointBtns = page.locator('main button.border-l-4');
+  const pointBtnCount = await pointBtns.count();
+  let qualityVerified = 0;
+
+  for (let i = 0; i < pointBtnCount; i++) {
+    const btn = pointBtns.nth(i);
+    const btnText = (await btn.textContent() || '');
+    if (!btnText.includes('已完成') && !VALID_VERDICTS.some(v => btnText.includes(v))) continue;
+
+    await btn.click();
+    await page.waitForTimeout(1000);
+
+    const hasVerdict = await page.getByText('审核结论').isVisible().catch(() => false);
+    if (!hasVerdict) continue;
+
+    const verdictPanel = page.locator('.rounded-card.border.p-4').first();
+    const verdictText = (await verdictPanel.textContent() || '');
+    const foundVerdict = VALID_VERDICTS.find(v => verdictText.includes(v));
+    if (!foundVerdict) throw new Error('审核点 ' + i + ' verdict 无效');
+
+    const rationale = page.getByText('审查意见').locator('..').locator('p').first();
+    const rText = (await rationale.textContent().catch(() => '') || '').trim();
+    if (rText.length <= 20) throw new Error('审核点 ' + i + ' 审查意见过短: ' + rText.length);
+
+    qualityVerified++;
+    console.log('Step 14: 审核点 ' + i + ' — verdict=' + foundVerdict + ', ok');
+  }
+  console.log('Step 14: 验证 ' + qualityVerified + ' 个审核点质量通过');
+
+  // Step 15: 最终截图
   await page.screenshot({ path: 'e2e/screenshots/06-final.png', fullPage: true });
   console.log('== test-06-ai-audit-multifile 全部通过 ==');
 }

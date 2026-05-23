@@ -60,7 +60,44 @@ async page => {
   console.log('Step 7: 至少一个审核点已完成');
   await page.screenshot({ path: 'e2e/screenshots/05-audit-partial.png' });
 
-  // Step 8: 截图最终状态
+  // Step 8: 验证已完成审核点的结果质量
+  console.log('Step 8: 验证审核结论质量');
+  const VALID_VERDICTS = ['合规', '不合规', '存疑'];
+  const pointBtns = page.locator('main button.border-l-4');
+  const pointBtnCount = await pointBtns.count();
+  let qualityVerified = 0;
+
+  for (let i = 0; i < pointBtnCount; i++) {
+    const btn = pointBtns.nth(i);
+    const btnText = (await btn.textContent() || '');
+    if (!btnText.includes('已完成') && !VALID_VERDICTS.some(v => btnText.includes(v))) continue;
+
+    await btn.click();
+    await page.waitForTimeout(1000);
+
+    const hasVerdict = await page.getByText('审核结论').isVisible().catch(() => false);
+    if (!hasVerdict) continue;
+
+    const verdictPanel = page.locator('.rounded-card.border.p-4').first();
+    const verdictText = (await verdictPanel.textContent() || '');
+    const foundVerdict = VALID_VERDICTS.find(v => verdictText.includes(v));
+    if (!foundVerdict) throw new Error('审核点 ' + i + ' verdict 无效: ' + verdictText.slice(0, 50));
+
+    const rationale = page.getByText('审查意见').locator('..').locator('p').first();
+    const rText = (await rationale.textContent().catch(() => '') || '').trim();
+    if (rText.length <= 20) throw new Error('审核点 ' + i + ' 审查意见过短: ' + rText.length);
+
+    const suggestion = page.getByText('整改建议').locator('..').locator('p').first();
+    const sText = (await suggestion.textContent().catch(() => '') || '').trim();
+    if (sText.length <= 10) throw new Error('审核点 ' + i + ' 整改建议过短: ' + sText.length);
+
+    qualityVerified++;
+    console.log('Step 8: 审核点 ' + i + ' — verdict=' + foundVerdict + ', ok');
+  }
+  if (qualityVerified === 0) console.log('Step 8: WARN — 无 completed 审核点可验证质量');
+  else console.log('Step 8: 验证 ' + qualityVerified + ' 个审核点质量通过');
+
+  // Step 9: 截图最终状态
   await page.screenshot({ path: 'e2e/screenshots/05-audit-final.png', fullPage: true });
   console.log('== test-05-ai-audit 全部通过 ==');
 }

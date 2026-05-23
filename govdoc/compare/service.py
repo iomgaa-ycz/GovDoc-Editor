@@ -367,8 +367,25 @@ def _build_nfile_block_matches(documents: list[DocumentModel]) -> list[MatchReco
     return matches
 
 
-def _build_nfile_sentence_matches(documents: list[DocumentModel]) -> list[MatchRecord]:
-    """在所有文件间查找完全相同的句子。"""
+def _sentence_covered_by_paragraph(
+    doc: DocumentModel,
+    sentence: SentenceOccurrence,
+    paragraph_ranges_by_file: dict[int, list[tuple[int, int]]] | None,
+) -> bool:
+    """判断句子是否已被段落级匹配完全覆盖。"""
+    if not paragraph_ranges_by_file or doc.file_index not in paragraph_ranges_by_file:
+        return False
+    return _is_covered_by_ranges(
+        document=doc, start=sentence.start, end=sentence.end,
+        ranges=paragraph_ranges_by_file[doc.file_index],
+    )
+
+
+def _build_nfile_sentence_matches(
+    documents: list[DocumentModel],
+    paragraph_ranges_by_file: dict[int, list[tuple[int, int]]] | None = None,
+) -> list[MatchRecord]:
+    """在所有文件间查找完全相同的句子（排除已被段落级覆盖的）。"""
     sentence_lookup: dict[str, dict[int, list[SentenceOccurrence]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -376,6 +393,8 @@ def _build_nfile_sentence_matches(documents: list[DocumentModel]) -> list[MatchR
 
     for doc in documents:
         for order, sentence in enumerate(_iter_sentence_occurrences(doc), start=1):
+            if _sentence_covered_by_paragraph(doc, sentence, paragraph_ranges_by_file):
+                continue
             sentence_lookup[sentence.text][doc.file_index].append(sentence)
             first_seen.setdefault(sentence.text, (doc.file_index, order))
 
@@ -740,7 +759,10 @@ def _build_compare_response(
     ]
 
     paragraph_matches = _build_nfile_block_matches(documents)
-    sentence_matches = _build_nfile_sentence_matches(documents)
+    paragraph_ranges = _build_exact_ranges_by_file(paragraph_matches)
+    sentence_matches = _build_nfile_sentence_matches(
+        documents, paragraph_ranges_by_file=paragraph_ranges,
+    )
     segment_matches = _build_nfile_segment_matches(
         documents=documents,
         min_segment_length=min_segment_length,

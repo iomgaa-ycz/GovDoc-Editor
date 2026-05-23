@@ -265,3 +265,39 @@ def test_compare_requires_at_least_two_files(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="至少上传 2 份文件"):
         create_compare_bundle(files=[(only_path, only_path.name)], output_root=tmp_path / "compare")
+
+
+def test_sentence_inside_matched_paragraph_is_deduplicated(tmp_path: Path) -> None:
+    """段落内的单句子不应被重复计入 sentenceCount。"""
+    first_path = tmp_path / "a.docx"
+    second_path = tmp_path / "b.docx"
+    output_root = tmp_path / "compare"
+    _write_docx(first_path, ["唯一共同段落。", "独有A段落。"])
+    _write_docx(second_path, ["唯一共同段落。", "独有B段落。"])
+
+    payload = create_compare_bundle(
+        files=[(first_path, first_path.name), (second_path, second_path.name)],
+        output_root=output_root,
+    )
+
+    assert payload.summary.common_paragraph_count == 1
+    assert payload.summary.common_sentence_count == 0
+    assert not any(m.category == "sentence" for m in payload.matches)
+
+
+def test_sentence_dedup_preserves_cross_paragraph_sentences(tmp_path: Path) -> None:
+    """跨段落的相同句子（不在段落匹配中）应保留。"""
+    first_path = tmp_path / "a.docx"
+    second_path = tmp_path / "b.docx"
+    output_root = tmp_path / "compare"
+    _write_docx(first_path, ["第一句共享。第二句不同A。"])
+    _write_docx(second_path, ["第一句共享。第二句不同B。"])
+
+    payload = create_compare_bundle(
+        files=[(first_path, first_path.name), (second_path, second_path.name)],
+        output_root=output_root,
+    )
+
+    assert payload.summary.common_paragraph_count == 0
+    assert payload.summary.common_sentence_count == 1
+    assert any(m.text == "第一句共享。" and m.category == "sentence" for m in payload.matches)

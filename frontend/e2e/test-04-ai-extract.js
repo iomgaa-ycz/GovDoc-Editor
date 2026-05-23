@@ -53,5 +53,30 @@ async page => {
   console.log('Step 7: 列表中有 ' + count + ' 条审核点');
   await page.screenshot({ path: 'e2e/screenshots/04-extract-list.png', fullPage: true });
 
+  // Step 8: 验证提取出的审核点质量
+  console.log('Step 8: 验证审核点内容质量');
+  let qualityChecked = 0;
+  for (let i = 0; i < Math.min(count, 5); i++) {
+    const row = rows.nth(i);
+    const titleEl = row.locator('p.font-medium').first();
+    const titleText = (await titleEl.textContent() || '').trim();
+    if (titleText.length <= 2) throw new Error('审核点 ' + i + ' 标题过短: ' + titleText);
+
+    const descEl = row.locator('p.text-xs').first();
+    const descText = (await descEl.textContent() || '').trim();
+    if (descText.length <= 10) throw new Error('审核点 ' + i + ' 描述过短: ' + descText);
+
+    const categoryText = (await row.locator('td').nth(1).textContent() || '').trim();
+    if (!categoryText) throw new Error('审核点 ' + i + ' 缺少分类');
+
+    const sevText = (await row.locator('td').nth(2).textContent() || '').trim();
+    const validSeverities = ['严重', '重要', '一般'];
+    if (!validSeverities.some(s => sevText.includes(s))) {
+      throw new Error('审核点 ' + i + ' 严重程度异常: ' + sevText);
+    }
+    qualityChecked++;
+  }
+  console.log('Step 8: 验证 ' + qualityChecked + ' 个审核点质量通过');
+
   console.log('== test-04-ai-extract 全部通过 ==');
 }

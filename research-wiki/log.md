@@ -47,3 +47,13 @@
 >>>>>>> Stashed changes
 - [2026-05-23 05:59 UTC] 重建索引: 79 篇页面
 - [2026-05-23 06:04 UTC] 重建索引: 84 篇页面
+- [2026-05-23 10:26 UTC] 新增 design: E2E 测试全覆盖设计 (design:e2e-full-coverage)
+- [2026-05-23 10:26 UTC] 重建索引: 86 篇页面
+- [2026-05-23 10:34 UTC] 新增 plan: E2E 测试全覆盖实现计划 (plan:e2e-full-coverage)
+- [2026-05-23 10:35 UTC] 新增边: plan:e2e-full-coverage --implements--> design:e2e-full-coverage
+- [2026-05-23 10:35 UTC] 重建索引: 88 篇页面
+- [2026-05-23 14:20 UTC] 新增 design: E2E 测试第二轮修复设计 (design:e2e-fix-round2)
+- [2026-05-23 14:20 UTC] 重建索引: 90 篇页面
+- [2026-05-23 14:22 UTC] 新增 plan: E2E 测试第二轮修复实现计划 (plan:e2e-fix-round2)
+- [2026-05-23 14:22 UTC] 新增边: plan:e2e-fix-round2 --implements--> design:e2e-fix-round2
+- [2026-05-23 14:22 UTC] 重建索引: 92 篇页面

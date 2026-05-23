@@ -1,9 +1,13 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-23 06:04 UTC
+> 自动生成，更新时间：2026-05-23 14:22 UTC
 
-## design (9)
+## design (13)
+- [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
+- [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
+- [E2E 测试全覆盖设计](designs/e2e-full-coverage.md) `design:e2e-full-coverage`
+- [E2E 测试第二轮修复设计](designs/e2e-fix-round2.md) `design:e2e-fix-round2`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
@@ -18,7 +22,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (30)
+## plan (34)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -31,11 +35,15 @@
 - [2026-05-17-issue-17-multifile-upload](plans/2026-05-17-issue-17-multifile-upload.md) `plan:2026-05-17-issue-17-multifile-upload`
 - [2026-05-17-pre-beta-code-cleanup](plans/2026-05-17-pre-beta-code-cleanup.md) `plan:2026-05-17-pre-beta-code-cleanup`
 - [2026-05-19-pr25-merge-cleanup-and-test07](plans/2026-05-19-pr25-merge-cleanup-and-test07.md) `plan:2026-05-19-pr25-merge-cleanup-and-test07`
+- [2026-05-23-e2e-fix-round2](plans/2026-05-23-e2e-fix-round2.md) `plan:2026-05-23-e2e-fix-round2`
+- [2026-05-23-e2e-full-coverage](plans/2026-05-23-e2e-full-coverage.md) `plan:2026-05-23-e2e-full-coverage`
 - [2026-05-23-pr27-merge-fixups](plans/2026-05-23-pr27-merge-fixups.md) `plan:2026-05-23-pr27-merge-fixups`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`
+- [E2E 测试全覆盖实现计划](plans/e2e-full-coverage.md) `plan:e2e-full-coverage`
 - [E2E 测试清单](plans/e2e-test-checklist.md) `plan:e2e-test-checklist`
+- [E2E 测试第二轮修复实现计划](plans/e2e-fix-round2.md) `plan:e2e-fix-round2`
 - [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
 - [PR#25 合并清理 + Test 07 实现计划](plans/pr25-merge-cleanup-test07.md) `plan:pr25-merge-cleanup-test07`
 - [PR#27 合并前修复](plans/pr27-merge-fixups.md) `plan:pr27-merge-fixups`

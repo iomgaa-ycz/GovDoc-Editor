@@ -109,6 +109,26 @@
       "id": "plan:pr27-merge-fixups",
       "label": "PR#27 合并前修复",
       "type": "plan"
+    },
+    {
+      "id": "design:e2e-full-coverage",
+      "label": "E2E 测试全覆盖设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:e2e-full-coverage",
+      "label": "E2E 测试全覆盖实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:e2e-fix-round2",
+      "label": "E2E 测试第二轮修复设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:e2e-fix-round2",
+      "label": "E2E 测试第二轮修复实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -118,6 +138,20 @@
       "relation": "implements",
       "evidence": "实施 wiki-site-setup 设计方案",
       "added": "2026-05-13T08:44:05.970746+00:00"
+    },
+    {
+      "source": "plan:e2e-full-coverage",
+      "target": "design:e2e-full-coverage",
+      "relation": "implements",
+      "evidence": "实现 E2E 测试全覆盖设计",
+      "added": "2026-05-23T10:35:03.501807+00:00"
+    },
+    {
+      "source": "plan:e2e-fix-round2",
+      "target": "design:e2e-fix-round2",
+      "relation": "implements",
+      "evidence": "实现第二轮修复设计",
+      "added": "2026-05-23T14:22:51.717317+00:00"
     }
   ]
 }
