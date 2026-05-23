@@ -35,3 +35,8 @@
 - [2026-05-17 09:14 UTC] 重建索引: 74 篇页面
 - [2026-05-17 16:12 UTC] 新增 plan: Issue #17: AI 审核页面主文件+附件上传 (plan:issue-17-multifile-upload)
 - [2026-05-17 16:12 UTC] 重建索引: 76 篇页面
+- [2026-05-23 03:41 UTC] 新增 design: 审核状态 UI 改进版设计（PR#26 减一层） (design:audit-status-ui-v2)
+- [2026-05-23 03:43 UTC] 重建索引: 79 篇页面
+- [2026-05-23 03:45 UTC] 新增 plan: 审核状态 UI 改进版实现计划 (plan:audit-status-ui-v2-impl)
+- [2026-05-23 03:48 UTC] 新增边: plan:audit-status-ui-v2-impl --implements--> design:audit-status-ui-v2
+- [2026-05-23 03:48 UTC] 重建索引: 81 篇页面

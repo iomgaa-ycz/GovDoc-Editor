@@ -31,30 +31,6 @@ export function parseFindingJson(
   }
 }
 
-export function verdictToStatus(
-  finding: GovFinding | null,
-  pointStatus: string,
-): "pending" | "running" | "passed" | "failed" | "uncertain" | "error" {
-  if (pointStatus === "pending") return "pending";
-  if (pointStatus === "running") return "running";
-  if (pointStatus === "failed" || pointStatus === "waiting_retry") return "error";
-  // completed
-  if (!finding) return "failed";
-  const v = finding.verdict?.verdict;
-  if (v === "合规") return "passed";
-  if (v === "不合规") return "failed";
-  if (v === "存疑") return "uncertain";
-  return "failed";
-}
-
-export function severityToRisk(
-  severity: string,
-): "high" | "medium" | "low" {
-  if (severity === "critical") return "high";
-  if (severity === "major") return "medium";
-  return "low";
-}
-
 export function verdictLabel(verdict: string): string {
   if (verdict === "合规") return "合规通过";
   if (verdict === "不合规") return "不合规";
@@ -96,7 +72,7 @@ export function workpaperToHtml(wp: WorkpaperPayload): string {
       const cp = f.checkpoint;
       const v = f.verdict;
       parts.push(
-        `<blockquote><strong>${escapeHtml(cp.title)}</strong> — ${escapeHtml(v.verdict)}</blockquote>`,
+        `<blockquote><strong>${escapeHtml(cp.title)}</strong> — ${escapeHtml(verdictLabel(v.verdict))}</blockquote>`,
       );
       parts.push(`<p><strong>分类:</strong> ${escapeHtml(cp.category)} | <strong>严重程度:</strong> ${escapeHtml(cp.severity)}</p>`);
       if (v.rationale) {

@@ -1,12 +1,13 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-17 16:12 UTC
+> 自动生成，更新时间：2026-05-23 03:48 UTC
 
-## design (7)
+## design (8)
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
+- [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
@@ -16,7 +17,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (24)
+## plan (28)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -28,17 +29,21 @@
 - [2026-05-17-frontend-tailwind-refactor](plans/2026-05-17-frontend-tailwind-refactor.md) `plan:2026-05-17-frontend-tailwind-refactor`
 - [2026-05-17-issue-17-multifile-upload](plans/2026-05-17-issue-17-multifile-upload.md) `plan:2026-05-17-issue-17-multifile-upload`
 - [2026-05-17-pre-beta-code-cleanup](plans/2026-05-17-pre-beta-code-cleanup.md) `plan:2026-05-17-pre-beta-code-cleanup`
+- [2026-05-19-pr25-merge-cleanup-and-test07](plans/2026-05-19-pr25-merge-cleanup-and-test07.md) `plan:2026-05-19-pr25-merge-cleanup-and-test07`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`
 - [E2E 测试清单](plans/e2e-test-checklist.md) `plan:e2e-test-checklist`
 - [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
+- [PR#25 合并清理 + Test 07 实现计划](plans/pr25-merge-cleanup-test07.md) `plan:pr25-merge-cleanup-test07`
 - [Wiki-Site 渲染站点搭建实施计划](plans/wiki-site-setup-impl.md) `plan:wiki-site-setup-impl`
 - [前端契约测试基础设施计划](plans/frontend-contract-tests.md) `plan:frontend-contract-tests`
 - [前端重构：Tailwind CSS + shadcn/ui](plans/frontend-tailwind-refactor.md) `plan:frontend-tailwind-refactor`
 - [前端重设计后端接口补全](plans/frontend-redesign-backend-gaps.md) `plan:frontend-redesign-backend-gaps`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
+- [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
+- [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
 

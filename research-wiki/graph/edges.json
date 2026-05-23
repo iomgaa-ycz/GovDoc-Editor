@@ -94,6 +94,16 @@
       "id": "plan:issue-17-multifile-upload",
       "label": "Issue #17: AI 审核页面主文件+附件上传",
       "type": "plan"
+    },
+    {
+      "id": "design:audit-status-ui-v2",
+      "label": "审核状态 UI 改进版设计（PR#26 减一层）",
+      "type": "design"
+    },
+    {
+      "id": "plan:audit-status-ui-v2-impl",
+      "label": "审核状态 UI 改进版实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -103,6 +113,13 @@
       "relation": "implements",
       "evidence": "实施 wiki-site-setup 设计方案",
       "added": "2026-05-13T08:44:05.970746+00:00"
+    },
+    {
+      "source": "plan:audit-status-ui-v2-impl",
+      "target": "design:audit-status-ui-v2",
+      "relation": "implements",
+      "evidence": "实现 PR#26 减一层设计方案",
+      "added": "2026-05-23T03:48:20.550360+00:00"
     }
   ]
 }

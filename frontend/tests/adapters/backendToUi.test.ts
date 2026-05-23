@@ -1,21 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { verdictToStatus } from "@/adapters/backendToUi";
-import type { GovFinding } from "@/types/ui";
+import { describe, expect, it } from "vitest";
 
-/** 构造一个最小可用的 GovFinding 测试夹具 */
-function makeFinding(verdict: string): GovFinding {
+import { workpaperToHtml } from "@/adapters/backendToUi";
+import type { GovFinding, VerdictValue, WorkpaperPayload } from "@/types/ui";
+
+function makeFinding(verdict: VerdictValue): GovFinding {
   return {
     checkpoint: {
-      id: "cp-001",
+      id: `cp-${verdict}`,
       category: "其他违法违规",
-      title: "测试审核点",
+      title: `${verdict}审核点`,
       description: "测试描述",
       legal_basis: [],
       severity: "minor",
       retrieval_hint: "",
     },
     verdict: {
-      verdict: verdict as GovFinding["verdict"]["verdict"],
+      verdict,
       rationale: "测试理由",
       evidence_quotes: [],
       suggestion: "",
@@ -25,40 +25,36 @@ function makeFinding(verdict: string): GovFinding {
   };
 }
 
-describe("verdictToStatus", () => {
-  it("pointStatus 为 pending → 返回 pending", () => {
-    expect(verdictToStatus(null, "pending")).toBe("pending");
+function makeWorkpaper(verdicts: VerdictValue[]): WorkpaperPayload {
+  return {
+    project_id: "proj-test",
+    tender_doc_path: "/test.docx",
+    summary: "测试总结",
+    generated_at: "2026-05-22T00:00:00Z",
+    final: false,
+    findings: verdicts.map((v) => makeFinding(v)),
+  };
+}
+
+describe("workpaperToHtml", () => {
+  it("合规 finding 显示 '合规通过'", () => {
+    const html = workpaperToHtml(makeWorkpaper(["合规"]));
+    expect(html).toContain("合规通过");
   });
 
-  it("pointStatus 为 running → 返回 running", () => {
-    expect(verdictToStatus(null, "running")).toBe("running");
+  it("不合规 finding 显示 '不合规'", () => {
+    const html = workpaperToHtml(makeWorkpaper(["不合规"]));
+    expect(html).toContain("不合规");
   });
 
-  it("pointStatus 为 failed → 返回 error", () => {
-    expect(verdictToStatus(null, "failed")).toBe("error");
+  it("存疑 finding 显示 '存疑待定'", () => {
+    const html = workpaperToHtml(makeWorkpaper(["存疑"]));
+    expect(html).toContain("存疑待定");
   });
 
-  it("pointStatus 为 waiting_retry → 返回 error", () => {
-    expect(verdictToStatus(null, "waiting_retry")).toBe("error");
-  });
-
-  it("completed 状态 + finding 为 null → 返回 failed", () => {
-    expect(verdictToStatus(null, "completed")).toBe("failed");
-  });
-
-  it("verdict 为 合规 → 返回 passed", () => {
-    expect(verdictToStatus(makeFinding("合规"), "completed")).toBe("passed");
-  });
-
-  it("verdict 为 不合规 → 返回 failed", () => {
-    expect(verdictToStatus(makeFinding("不合规"), "completed")).toBe("failed");
-  });
-
-  it("verdict 为 存疑 → 返回 uncertain", () => {
-    expect(verdictToStatus(makeFinding("存疑"), "completed")).toBe("uncertain");
-  });
-
-  it("verdict 为未知值 → fallback 返回 failed", () => {
-    expect(verdictToStatus(makeFinding("其他未知值"), "completed")).toBe("failed");
+  it("包含摘要和发现数量", () => {
+    const html = workpaperToHtml(makeWorkpaper(["合规", "不合规"]));
+    expect(html).toContain("测试总结");
+    expect(html).toContain("审查发现 (2)");
   });
 });

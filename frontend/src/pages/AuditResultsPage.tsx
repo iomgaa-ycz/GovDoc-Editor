@@ -1,8 +1,8 @@
 import { RefreshCw, Send } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useWorkbench } from "@/context/V3WorkbenchContext";
-import { parseFindingJson, verdictToStatus } from "@/adapters/backendToUi";
+import { parseFindingJson } from "@/adapters/backendToUi";
 import { listComments, createComment } from "@/api/v3";
 import type { Comment } from "@/types/ui";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,17 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { PointInsight } from "@/components/PointInsight";
 
+const VERDICT_BORDER: Record<string, string> = {
+  "合规": "border-l-status-ok",
+  "不合规": "border-l-status-err",
+  "存疑": "border-l-status-warn",
+};
+const VERDICT_DOT: Record<string, string> = {
+  "合规": "bg-status-ok",
+  "不合规": "bg-status-err",
+  "存疑": "bg-status-warn",
+};
+
 export function AuditResultsPage() {
   const {
     auditRuns, auditProgress, selectedAuditRunId, setSelectedAuditRunId,
@@ -24,7 +35,20 @@ export function AuditResultsPage() {
   const selectedAuditProgress =
     auditProgress?.audit_run_id === selectedAuditRunId ? auditProgress : null;
   const pointRuns = selectedAuditProgress?.point_runs ?? [];
-  const activePr = pointRuns.find((pr) => pr.id === selectedPointRunId);
+
+  const checkpointById = useMemo(
+    () => new Map(finalCheckpoints.map((cp) => [cp.id, cp])),
+    [finalCheckpoints],
+  );
+  const pointRunViews = useMemo(() => pointRuns.map((pr) => {
+    const checkpoint = checkpointById.get(pr.checkpoint_final_id)?.parsed ?? null;
+    const finding = parseFindingJson(pr.finding_json);
+    const verdict = finding?.verdict?.verdict;
+    return { pr, checkpoint, finding, verdict, title: checkpoint?.title ?? "（已失效）" };
+  }), [checkpointById, pointRuns]);
+
+  const activeView = pointRunViews.find((v) => v.pr.id === selectedPointRunId);
+
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [feedbackText, setFeedbackText] = useState("");
@@ -75,7 +99,7 @@ export function AuditResultsPage() {
         </Select>
       </header>
 
-      {pointRuns.length === 0 ? (
+      {pointRunViews.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState title="暂无审核结果" description="请先完成一次审核运行。" />
         </div>
@@ -87,32 +111,35 @@ export function AuditResultsPage() {
               <p className="text-xs text-text-muted">{pointRuns.length} 个审核点</p>
             </div>
             <ScrollArea className="h-[calc(100vh-120px)]">
-              {pointRuns.map((pr) => {
-                const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-                const title = cp?.parsed?.title ?? "（已失效）";
-                const finding = parseFindingJson(pr.finding_json);
-                return (
-                  <button key={pr.id} className={cn("flex w-full items-center justify-between px-4 py-3 text-left border-b hover:bg-surface transition-colors", pr.id === selectedPointRunId && "bg-accent-light border-l-2 border-l-accent")} onClick={() => setSelectedPointRunId(pr.id)}>
-                    <span className="text-sm truncate mr-2">{title}</span>
-                    <StatusBadge status={finding?.verdict?.verdict ?? pr.status} />
-                  </button>
-                );
-              })}
+              {pointRunViews.map(({ pr, title, verdict }) => (
+                <button
+                  key={pr.id}
+                  className={cn(
+                    "flex w-full items-center justify-between border-b border-l-4 px-4 py-3 text-left transition-colors hover:bg-surface",
+                    VERDICT_BORDER[verdict ?? ""] ?? "border-l-transparent",
+                    pr.id === selectedPointRunId && "ring-1 ring-inset ring-accent",
+                  )}
+                  onClick={() => setSelectedPointRunId(pr.id)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn("h-2 w-2 shrink-0 rounded-full", VERDICT_DOT[verdict ?? ""] ?? "bg-gray-300")} />
+                    <span className="text-sm truncate">{title}</span>
+                  </div>
+                  <StatusBadge status={verdict ?? pr.status} />
+                </button>
+              ))}
             </ScrollArea>
           </div>
 
           <div className="flex-1 overflow-auto p-7 space-y-5">
-            {activePr ? (() => {
-              const cp = finalCheckpoints.find((c) => c.id === activePr.checkpoint_final_id);
-              const finding = parseFindingJson(activePr.finding_json);
-              if (!cp?.parsed) return <EmptyState title="审核点数据已失效" description="该审核点对应的审查标准已被删除或重新导入，无法显示详细结果。请使用当前审查标准重新发起审核。" />;
-              return (
+            {activeView ? (
+              activeView.checkpoint ? (
                 <>
-                  <PointInsight checkpoint={cp.parsed} finding={finding} pointStatus={activePr.status} />
-                  {(activePr.status === "failed" || activePr.status === "waiting_retry") && (
-                    <Button variant="secondary" disabled={retryingId === activePr.id} onClick={() => handleRetry(activePr.id)}>
-                      <RefreshCw className={cn("h-4 w-4", retryingId === activePr.id && "animate-spin")} />
-                      {retryingId === activePr.id ? "正在重试..." : "重试此审核点"}
+                  <PointInsight checkpoint={activeView.checkpoint} finding={activeView.finding} pointStatus={activeView.pr.status} />
+                  {(activeView.pr.status === "failed" || activeView.pr.status === "waiting_retry") && (
+                    <Button variant="secondary" disabled={retryingId === activeView.pr.id} onClick={() => handleRetry(activeView.pr.id)}>
+                      <RefreshCw className={cn("h-4 w-4", retryingId === activeView.pr.id && "animate-spin")} />
+                      {retryingId === activeView.pr.id ? "正在重试..." : "重试此审核点"}
                     </Button>
                   )}
                   <Separator />
@@ -130,8 +157,10 @@ export function AuditResultsPage() {
                     ))}
                   </div>
                 </>
-              );
-            })() : (
+              ) : (
+                <EmptyState title="审核点数据已失效" description="该审核点对应的审查标准已被删除或重新导入，无法显示详细结果。请使用当前审查标准重新发起审核。" />
+              )
+            ) : (
               <div className="flex-1 flex items-center justify-center h-full">
                 <EmptyState title="请选择审核点" description="点击左侧列表查看详细审查结果。" />
               </div>
