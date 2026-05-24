@@ -129,6 +129,26 @@
       "id": "plan:e2e-fix-round2",
       "label": "E2E 测试第二轮修复实现计划",
       "type": "plan"
+    },
+    {
+      "id": "design:async-offload-blocking-ops",
+      "label": "async offload: 解除 run_audit 同步阻塞事件循环",
+      "type": "design"
+    },
+    {
+      "id": "plan:async-offload-blocking-ops",
+      "label": "async offload 实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:checkpoint-title-dedup-design",
+      "label": "审核点按标题去重设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:2026-05-24-checkpoint-title-dedup-plan",
+      "label": "审核点按标题去重实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -152,6 +172,20 @@
       "relation": "implements",
       "evidence": "实现第二轮修复设计",
       "added": "2026-05-23T14:22:51.717317+00:00"
+    },
+    {
+      "source": "plan:async-offload-blocking-ops",
+      "target": "design:async-offload-blocking-ops",
+      "relation": "implements",
+      "evidence": "实现 async offload 设计中的 to_thread 方案",
+      "added": "2026-05-24T05:50:28.903130+00:00"
+    },
+    {
+      "source": "plan:2026-05-24-checkpoint-title-dedup-plan",
+      "target": "design:checkpoint-title-dedup-design",
+      "relation": "implements",
+      "evidence": "实施审核点按标题去重设计",
+      "added": "2026-05-24T08:59:36.357843+00:00"
     }
   ]
 }

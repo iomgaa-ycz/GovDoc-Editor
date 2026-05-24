@@ -57,3 +57,13 @@
 - [2026-05-23 14:22 UTC] 新增 plan: E2E 测试第二轮修复实现计划 (plan:e2e-fix-round2)
 - [2026-05-23 14:22 UTC] 新增边: plan:e2e-fix-round2 --implements--> design:e2e-fix-round2
 - [2026-05-23 14:22 UTC] 重建索引: 92 篇页面
+- [2026-05-24 05:45 UTC] 新增 design: async offload: 解除 run_audit 同步阻塞事件循环 (design:async-offload-blocking-ops)
+- [2026-05-24 05:47 UTC] 重建索引: 93 篇页面
+- [2026-05-24 05:49 UTC] 新增 plan: async offload 实现计划 (plan:async-offload-blocking-ops)
+- [2026-05-24 05:50 UTC] 新增边: plan:async-offload-blocking-ops --implements--> design:async-offload-blocking-ops
+- [2026-05-24 05:50 UTC] 重建索引: 94 篇页面
+- [2026-05-24 08:52 UTC] 新增 design: 审核点按标题去重设计 (design:checkpoint-title-dedup-design)
+- [2026-05-24 08:53 UTC] 重建索引: 95 篇页面
+- [2026-05-24 08:59 UTC] 新增 plan: 审核点按标题去重实施计划 (plan:2026-05-24-checkpoint-title-dedup-plan)
+- [2026-05-24 08:59 UTC] 新增边: plan:2026-05-24-checkpoint-title-dedup-plan --implements--> design:checkpoint-title-dedup-design
+- [2026-05-24 09:02 UTC] 重建索引: 96 篇页面
