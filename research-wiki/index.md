@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-24 05:47 UTC
+> 自动生成，更新时间：2026-05-24 05:50 UTC
 
 ## design (14)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -23,7 +23,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (34)
+## plan (35)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -40,6 +40,7 @@
 - [2026-05-23-e2e-full-coverage](plans/2026-05-23-e2e-full-coverage.md) `plan:2026-05-23-e2e-full-coverage`
 - [2026-05-23-pr27-merge-fixups](plans/2026-05-23-pr27-merge-fixups.md) `plan:2026-05-23-pr27-merge-fixups`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
+- [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
 - [CI/CD 密钥管理计划](plans/cicd-secrets.md) `plan:cicd-secrets`
 - [E2E 测试全覆盖实现计划](plans/e2e-full-coverage.md) `plan:e2e-full-coverage`
