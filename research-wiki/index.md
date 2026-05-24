@@ -1,10 +1,11 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-23 14:22 UTC
+> 自动生成，更新时间：2026-05-24 05:47 UTC
 
-## design (13)
+## design (14)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
+- [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [E2E 测试全覆盖设计](designs/e2e-full-coverage.md) `design:e2e-full-coverage`
 - [E2E 测试第二轮修复设计](designs/e2e-fix-round2.md) `design:e2e-fix-round2`
