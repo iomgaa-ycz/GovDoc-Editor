@@ -485,7 +485,8 @@ def _make_finding_json(checkpoint_id: str = "cp_1", verdict: str = "合规") -> 
     )
 
 
-def test_assemble_workpaper_draft_all_completed_sets_draft_ready(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_all_completed_sets_draft_ready(tmp_path, monkeypatch):
     """所有 point_runs completed 且 finding_json 非空 → draft_ready + WorkpaperDraft 被 add。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -509,7 +510,7 @@ def test_assemble_workpaper_draft_all_completed_sets_draft_ready(tmp_path, monke
             lambda *a, **kw: fake_path,
         )
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert audit_run.status == "draft_ready"
         # WorkpaperDraft 未 commit 但已 add；帮 helper 提交（helper 不负责）
@@ -521,7 +522,8 @@ def test_assemble_workpaper_draft_all_completed_sets_draft_ready(tmp_path, monke
         assert drafts[0].version == 1
 
 
-def test_assemble_workpaper_draft_partial_completed_sets_partial_ready():
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_partial_completed_sets_partial_ready():
     """有 completed 和 failed → partial_ready，不生成 WorkpaperDraft。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -544,7 +546,7 @@ def test_assemble_workpaper_draft_partial_completed_sets_partial_ready():
         session.add_all([pr1, pr2])
         session.commit()
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert audit_run.status == "partial_ready"
         session.commit()
@@ -554,7 +556,8 @@ def test_assemble_workpaper_draft_partial_completed_sets_partial_ready():
         assert len(drafts) == 0
 
 
-def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
     """无 completed 的 point_runs → waiting_retry。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -570,7 +573,7 @@ def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
         session.add(pr)
         session.commit()
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert audit_run.status == "waiting_retry"
         session.commit()
@@ -580,7 +583,8 @@ def test_assemble_workpaper_draft_no_completed_sets_waiting_retry():
         assert len(drafts) == 0
 
 
-def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, monkeypatch):
     """已有 version=2 draft，再跑一次全 completed → 新 draft version=3。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -623,7 +627,7 @@ def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, mo
             lambda *a, **kw: fake_path,
         )
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
         session.commit()
 
         drafts = session.exec(
@@ -633,7 +637,8 @@ def test_assemble_workpaper_draft_next_version_increments_correctly(tmp_path, mo
         assert {d.version for d in drafts} == {1, 2, 3}
 
 
-def test_assemble_workpaper_draft_empty_finding_json_is_skipped():
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_empty_finding_json_is_skipped():
     """finding_json 为空串的 completed point_run 不计入 completed_runs → 若仅它是 completed 则 waiting_retry。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -652,7 +657,7 @@ def test_assemble_workpaper_draft_empty_finding_json_is_skipped():
         )
         session.commit()
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
         session.commit()
 
         # 因为空 finding_json 被过滤掉，completed_runs 实为空，failed_runs 也为空 → 走 else 分支
@@ -663,7 +668,8 @@ def test_assemble_workpaper_draft_empty_finding_json_is_skipped():
         assert len(drafts) == 0
 
 
-def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, monkeypatch):
     """draft_ready 路径下，Workpaper.tender_doc_path 应等于 tender_doc.storage_path。"""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -693,7 +699,7 @@ def test_assemble_workpaper_draft_passes_tender_doc_path_to_workpaper(tmp_path, 
             _capture,
         )
 
-        _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
+        await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path=None)
 
         assert captured["workpaper"].tender_doc_path == tender_doc.storage_path
 

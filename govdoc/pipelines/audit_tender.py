@@ -531,7 +531,7 @@ def _cleanup_tender_collection(collection_id: str | None, *, replay: bool) -> No
         )
 
 
-def _assemble_workpaper_draft(
+async def _assemble_workpaper_draft(
     audit_run: AuditRun,
     session: Session,
     tender_doc: TenderDoc,
@@ -573,7 +573,8 @@ def _assemble_workpaper_draft(
             select(WorkpaperDraft).where(WorkpaperDraft.audit_run_id == audit_run.id)
         ).all()
         next_version = max((d.version for d in current_versions), default=0) + 1
-        draft_path = render_workpaper_docx(
+        draft_path = await asyncio.to_thread(
+            render_workpaper_docx,
             workpaper,
             audit_run.id,
             template_path=template_path,
@@ -669,7 +670,8 @@ async def run_audit(
     cfg = get_config()
 
     # 索引招标文书到 qmd 临时 collection（非 replay 模式下才做）
-    tender_collection = _index_tender_doc(
+    tender_collection = await asyncio.to_thread(
+        _index_tender_doc,
         audit_run,
         tender_doc,
         supplementary_docs=supplementary_docs,
@@ -721,7 +723,14 @@ async def run_audit(
                     timeout=point_timeout_s,
                 )
 
-                _persist_point_result(point_run, result, workspace, checkpoint, manager)
+                await asyncio.to_thread(
+                    _persist_point_result,
+                    point_run,
+                    result,
+                    workspace,
+                    checkpoint,
+                    manager,
+                )
 
             except asyncio.TimeoutError:
                 point_run.status = "failed"
@@ -749,7 +758,7 @@ async def run_audit(
             session.commit()
 
         if audit_run.status != "cancelled":
-            _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
+            await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
 
         session.add(audit_run)
         session.commit()
@@ -763,7 +772,11 @@ async def run_audit(
         session.commit()
         raise
     finally:
-        _cleanup_tender_collection(tender_collection, replay=replay_dir is not None)
+        await asyncio.to_thread(
+            _cleanup_tender_collection,
+            tender_collection,
+            replay=replay_dir is not None,
+        )
 
 
 async def retry_point_run(
