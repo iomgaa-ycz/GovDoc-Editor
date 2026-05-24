@@ -34,9 +34,9 @@ class DocumentStore:
     - prepared markdown 存储在稳定的 prepared/ 目录下
     """
 
-    def __init__(self, storage_root: Path, *, ocr_base_url: str | None = None) -> None:
+    def __init__(self, storage_root: Path, *, ocr_backend: str = "glm") -> None:
         self._root = storage_root
-        self._ocr_base_url = ocr_base_url
+        self._ocr_backend = ocr_backend
         self._prepared_dir = storage_root / "prepared"
         self._raw_dir = storage_root / "raw"
         self._prepared_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +102,7 @@ class DocumentStore:
 
     def _convert(self, raw: Path, target: Path) -> Path:
         """调用 scrivai.to_markdown 将原始文件转换为 markdown。"""
-        md = _scrivai_to_markdown(raw, ocr_base_url=self._ocr_base_url)
+        md = _scrivai_to_markdown(raw, ocr_backend=self._ocr_backend)
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")
         target.write_text(md, encoding="utf-8")

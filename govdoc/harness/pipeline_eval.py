@@ -223,6 +223,42 @@ def record_agent_trajectory(
     )
 
 
+def _collect_from_archive(archive_path: Path) -> dict[str, Any]:
+    """从归档 tar.gz 中读取 agent 证据。"""
+    import tarfile
+
+    result: dict[str, Any] = {"plan_json": "", "workspace_files": [], "findings": {}}
+    with tarfile.open(archive_path, "r:gz") as tf:
+        members = tf.getnames()
+        result["workspace_files"] = members
+        for m in members:
+            if m.endswith("/working/plan.json") or m == "working/plan.json":
+                f_obj = tf.extractfile(m)
+                if f_obj:
+                    result["plan_json"] = f_obj.read().decode("utf-8")
+            if ("working/findings/" in m) and m.endswith(".json"):
+                f_obj = tf.extractfile(m)
+                if f_obj:
+                    result["findings"][Path(m).stem] = f_obj.read().decode("utf-8")
+    return result
+
+
+def _collect_from_workspace(working: Path) -> dict[str, Any]:
+    """从活跃 workspace 目录中读取 agent 证据。"""
+    result: dict[str, Any] = {"plan_json": "", "workspace_files": [], "findings": {}}
+    plan_path = working / "plan.json"
+    if plan_path.exists():
+        result["plan_json"] = plan_path.read_text(encoding="utf-8")
+    result["workspace_files"] = [
+        str(p.relative_to(working)) for p in working.rglob("*") if p.is_file()
+    ]
+    findings_dir = working / "findings"
+    if findings_dir.exists():
+        for f in sorted(findings_dir.glob("*.json")):
+            result["findings"][f.stem] = f.read_text(encoding="utf-8")
+    return result
+
+
 def collect_workspace_evidence(
     workspace_dir: Path | None = None,
     archive_path: Path | None = None,
@@ -234,43 +270,16 @@ def collect_workspace_evidence(
     返回:
         {"plan_json": str, "workspace_files": list[str], "findings": dict}
     """
-    result: dict[str, Any] = {"plan_json": "", "workspace_files": [], "findings": {}}
-
     if workspace_dir and workspace_dir.exists():
         working = workspace_dir / "working"
         if not working.exists():
             working = workspace_dir
-        plan_path = working / "plan.json"
-        if plan_path.exists():
-            result["plan_json"] = plan_path.read_text(encoding="utf-8")
-        result["workspace_files"] = [
-            str(p.relative_to(working)) for p in working.rglob("*") if p.is_file()
-        ]
-        findings_dir = working / "findings"
-        if findings_dir.exists():
-            for f in sorted(findings_dir.glob("*.json")):
-                result["findings"][f.stem] = f.read_text(encoding="utf-8")
-        return result
+        return _collect_from_workspace(working)
 
     if archive_path and Path(archive_path).exists() and str(archive_path).endswith(".tar.gz"):
-        import tarfile
+        return _collect_from_archive(Path(archive_path))
 
-        with tarfile.open(archive_path, "r:gz") as tf:
-            members = tf.getnames()
-            result["workspace_files"] = members
-            for m in members:
-                if m.endswith("/working/plan.json") or m == "working/plan.json":
-                    f_obj = tf.extractfile(m)
-                    if f_obj:
-                        result["plan_json"] = f_obj.read().decode("utf-8")
-                if ("working/findings/" in m) and m.endswith(".json"):
-                    f_obj = tf.extractfile(m)
-                    if f_obj:
-                        stem = Path(m).stem
-                        result["findings"][stem] = f_obj.read().decode("utf-8")
-        return result
-
-    return result
+    return {"plan_json": "", "workspace_files": [], "findings": {}}
 
 
 def record_quality_score(
@@ -684,7 +693,7 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
     session.refresh(project)
 
     cfg = get_config()
-    store = DocumentStore(cfg.storage_root, ocr_base_url=cfg.app.ocr_base_url)
+    store = DocumentStore(cfg.storage_root, ocr_backend=cfg.app.ocr_backend)
     tender_path = Path(proj.tender_doc).expanduser().resolve()
     warnings_stack: list[str] = []
     md_path = store.get_or_convert(tender_path, warnings_stack=warnings_stack)

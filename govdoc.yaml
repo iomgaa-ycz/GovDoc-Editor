@@ -1,7 +1,7 @@
 app:
   storage_root: ./data/storage
   database_url: sqlite:///./data/app.sqlite
-  ocr_base_url: null
+  ocr_backend: glm
 
 model:
   model: glm-5.1

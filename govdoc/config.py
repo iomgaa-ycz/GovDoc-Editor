@@ -27,7 +27,7 @@ class AppConfig(BaseModel):
 
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
-    ocr_base_url: str | None = None
+    ocr_backend: str = "glm"
 
 
 class ModelServiceConfig(BaseModel):
