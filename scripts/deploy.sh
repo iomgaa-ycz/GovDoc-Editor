@@ -70,7 +70,7 @@ deploy_backend() {
     log ">>> 后端 $env: 开始部署 (4090:$port, 分支 $branch)"
 
     # 1. Git 拉取
-    log "  [1/5] git pull ($branch)..."
+    log "  [1/6] git pull ($branch)..."
     ssh "$BACKEND_HOST" "
         ${PROXY_ENV} && \
         cd ~/Project/${dir} && \
@@ -80,8 +80,13 @@ deploy_backend() {
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 代码已同步"
 
-    # 2. 安装依赖
-    log "  [2/5] pip install..."
+    # 2. 同步 .env
+    log "  [2/6] 同步 .env..."
+    scp .env "${BACKEND_HOST}:~/Project/${dir}/.env" >> "$LOG_FILE" 2>&1
+    log "  ✓ .env 已同步"
+
+    # 3. 安装依赖
+    log "  [3/6] pip install..."
     ssh "$BACKEND_HOST" "
         ${PROXY_ENV} && \
         ${CONDA_INIT} && \
@@ -89,21 +94,22 @@ deploy_backend() {
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 依赖已安装"
 
-    # 3. 数据库迁移
-    log "  [3/5] alembic upgrade..."
+    # 4. 数据库迁移
+    log "  [4/6] alembic upgrade..."
     ssh "$BACKEND_HOST" "
         ${CONDA_INIT} && \
         cd ~/Project/${dir} && alembic upgrade head
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 数据库已迁移"
 
-    # 4. 重启 uvicorn
-    log "  [4/5] 重启 uvicorn..."
+    # 5. 重启 uvicorn
+    log "  [5/6] 重启 uvicorn..."
     ssh "$BACKEND_HOST" "
         tmux kill-session -t ${tmux_name} 2>/dev/null || true
         tmux new-session -d -s ${tmux_name} \"
             eval \\\"\\\$(\\\$HOME/miniconda3/bin/conda shell.bash hook)\\\" && conda activate govdoc-auditor-v3 && \
             export no_proxy=110.42.53.85,100.81.95.44,localhost,127.0.0.1 && export NO_PROXY=\\\$no_proxy && \
+            export CUDA_VISIBLE_DEVICES=7 && \
             cd ~/Project/${dir} && \
             uvicorn govdoc.api.main:app --host 0.0.0.0 --port ${port}; \
             echo === ${tmux_name} STOPPED ===; sleep 86400
@@ -111,8 +117,8 @@ deploy_backend() {
     " >> "$LOG_FILE" 2>&1
     log "  ✓ uvicorn 已启动 (tmux: ${tmux_name})"
 
-    # 5. 健康检查
-    log "  [5/5] 等待健康检查..."
+    # 6. 健康检查
+    log "  [6/6] 等待健康检查..."
     local ok=false
     for i in $(seq 1 30); do
         if ssh "$BACKEND_HOST" "curl -sf http://localhost:${port}/healthz" > /dev/null 2>&1; then

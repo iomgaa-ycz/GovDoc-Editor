@@ -94,6 +94,61 @@
       "id": "plan:issue-17-multifile-upload",
       "label": "Issue #17: AI 审核页面主文件+附件上传",
       "type": "plan"
+    },
+    {
+      "id": "design:audit-status-ui-v2",
+      "label": "审核状态 UI 改进版设计（PR#26 减一层）",
+      "type": "design"
+    },
+    {
+      "id": "plan:audit-status-ui-v2-impl",
+      "label": "审核状态 UI 改进版实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "plan:pr27-merge-fixups",
+      "label": "PR#27 合并前修复",
+      "type": "plan"
+    },
+    {
+      "id": "design:e2e-full-coverage",
+      "label": "E2E 测试全覆盖设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:e2e-full-coverage",
+      "label": "E2E 测试全覆盖实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:e2e-fix-round2",
+      "label": "E2E 测试第二轮修复设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:e2e-fix-round2",
+      "label": "E2E 测试第二轮修复实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:async-offload-blocking-ops",
+      "label": "async offload: 解除 run_audit 同步阻塞事件循环",
+      "type": "design"
+    },
+    {
+      "id": "plan:async-offload-blocking-ops",
+      "label": "async offload 实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:checkpoint-title-dedup-design",
+      "label": "审核点按标题去重设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:2026-05-24-checkpoint-title-dedup-plan",
+      "label": "审核点按标题去重实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -103,6 +158,34 @@
       "relation": "implements",
       "evidence": "实施 wiki-site-setup 设计方案",
       "added": "2026-05-13T08:44:05.970746+00:00"
+    },
+    {
+      "source": "plan:e2e-full-coverage",
+      "target": "design:e2e-full-coverage",
+      "relation": "implements",
+      "evidence": "实现 E2E 测试全覆盖设计",
+      "added": "2026-05-23T10:35:03.501807+00:00"
+    },
+    {
+      "source": "plan:e2e-fix-round2",
+      "target": "design:e2e-fix-round2",
+      "relation": "implements",
+      "evidence": "实现第二轮修复设计",
+      "added": "2026-05-23T14:22:51.717317+00:00"
+    },
+    {
+      "source": "plan:async-offload-blocking-ops",
+      "target": "design:async-offload-blocking-ops",
+      "relation": "implements",
+      "evidence": "实现 async offload 设计中的 to_thread 方案",
+      "added": "2026-05-24T05:50:28.903130+00:00"
+    },
+    {
+      "source": "plan:2026-05-24-checkpoint-title-dedup-plan",
+      "target": "design:checkpoint-title-dedup-design",
+      "relation": "implements",
+      "evidence": "实施审核点按标题去重设计",
+      "added": "2026-05-24T08:59:36.357843+00:00"
     }
   ]
 }

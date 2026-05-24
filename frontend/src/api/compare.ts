@@ -8,11 +8,17 @@ export interface CompareCategory {
   color: string;
 }
 
+export interface CompareFileMeta {
+  fileIndex: number;
+  name: string;
+  suffix: string;
+  paragraphCount: number;
+  blockCount: number;
+}
+
 export interface CompareSummary {
-  firstFileName: string;
-  secondFileName: string;
-  firstParagraphCount: number;
-  secondParagraphCount: number;
+  fileCount: number;
+  files: CompareFileMeta[];
   commonParagraphCount: number;
   commonSentenceCount: number;
   commonSegmentCount: number;
@@ -35,12 +41,15 @@ export interface CompareDocumentBlock {
 }
 
 export interface CompareDocument {
+  fileIndex: number;
   name: string;
+  suffix: string;
   blockCount: number;
   blocks: CompareDocumentBlock[];
 }
 
 export interface CompareOccurrenceSegment {
+  fileIndex: number;
   blockId: string;
   blockIndex: number;
   start: number;
@@ -48,6 +57,7 @@ export interface CompareOccurrenceSegment {
 }
 
 export interface CompareOccurrence {
+  fileIndex: number;
   start: number;
   end: number;
   segments: CompareOccurrenceSegment[];
@@ -60,29 +70,27 @@ export interface CompareMatch {
   color: string;
   text: string;
   length: number;
-  firstOccurrences: CompareOccurrence[];
-  secondOccurrences: CompareOccurrence[];
-  firstCount: number;
-  secondCount: number;
+  fileIndices: number[];
+  occurrences: Record<string, CompareOccurrence[]>;
+  perFileCounts: Record<string, number>;
+  fileCount: number;
+  occurrenceCount: number;
 }
 
 export interface CompareResponse {
   reviewId: string;
   summary: CompareSummary;
   documents: {
-    first: CompareDocument;
-    second: CompareDocument;
+    files: CompareDocument[];
   };
   matches: CompareMatch[];
   categories: CompareCategory[];
   downloads: {
-    first: string;
-    second: string;
+    files: Record<string, string>;
   };
   artifacts: {
     reviewDir: string;
-    firstDownloadName: string;
-    secondDownloadName: string;
+    downloadNames: Record<string, string>;
   };
 }
 
@@ -90,13 +98,9 @@ function resolveBaseUrl(): string {
   return import.meta.env.VITE_GOVDOC_API_BASE_URL || "";
 }
 
-export function compareDocxFiles(
-  firstFile: File,
-  secondFile: File,
-): Promise<CompareResponse> {
+export function compareFiles(files: File[]): Promise<CompareResponse> {
   const form = new FormData();
-  form.append("first_file", firstFile);
-  form.append("second_file", secondFile);
+  files.forEach((file) => form.append("files", file));
   return request("/api/v1/compare", {
     method: "POST",
     body: form,

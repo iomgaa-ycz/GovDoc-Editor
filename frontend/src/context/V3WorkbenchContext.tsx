@@ -27,7 +27,6 @@ import {
   parseCheckpointPayload,
   parseFindingJson,
   pointRunToLog,
-  verdictToStatus,
 } from "../adapters/backendToUi";
 
 // ── Context value ──
@@ -242,6 +241,31 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [apiConnected]);
 
+  // 页面不可见时暂停所有轮询，恢复可见时重启
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) {
+        if (progressRef.current) {
+          clearInterval(progressRef.current);
+          progressRef.current = null;
+        }
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } else {
+        if (selectedAuditRunIdRef.current && auditProgress && !terminalAuditStatuses.includes(auditProgress.status)) {
+          startAuditProgressPolling(selectedAuditRunIdRef.current);
+        }
+        if (extractingRuleSourceId && extractRunIdRef.current) {
+          pollExtractRun(extractingRuleSourceId, extractRunIdRef.current);
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [auditProgress, extractingRuleSourceId]);
+
   // 选中审核运行时自动加载对应的 progress
   useEffect(() => {
     if (!selectedAuditRunId) {
@@ -292,8 +316,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   }
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const extractRunIdRef = useRef<string | null>(null);
 
   async function pollExtractRun(ruleId: string, runId: string) {
+    extractRunIdRef.current = runId;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
@@ -303,12 +329,14 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         if (status.status === "draft_ready") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
+          extractRunIdRef.current = null;
           setExtractingRuleSourceId(null);
           setExtractCurrentPhase(null);
           await refreshAll();
         } else if (status.status === "failed") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
+          extractRunIdRef.current = null;
           setExtractError(status.error || "抽取失败");
           setExtractingRuleSourceId(null);
           setExtractCurrentPhase(null);

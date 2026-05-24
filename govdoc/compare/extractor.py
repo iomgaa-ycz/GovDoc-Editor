@@ -88,3 +88,43 @@ def extract_docx_paragraphs(path: str | Path) -> list[str]:
 def extract_docx_full_text(path: str | Path) -> str:
     """将 DOCX 段落合并为换行分隔的完整文本。"""
     return "\n".join(extract_docx_paragraphs(path))
+
+
+def _clean_markdown_line(line: str) -> str:
+    """清理单行 Markdown 标记，保留可对比文本。"""
+    item = line.strip()
+    if not item or item.startswith("!["):
+        return ""
+
+    if re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?", item):
+        return ""
+
+    item = re.sub(r"^#{1,6}\s*", "", item)
+    item = re.sub(r"^>\s*", "", item)
+    item = re.sub(r"^[-*+]\s+", "", item)
+    item = re.sub(r"^\d+[.)]\s+", "", item)
+    item = re.sub(r"^\[[ xX]\]\s+", "", item)
+    item = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", item)
+    item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", item)
+    item = item.replace("**", "").replace("__", "").replace("`", "")
+
+    if "|" in item:
+        cells = [cell.strip() for cell in item.strip("|").split("|")]
+        item = " ".join(cell for cell in cells if cell)
+
+    return normalize_text(item)
+
+
+def extract_markdown_paragraphs(markdown_text: str) -> list[str]:
+    """从 Markdown 文本中提取可参与对比的正文段落。
+
+    PDF 经 Scrivai/MonkeyOCR 转换后通常是 Markdown。本函数按空行切块，
+    块内按行清理常见 Markdown 标记并合并，避免 OCR 硬换行把同一段拆碎。
+    """
+    paragraphs: list[str] = []
+    for block in re.split(r"\n\s*\n+", markdown_text.replace("\r", "\n")):
+        lines = [_clean_markdown_line(line) for line in block.splitlines()]
+        text = normalize_text(" ".join(line for line in lines if line))
+        if text:
+            paragraphs.append(text)
+    return paragraphs

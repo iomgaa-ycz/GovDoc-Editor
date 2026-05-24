@@ -1,5 +1,5 @@
 import { Check, ChevronRight, FileText, Loader2, Paperclip, Plus, Upload, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useWorkbench } from "@/context/V3WorkbenchContext";
 import { useProjectWorkflow } from "@/hooks/useProjectWorkflow";
@@ -11,13 +11,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FileDropzone } from "@/components/FileDropzone";
 import { EmptyState } from "@/components/EmptyState";
 import { ProgressTimeline } from "@/components/ProgressTimeline";
 import { PointInsight } from "@/components/PointInsight";
+
+const VERDICT_BORDER: Record<string, string> = {
+  "合规": "border-l-status-ok",
+  "不合规": "border-l-status-err",
+  "存疑": "border-l-status-warn",
+};
+const VERDICT_DOT: Record<string, string> = {
+  "合规": "bg-status-ok",
+  "不合规": "bg-status-err",
+  "存疑": "bg-status-warn",
+};
+const STATUS_DOT: Record<string, string> = {
+  completed: "bg-status-ok",
+  running: "bg-accent",
+  failed: "bg-status-err",
+  pending: "bg-gray-300",
+  waiting_retry: "bg-status-warn",
+};
 
 export function AIReviewPage() {
   const {
@@ -27,7 +44,6 @@ export function AIReviewPage() {
 
   const wf = useProjectWorkflow();
   const auditRun = useAuditRun();
-  const [detailPrId, setDetailPrId] = useState<string | null>(null);
   const [selectedTimelinePrId, setSelectedTimelinePrId] = useState<string | null>(null);
 
   const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
@@ -39,82 +55,97 @@ export function AIReviewPage() {
   const completedCount = pointRuns.filter((p) => p.status === "completed").length;
   const failedCount = pointRuns.filter((p) => p.status === "failed").length;
   const runningCount = pointRuns.filter((p) => p.status === "running").length;
-  const selectedTimelinePr = pointRuns.find((p) => p.id === selectedTimelinePrId) ?? pointRuns.find((p) => p.status === "running") ?? pointRuns[0];
+
+  const checkpointById = useMemo(
+    () => new Map(finalCheckpoints.map((cp) => [cp.id, cp])),
+    [finalCheckpoints],
+  );
+  const pointRunViews = useMemo(() => pointRuns.map((pr) => {
+    const checkpoint = checkpointById.get(pr.checkpoint_final_id)?.parsed ?? null;
+    const finding = parseFindingJson(pr.finding_json ?? null);
+    const verdict = finding?.verdict?.verdict;
+    return { pr, checkpoint, finding, verdict, title: checkpoint?.title ?? pr.checkpoint_final_id.slice(0, 8) };
+  }), [checkpointById, pointRuns]);
+
+  const selectedTimeline =
+    pointRunViews.find((v) => v.pr.id === selectedTimelinePrId)
+    ?? pointRunViews.find((v) => v.pr.status === "running")
+    ?? pointRunViews[0];
 
   if (isRunning) {
     return (
-      <>
-        <div className="flex flex-col h-screen">
-          <header className="flex items-center justify-between border-b bg-surface-card px-7 py-3.5">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-text-primary">AI 审核</span>
-              <Badge variant="default">审核进行中</Badge>
-            </div>
-            <span className="text-xs text-text-muted">已完成 {auditProgress.processed_count}/{auditProgress.total_count}</span>
-          </header>
-          <div className="flex-1 space-y-5 p-7 overflow-auto">
-            <div>
-              <h2 className="text-lg font-semibold">{activeProject?.name ?? "审核任务"}</h2>
-              <p className="text-sm text-text-muted">共 {auditProgress.total_count} 个审核要点，已处理 {auditProgress.processed_count} 个</p>
-            </div>
+      <div className="flex flex-col h-screen">
+        <header className="flex items-center justify-between border-b bg-surface-card px-7 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-text-primary">AI 审核</span>
+            <Badge variant="default">审核进行中</Badge>
+          </div>
+          <span className="text-xs text-text-muted">已完成 {auditProgress.processed_count}/{auditProgress.total_count}</span>
+        </header>
+        <div className="flex-1 space-y-5 p-7 overflow-auto">
+          <div>
+            <h2 className="text-lg font-semibold">{activeProject?.name ?? "审核任务"}</h2>
+            <p className="text-sm text-text-muted">共 {auditProgress.total_count} 个审核要点，已处理 {auditProgress.processed_count} 个</p>
+          </div>
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">审核进度</span>
+                <span className="font-medium">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} />
+              <div className="grid grid-cols-4 gap-3">
+                <MetricCard label="总审核点" value={auditProgress.total_count} tone="blue" />
+                <MetricCard label="已完成" value={completedCount} tone="green" />
+                <MetricCard label="审查中" value={runningCount} tone="amber" />
+                <MetricCard label="失败" value={failedCount} tone="red" />
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid grid-cols-2 gap-5">
             <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-text-secondary">审核进度</span>
-                  <span className="font-medium">{Math.round(progress)}%</span>
-                </div>
-                <Progress value={progress} />
-                <div className="grid grid-cols-4 gap-3">
-                  <MetricCard label="总审核点" value={auditProgress.total_count} tone="blue" />
-                  <MetricCard label="已完成" value={completedCount} tone="green" />
-                  <MetricCard label="审查中" value={runningCount} tone="amber" />
-                  <MetricCard label="失败" value={failedCount} tone="red" />
+              <CardHeader><CardTitle>审核要点</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[400px] overflow-auto">
+                  {pointRunViews.map(({ pr, title, verdict }) => (
+                    <button
+                      key={pr.id}
+                      className={cn(
+                        "flex w-full items-center justify-between border-b border-l-4 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface",
+                        verdict ? (VERDICT_BORDER[verdict] ?? "border-l-transparent") : "border-l-transparent",
+                        pr.id === selectedTimeline?.pr.id && "ring-1 ring-inset ring-accent",
+                      )}
+                      onClick={() => setSelectedTimelinePrId(pr.id)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={cn("h-2 w-2 shrink-0 rounded-full", verdict ? (VERDICT_DOT[verdict] ?? "bg-gray-300") : (STATUS_DOT[pr.status] ?? "bg-gray-300"))} />
+                        <span className="text-sm truncate">{title}</span>
+                      </div>
+                      <StatusBadge status={verdict ?? pr.status} />
+                    </button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
-            <div className="grid grid-cols-2 gap-5">
-              <Card>
-                <CardHeader><CardTitle>审核要点</CardTitle></CardHeader>
-                <CardContent className="p-0">
-                  <div className="max-h-[400px] overflow-auto">
-                    {pointRuns.map((pr) => {
-                      const cp = finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id);
-                      const title = cp?.parsed?.title ?? pr.checkpoint_final_id.slice(0, 8);
-                      return (
-                        <button key={pr.id} className={cn("flex w-full items-center justify-between px-4 py-3 text-left border-b last:border-0 hover:bg-surface transition-colors", pr.id === selectedTimelinePr?.id && "bg-accent-light")} onClick={() => setSelectedTimelinePrId(pr.id)}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={cn("h-2 w-2 shrink-0 rounded-full", pr.status === "completed" && "bg-status-ok", pr.status === "running" && "bg-accent", pr.status === "failed" && "bg-status-err", pr.status === "pending" && "bg-gray-300")} />
-                            <span className="text-sm truncate">{title}</span>
-                          </div>
-                          <StatusBadge status={pr.status} />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-              {selectedTimelinePr && (
+            {selectedTimeline && (
+              <div className="space-y-4">
+                {selectedTimeline.checkpoint && (selectedTimeline.finding || selectedTimeline.pr.status === "completed") && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <PointInsight checkpoint={selectedTimeline.checkpoint} finding={selectedTimeline.finding} pointStatus={selectedTimeline.pr.status} />
+                    </CardContent>
+                  </Card>
+                )}
                 <ProgressTimeline
-                  pointRun={selectedTimelinePr}
-                  checkpoint={finalCheckpoints.find((c) => c.id === selectedTimelinePr.checkpoint_final_id)?.parsed ?? null}
-                  onRetry={selectedTimelinePr.status === "failed" ? () => retryPointRun(selectedTimelinePr.id) : undefined}
+                  pointRun={selectedTimeline.pr}
+                  checkpoint={selectedTimeline.checkpoint}
+                  onRetry={selectedTimeline.pr.status === "failed" ? () => retryPointRun(selectedTimeline.pr.id) : undefined}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
-        <Dialog open={detailPrId != null} onOpenChange={(o: boolean) => { if (!o) setDetailPrId(null); }}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle>审核点详情</DialogTitle></DialogHeader>
-            {detailPrId && (() => {
-              const pr = pointRuns.find((p) => p.id === detailPrId);
-              const cp = pr ? finalCheckpoints.find((c) => c.id === pr.checkpoint_final_id)?.parsed ?? null : null;
-              if (!cp || !pr) return <EmptyState title="无法加载" description="找不到该审核点的数据。" />;
-              return <div className="p-5"><PointInsight checkpoint={cp} finding={parseFindingJson(pr.finding_json ?? null)} pointStatus={pr.status} /></div>;
-            })()}
-          </DialogContent>
-        </Dialog>
-      </>
+      </div>
     );
   }
 
@@ -168,7 +199,6 @@ export function AIReviewPage() {
               <Card>
                 <CardHeader><CardTitle>第二步：上传招标文书</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  {/* 主招标文书 */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-text-secondary">主招标文书</label>
                     {mainDoc ? (
@@ -187,8 +217,6 @@ export function AIReviewPage() {
                       <FileDropzone title="点击选择或拖入招标文书" subtitle="支持 .docx, .pdf" accept=".docx,.pdf" onSelect={(files) => { if (files[0]) wf.setMainTenderFile(files[0]); }} />
                     )}
                   </div>
-
-                  {/* 补充文件（主文件选择后才显示） */}
                   {(wf.mainTenderFile || mainDoc) && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -201,16 +229,12 @@ export function AIReviewPage() {
                         )}
                       </div>
                       <p className="text-xs text-text-muted">变更公告、答疑纪要、补充通知等</p>
-
-                      {/* 已上传的附件 */}
                       {supplementaryDocs.map((doc) => (
                         <div key={doc.id} className="flex items-center gap-2 rounded-card border bg-gray-50 px-3 py-2">
                           <FileText className="h-4 w-4 shrink-0 text-text-muted" />
                           <span className="min-w-0 flex-1 truncate text-sm">{doc.filename}</span>
                         </div>
                       ))}
-
-                      {/* 待上传的附件列表 */}
                       {wf.supplementaryFiles.map((f, i) => (
                         <div key={`pending-${i}`} className="flex items-center gap-2 rounded-card border bg-gray-50 px-3 py-2">
                           <FileText className="h-4 w-4 shrink-0 text-text-muted" />
@@ -220,15 +244,11 @@ export function AIReviewPage() {
                           </button>
                         </div>
                       ))}
-
-                      {/* 添加更多附件 */}
                       {!mainDoc && (
                         <FileDropzone title="添加补充文件" subtitle="支持 .docx, .pdf，可多选" accept=".docx,.pdf" multiple onSelect={(files) => wf.addSupplementaryFiles(files)} />
                       )}
                     </div>
                   )}
-
-                  {/* 确认上传按钮 */}
                   {wf.mainTenderFile && !mainDoc && (
                     <Button className="w-full" disabled={wf.uploadingTender} onClick={wf.handleUploadTender}>
                       {wf.uploadingTender ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}

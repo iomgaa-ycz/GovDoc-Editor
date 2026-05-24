@@ -1,7 +1,7 @@
 app:
   storage_root: ./data/storage
   database_url: sqlite:///./data/app.sqlite
-  ocr_base_url: null
+  ocr_backend: glm
 
 model:
   model: glm-5.1
@@ -31,3 +31,7 @@ harness:
 audit:
   point_timeout_s: 900
 
+compare:
+  max_files: null
+  min_segment_length: 16
+  pdf_timeout_s: 300

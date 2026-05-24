@@ -17,8 +17,10 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from typing import Iterator
 
 import pytest
@@ -27,7 +29,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from govdoc.api.routes.checkpoints import router
-from govdoc.db.models import CheckpointFinal
+from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
 
 
 # ────────────────────────────────────────────────
@@ -92,6 +94,48 @@ def seed_checkpoint(engine) -> CheckpointFinal:
         session.commit()
         session.refresh(cp)
         return cp
+
+
+def _checkpoint_payload(title: str, description: str = "有效表现形式") -> str:
+    """构造最小合法 GovCheckpoint JSON。"""
+    return json.dumps(
+        {
+            "id": uuid.uuid4().hex,
+            "category": "其他违法违规",
+            "title": title,
+            "description": description,
+            "legal_basis": [],
+            "severity": "major",
+            "retrieval_hint": description[:80],
+        },
+        ensure_ascii=False,
+    )
+
+
+def _csv_with_rows(rows: list[tuple[str, str]]) -> bytes:
+    """构造审核点导入 CSV，rows 为 (title, description)。"""
+    body = "大类,违法违规问题,表现形式,处理依据,处罚依据,处理建议,责任主体\n"
+    for title, description in rows:
+        body += f"一、限制条款,{title},{description},法条,,建议,主体\n"
+    return body.encode("utf-8")
+
+
+def _seed_project_and_tender(session: Session) -> tuple[Project, TenderDoc]:
+    """创建 AuditRun 外键依赖的项目和文书。"""
+    project = Project(name="去重测试项目", created_by="tester")
+    session.add(project)
+    session.flush()
+    tender = TenderDoc(
+        project_id=project.id,
+        filename="tender.docx",
+        storage_path="/tmp/tender.docx",
+        markdown_path="/tmp/tender.md",
+        qmd_collection="test_collection",
+        uploaded_by="tester",
+    )
+    session.add(tender)
+    session.flush()
+    return project, tender
 
 
 # ────────────────────────────────────────────────
@@ -244,6 +288,195 @@ class TestImportCheckpoints:
         item = resp.json()["checkpoints"][0]
         assert set(item.keys()) >= {"id", "kind", "status", "payload_json", "approved_by"}
         assert item["approved_by"] == "system:import"
+
+    def test_reimport_same_title_skips_new_checkpoint(self, client, engine):
+        """重复导入同一 title 时，第二次不应新增 CheckpointFinal。"""
+        csv_content = _csv_with_rows([("1.重复标题", "设置供应商注册地限制")])
+
+        first = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+        second = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["imported_count"] == 1
+        assert second.json()["imported_count"] == 0
+        assert second.json()["skipped_count"] == 1
+        assert "审核点标题已存在" in second.json()["skipped_reasons"][0]
+
+        with Session(engine) as session:
+            finals = session.exec(select(CheckpointFinal)).all()
+        assert len(finals) == 1
+
+    def test_import_file_with_duplicate_titles_keeps_first_new_row(self, client, engine):
+        """同一文件内 title 重复时，只导入先出现的记录。"""
+        csv_content = _csv_with_rows(
+            [
+                ("1.重复标题", "第一条表现形式"),
+                ("1.重复标题", "第二条表现形式"),
+            ]
+        )
+
+        resp = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["imported_count"] == 1
+        assert body["skipped_count"] == 1
+        assert "审核点标题已存在" in body["skipped_reasons"][0]
+
+        with Session(engine) as session:
+            finals = session.exec(select(CheckpointFinal)).all()
+        assert len(finals) == 1
+        assert "第一条表现形式" in finals[0].payload_json
+
+    def test_existing_duplicates_keep_newer_checkpoint(self, client, engine):
+        """导入前清理旧库重复 title，并保留 approved_at 最新的记录。"""
+        older_time = datetime(2026, 1, 1, 10, 0, 0)
+        newer_time = older_time + timedelta(hours=1)
+
+        with Session(engine) as session:
+            older = CheckpointFinal(
+                payload_json=_checkpoint_payload("旧库重复标题", "旧记录"),
+                approved_by="tester",
+                approved_at=older_time,
+            )
+            newer = CheckpointFinal(
+                payload_json=_checkpoint_payload("旧库重复标题", "新记录"),
+                approved_by="tester",
+                approved_at=newer_time,
+            )
+            session.add(older)
+            session.add(newer)
+            session.commit()
+            older_id = older.id
+            newer_id = newer.id
+
+        csv_content = _csv_with_rows([("2.新标题", "新导入记录")])
+        resp = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["imported_count"] == 1
+        with Session(engine) as session:
+            assert session.get(CheckpointFinal, older_id) is None
+            assert session.get(CheckpointFinal, newer_id) is not None
+            finals = session.exec(select(CheckpointFinal)).all()
+        assert len(finals) == 2
+
+    def test_existing_duplicate_rewires_audit_point_runs(self, client, engine):
+        """删除旧库重复记录前，应迁移 AuditPointRun.checkpoint_final_id。"""
+        older_time = datetime(2026, 1, 1, 10, 0, 0)
+        newer_time = older_time + timedelta(hours=1)
+
+        with Session(engine) as session:
+            project, tender = _seed_project_and_tender(session)
+            older = CheckpointFinal(
+                payload_json=_checkpoint_payload("引用重复标题", "旧记录"),
+                approved_by="tester",
+                approved_at=older_time,
+            )
+            newer = CheckpointFinal(
+                payload_json=_checkpoint_payload("引用重复标题", "新记录"),
+                approved_by="tester",
+                approved_at=newer_time,
+            )
+            session.add(older)
+            session.add(newer)
+            session.flush()
+            audit_run = AuditRun(
+                project_id=project.id,
+                tender_doc_id=tender.id,
+                checkpoint_final_ids=json.dumps([older.id], ensure_ascii=False),
+            )
+            session.add(audit_run)
+            session.flush()
+            point_run = AuditPointRun(
+                audit_run_id=audit_run.id,
+                checkpoint_final_id=older.id,
+            )
+            session.add(point_run)
+            session.commit()
+            point_run_id = point_run.id
+            older_id = older.id
+            newer_id = newer.id
+
+        csv_content = _csv_with_rows([("3.新标题", "新导入记录")])
+        resp = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+
+        assert resp.status_code == 200
+        with Session(engine) as session:
+            assert session.get(CheckpointFinal, older_id) is None
+            point_run = session.get(AuditPointRun, point_run_id)
+        assert point_run is not None
+        assert point_run.checkpoint_final_id == newer_id
+
+    def test_existing_duplicate_rewires_audit_run_checkpoint_ids(self, client, engine):
+        """删除旧库重复记录前，应替换 AuditRun.checkpoint_final_ids 并去重保序。"""
+        older_time = datetime(2026, 1, 1, 10, 0, 0)
+        newer_time = older_time + timedelta(hours=1)
+
+        with Session(engine) as session:
+            project, tender = _seed_project_and_tender(session)
+            older = CheckpointFinal(
+                payload_json=_checkpoint_payload("列表重复标题", "旧记录"),
+                approved_by="tester",
+                approved_at=older_time,
+            )
+            newer = CheckpointFinal(
+                payload_json=_checkpoint_payload("列表重复标题", "新记录"),
+                approved_by="tester",
+                approved_at=newer_time,
+            )
+            stable = CheckpointFinal(
+                payload_json=_checkpoint_payload("稳定标题", "稳定记录"),
+                approved_by="tester",
+                approved_at=newer_time,
+            )
+            session.add(older)
+            session.add(newer)
+            session.add(stable)
+            session.flush()
+            audit_run = AuditRun(
+                project_id=project.id,
+                tender_doc_id=tender.id,
+                checkpoint_final_ids=json.dumps(
+                    [older.id, newer.id, older.id, stable.id],
+                    ensure_ascii=False,
+                ),
+            )
+            session.add(audit_run)
+            session.commit()
+            audit_run_id = audit_run.id
+            older_id = older.id
+            newer_id = newer.id
+            stable_id = stable.id
+
+        csv_content = _csv_with_rows([("4.新标题", "新导入记录")])
+        resp = client.post(
+            "/api/v1/checkpoints/import",
+            files={"file": ("checkpoints.csv", csv_content, "text/csv")},
+        )
+
+        assert resp.status_code == 200
+        with Session(engine) as session:
+            assert session.get(CheckpointFinal, older_id) is None
+            audit_run = session.get(AuditRun, audit_run_id)
+        assert audit_run is not None
+        assert json.loads(audit_run.checkpoint_final_ids) == [newer_id, stable_id]
 
 
 # ────────────────────────────────────────────────

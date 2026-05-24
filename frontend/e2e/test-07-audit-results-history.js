@@ -4,7 +4,8 @@ async page => {
   // Step 1: 进入 Dashboard，等待表格行加载（API 异步数据）
   console.log('Step 1: 进入 Dashboard，等待 table 加载');
   await page.goto(BASE + '/');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(3000);
   const firstRow = page.locator('table tbody tr').first();
   await firstRow.waitFor({ timeout: 15000 });
 
@@ -48,6 +49,15 @@ async page => {
   const pointButtonCount = await pointButtons.count();
   if (pointButtonCount === 0) throw new Error('左侧审核要点列表为空，未加载 point_runs');
   console.log('Step 4: 左侧已加载 ' + pointButtonCount + ' 个审核点');
+
+  // Step 4b: 点击审核点验证右侧 PointInsight 显示
+  console.log('Step 4b: 点击审核点验证 PointInsight');
+  await pointButtons.first().click();
+  await page.waitForTimeout(1500);
+  const hasVerdict = await page.getByText('审核结论').isVisible().catch(() => false);
+  const hasStatus = await page.getByText('审核状态').isVisible().catch(() => false);
+  if (!hasVerdict && !hasStatus) throw new Error('点击审核点后右侧未显示 PointInsight');
+  console.log('Step 4b: PointInsight 显示正确（' + (hasVerdict ? '有结论' : '有状态') + '）');
 
   // Step 5: 若有 Select 切换 run，尝试切换（可选，失败不报错）
   console.log('Step 5: 若有 Select 切换 run，尝试切换（可选）');

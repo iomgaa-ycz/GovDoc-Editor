@@ -17,9 +17,9 @@ def store(tmp_path: Path) -> DocumentStore:
 
 
 @pytest.fixture()
-def store_with_ocr(tmp_path: Path) -> DocumentStore:
-    """创建带自定义 ocr_base_url 的 DocumentStore。"""
-    return DocumentStore(tmp_path, ocr_base_url="http://custom-ocr:7861")
+def store_with_monkey(tmp_path: Path) -> DocumentStore:
+    """创建使用 monkey 后端的 DocumentStore。"""
+    return DocumentStore(tmp_path, ocr_backend="monkey")
 
 
 class TestGetOrConvert:
@@ -45,22 +45,22 @@ class TestGetOrConvert:
 
         result = store.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_base_url=None)
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm")
         assert result.exists()
         assert result.read_text(encoding="utf-8") == "# Converted content"
 
     @patch("govdoc.storage.files._scrivai_to_markdown", return_value="# OCR result")
-    def test_ocr_base_url_passed_through(
-        self, mock_to_md, store_with_ocr: DocumentStore, tmp_path: Path
+    def test_ocr_backend_passed_through(
+        self, mock_to_md, store_with_monkey: DocumentStore, tmp_path: Path
     ) -> None:
-        """自定义 ocr_base_url 正确传递给 to_markdown。"""
+        """自定义 ocr_backend 正确传递给 to_markdown。"""
         raw_file = tmp_path / "raw" / "test.pdf"
         raw_file.parent.mkdir(parents=True, exist_ok=True)
         raw_file.write_bytes(b"fake pdf")
 
-        store_with_ocr.get_or_convert(raw_file)
+        store_with_monkey.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_base_url="http://custom-ocr:7861")
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey")
 
     @patch("govdoc.storage.files._scrivai_to_markdown", return_value="")
     def test_empty_result_raises(self, mock_to_md, store: DocumentStore, tmp_path: Path) -> None:
