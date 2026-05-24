@@ -176,3 +176,5 @@ e2e/screenshots/
 # 前端 E2E 截图与测试结果（每次重新生成）
 frontend/e2e/screenshots/
 frontend/test-results/
+.agents/
+AGENTS.md
