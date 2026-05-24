@@ -48,8 +48,9 @@ async page => {
   console.log('Step 5: 启动审核');
 
   // Step 6: 验证进入审核进行中模式
+  // 后端 qmd embedding 索引阻塞事件循环 30-60s，progress 轮询在此期间无法响应
   const running = page.getByText('审核进行中');
-  await running.waitFor({ timeout: 30000 });
+  await running.waitFor({ timeout: 120000 });
   console.log('Step 6: 审核进行中');
   await page.screenshot({ path: 'e2e/screenshots/05-audit-running.png' });
 

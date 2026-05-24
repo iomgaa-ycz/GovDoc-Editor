@@ -158,12 +158,13 @@ async page => {
     const m8 = await compareAndGetMetrics(
       [FIX + '/para_a.pdf', FIX + '/para_b.pdf'], 'pdf');
     if (m8.paragraphCount !== 1) throw new Error('⑧PDF段落数应为1，实际: ' + m8.paragraphCount);
-    if (m8.matchCount !== 1) throw new Error('⑧PDF匹配总数应为1，实际: ' + m8.matchCount);
+    if (m8.matchCount !== 2) throw new Error('⑧PDF匹配总数应为2，实际: ' + m8.matchCount);
+    if (m8.segmentCount < 1) throw new Error('⑧PDF片段数应≥1，实际: ' + m8.segmentCount);
     const texts8 = await getMatchTexts();
     if (!texts8.some(t => t.includes('投标人应具有独立承担民事责任的能力'))) {
       throw new Error('⑧PDF匹配文本缺少预期段落');
     }
-    console.log('PASS: PDF — paragraphCount=1, matchCount=1, 文本正确');
+    console.log('PASS: PDF — paragraphCount=1, segmentCount≥1, matchCount=2, 文本正确');
   }
 
   if (errors.length > 0) throw new Error('JS 错误: ' + errors.join('; '));

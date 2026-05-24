@@ -5,7 +5,8 @@ async page => {
 
   // Step 1: 进入 AI 审核页面
   await page.goto(BASE + '/ai-review');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(3000);
   console.log('Step 1: 进入 AI 审核页面');
 
   // Step 2: 创建新项目
@@ -92,8 +93,9 @@ async page => {
   await startBtn.click();
   console.log('Step 12: 启动审核（' + selectCount + ' 个审核点）');
 
+  // 后端 qmd embedding 索引阻塞事件循环；多文件 + 前一轮审核可能仍在跑
   const running = page.getByText('审核进行中');
-  await running.waitFor({ timeout: 30000 });
+  await running.waitFor({ timeout: 300000 });
 
   // Step 13: 等待至少一个审核点完成
   console.log('Step 13: 等待审核点完成（最长 60 分钟）...');

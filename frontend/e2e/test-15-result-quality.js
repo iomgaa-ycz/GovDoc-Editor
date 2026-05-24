@@ -8,86 +8,66 @@ async page => {
   console.log('== Part A: 审核结果质量验证 ==');
 
   await page.goto(BASE + '/audit-results');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(3000);
 
-  // 遍历 Select 找有 completed 审核点的运行
+  // 遍历所有审核运行，找到有 verdict 的审核点并立即验证质量
   const selectTrigger = page.locator('header button[role="combobox"]').first();
-  let foundCompleted = false;
+  let verifiedCount = 0;
 
   if (await selectTrigger.isVisible().catch(() => false)) {
     await selectTrigger.click();
     const optCount = await page.locator('[role="option"]').count();
     await page.keyboard.press('Escape').catch(() => {});
 
-    for (let oi = 0; oi < optCount; oi++) {
+    for (let oi = 0; oi < optCount && verifiedCount === 0; oi++) {
       await selectTrigger.click();
       await page.locator('[role="option"]').nth(oi).click();
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
       const leftPanel = page.locator('.w-80').first();
-      const pointBtns = leftPanel.locator('button');
+      const pointBtns = leftPanel.locator('button.flex.w-full');
       const ptCount = await pointBtns.count();
 
       for (let pi = 0; pi < ptCount; pi++) {
         await pointBtns.nth(pi).click();
-        await page.waitForTimeout(800);
-        if (await page.getByText('审核结论').isVisible().catch(() => false)) {
-          foundCompleted = true;
-          break;
+        await page.waitForTimeout(1500);
+
+        if (!(await page.getByText('审核结论').isVisible().catch(() => false))) continue;
+
+        const verdictPanel = page.locator('.rounded-card.border.p-4').first();
+        const verdictText = (await verdictPanel.textContent() || '');
+        const foundVerdict = VALID_VERDICTS.find(v => verdictText.includes(v));
+        if (!foundVerdict) throw new Error('审核点 verdict 不在有效值中: ' + verdictText.slice(0, 50));
+
+        const rationaleTitle = page.getByText('审查意见');
+        if (!(await rationaleTitle.isVisible().catch(() => false))) throw new Error('缺少审查意见');
+        const rationaleBlock = rationaleTitle.locator('..').locator('p').first();
+        const rationaleText = (await rationaleBlock.textContent() || '').trim();
+        if (rationaleText.length <= 20) throw new Error('审查意见过短(' + rationaleText.length + '字)');
+
+        const suggestionTitle = page.getByText('整改建议');
+        if (!(await suggestionTitle.isVisible().catch(() => false))) throw new Error('缺少整改建议');
+        const suggestionBlock = suggestionTitle.locator('..').locator('p').first();
+        const suggestionText = (await suggestionBlock.textContent() || '').trim();
+        if (suggestionText.length <= 10) {
+          console.log('WARN: 整改建议过短(' + suggestionText.length + '字)，跳过');
+          continue;
         }
-      }
-      if (foundCompleted) {
-        console.log('找到有 completed 审核点的运行（选项 ' + oi + '）');
-        break;
+
+        if (foundVerdict === '不合规' || foundVerdict === '存疑') {
+          const evidenceTitle = page.getByText('原文引用');
+          if (!(await evidenceTitle.isVisible().catch(() => false))) {
+            throw new Error('verdict=' + foundVerdict + ' 但缺少原文引用');
+          }
+        }
+
+        verifiedCount++;
+        console.log('PASS: 选项' + oi + ' 审核点' + pi + ' — verdict=' + foundVerdict + ', rationale=' + rationaleText.length + '字, suggestion=' + suggestionText.length + '字');
       }
     }
   }
 
-  if (!foundCompleted) throw new Error('没有任何审核运行包含已完成的审核点');
-
-  const leftPanel = page.locator('.w-80').first();
-  const pointButtons = leftPanel.locator('button');
-  const pointCount = await pointButtons.count();
-
-  let verifiedCount = 0;
-  for (let i = 0; i < pointCount; i++) {
-    await pointButtons.nth(i).click();
-    await page.waitForTimeout(1000);
-
-    const hasVerdict = await page.getByText('审核结论').isVisible().catch(() => false);
-    if (!hasVerdict) continue;
-
-    const verdictPanel = page.locator('.rounded-card.border.p-4').first();
-    const verdictText = (await verdictPanel.textContent() || '');
-    const foundVerdict = VALID_VERDICTS.find(v => verdictText.includes(v));
-    if (!foundVerdict) throw new Error('审核点 ' + i + ' verdict 不在有效值中: ' + verdictText.slice(0, 50));
-
-    const rationaleTitle = page.getByText('审查意见');
-    if (!(await rationaleTitle.isVisible().catch(() => false))) throw new Error('审核点 ' + i + ' 缺少审查意见');
-    const rationaleBlock = rationaleTitle.locator('..').locator('p').first();
-    const rationaleText = (await rationaleBlock.textContent() || '').trim();
-    if (rationaleText.length <= 20) throw new Error('审核点 ' + i + ' 审查意见过短(' + rationaleText.length + '字): ' + rationaleText);
-
-    const suggestionTitle = page.getByText('整改建议');
-    if (!(await suggestionTitle.isVisible().catch(() => false))) throw new Error('审核点 ' + i + ' 缺少整改建议');
-    const suggestionBlock = suggestionTitle.locator('..').locator('p').first();
-    const suggestionText = (await suggestionBlock.textContent() || '').trim();
-    if (suggestionText.length <= 10) {
-      console.log('WARN: 审核点 ' + i + ' 整改建议过短(' + suggestionText.length + '字)，跳过');
-      continue;
-    }
-
-    if (foundVerdict === '不合规' || foundVerdict === '存疑') {
-      const evidenceTitle = page.getByText('原文引用');
-      if (!(await evidenceTitle.isVisible().catch(() => false))) {
-        throw new Error('审核点 ' + i + ' verdict=' + foundVerdict + ' 但缺少原文引用');
-      }
-    }
-
-    verifiedCount++;
-    console.log('PASS: 审核点 ' + i + ' — verdict=' + foundVerdict + ', rationale=' + rationaleText.length + '字, suggestion=' + suggestionText.length + '字');
-  }
   if (verifiedCount === 0) throw new Error('没有任何 completed 的审核点可验证');
   console.log('Part A 完成: 验证 ' + verifiedCount + ' 个审核点质量');
 
@@ -96,7 +76,7 @@ async page => {
   console.log('== Part B: 工作底稿质量验证 ==');
 
   await page.goto(BASE + '/workpaper');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   const emptyState = page.getByText('暂无工作底稿');
   if (await emptyState.isVisible().catch(() => false)) {

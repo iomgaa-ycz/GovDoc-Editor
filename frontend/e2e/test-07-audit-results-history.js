@@ -4,7 +4,8 @@ async page => {
   // Step 1: 进入 Dashboard，等待表格行加载（API 异步数据）
   console.log('Step 1: 进入 Dashboard，等待 table 加载');
   await page.goto(BASE + '/');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(3000);
   const firstRow = page.locator('table tbody tr').first();
   await firstRow.waitFor({ timeout: 15000 });
 
