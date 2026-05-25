@@ -74,3 +74,5 @@
 - [2026-05-25 03:43 UTC] 重建索引: 96 篇页面
 - [2026-05-25 12:48 UTC] 新增边: design:hub-detail-frontend-redesign --extends--> design:compare-perf-optimization
 - [2026-05-25 12:48 UTC] 重建索引: 97 篇页面
+- [2026-05-25 12:53 UTC] 新增边: plan:2026-05-25-hub-detail-frontend-redesign --implements--> design:hub-detail-frontend-redesign
+- [2026-05-25 12:53 UTC] 重建索引: 98 篇页面

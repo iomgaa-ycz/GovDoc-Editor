@@ -212,6 +212,13 @@
       "relation": "extends",
       "evidence": "在对比性能优化基础上扩展为完整的 Hub+Detail 前端重构",
       "added": "2026-05-25T12:48:29.089368+00:00"
+    },
+    {
+      "source": "plan:2026-05-25-hub-detail-frontend-redesign",
+      "target": "design:hub-detail-frontend-redesign",
+      "relation": "implements",
+      "evidence": "实施 Hub+Detail 前端重构设计的全部任务",
+      "added": "2026-05-25T12:53:35.682532+00:00"
     }
   ]
 }
