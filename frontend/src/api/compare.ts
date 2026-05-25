@@ -139,6 +139,10 @@ export function getCompareResult(reviewId: string): Promise<CompareResponse> {
   return request(`/api/v1/compare/${reviewId}/result`);
 }
 
+export function listCompareRuns(): Promise<CompareRunStatus[]> {
+  return request("/api/v1/compare");
+}
+
 export function buildCompareDownloadUrl(path: string): string {
   return `${resolveBaseUrl()}${path}`;
 }
