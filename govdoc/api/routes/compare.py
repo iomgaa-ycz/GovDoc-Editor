@@ -29,6 +29,30 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 
+@router.get("")
+def list_compare_runs() -> list[CompareRunStatus]:
+    """列出所有文档对比任务。"""
+    from sqlmodel import select
+
+    with get_db_session() as session:
+        runs = session.exec(
+            select(CompareRun).order_by(CompareRun.created_at.desc())
+        ).all()
+        return [
+            CompareRunStatus(
+                review_id=run.id,
+                status=run.status,
+                file_count=run.file_count,
+                file_names=_load_json_list(run.file_names_json),
+                progress=_load_json_dict(run.progress_json),
+                error=run.error,
+                created_at=str(run.created_at),
+                completed_at=str(run.completed_at) if run.completed_at else None,
+            )
+            for run in runs
+        ]
+
+
 def _ensure_supported(filename: str) -> None:
     """校验上传文件名是否为支持的文档格式。"""
     suffix = Path(filename).suffix.lower()

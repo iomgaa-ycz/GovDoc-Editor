@@ -1,12 +1,13 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-25 03:43 UTC
+> 自动生成，更新时间：2026-05-25 12:53 UTC
 
-## design (14)
+## design (15)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
+- [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
@@ -23,7 +24,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (37)
+## plan (38)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -46,6 +47,7 @@
 - [E2E 测试全覆盖实现计划](plans/e2e-full-coverage.md) `plan:e2e-full-coverage`
 - [E2E 测试清单](plans/e2e-test-checklist.md) `plan:e2e-test-checklist`
 - [E2E 测试第二轮修复实现计划](plans/e2e-fix-round2.md) `plan:e2e-fix-round2`
+- [Hub+Detail 前端页面重构实施计划](plans/2026-05-25-hub-detail-frontend-redesign.md) `plan:2026-05-25-hub-detail-frontend-redesign`
 - [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
 - [PR#25 合并清理 + Test 07 实现计划](plans/pr25-merge-cleanup-test07.md) `plan:pr25-merge-cleanup-test07`
 - [PR#27 合并前修复](plans/pr27-merge-fixups.md) `plan:pr27-merge-fixups`

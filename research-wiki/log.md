@@ -67,3 +67,12 @@
 - [2026-05-24 08:59 UTC] 新增 plan: 审核点按标题去重实施计划 (plan:2026-05-24-checkpoint-title-dedup-plan)
 - [2026-05-24 08:59 UTC] 新增边: plan:2026-05-24-checkpoint-title-dedup-plan --implements--> design:checkpoint-title-dedup-design
 - [2026-05-24 09:02 UTC] 重建索引: 96 篇页面
+- [2026-05-25 03:36 UTC] 新增边: design:compare-perf-optimization --supersedes--> design:compare-nfile-pdf
+- [2026-05-25 03:36 UTC] 重建索引: 95 篇页面
+- [2026-05-25 03:43 UTC] 新增 plan: 文档对比性能优化实施计划 (plan:2026-05-25-compare-perf-optimization)
+- [2026-05-25 03:43 UTC] 新增边: plan:2026-05-25-compare-perf-optimization --implements--> design:compare-perf-optimization
+- [2026-05-25 03:43 UTC] 重建索引: 96 篇页面
+- [2026-05-25 12:48 UTC] 新增边: design:hub-detail-frontend-redesign --extends--> design:compare-perf-optimization
+- [2026-05-25 12:48 UTC] 重建索引: 97 篇页面
+- [2026-05-25 12:53 UTC] 新增边: plan:2026-05-25-hub-detail-frontend-redesign --implements--> design:hub-detail-frontend-redesign
+- [2026-05-25 12:53 UTC] 重建索引: 98 篇页面
