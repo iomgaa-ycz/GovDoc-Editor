@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-25 03:36 UTC
+> 自动生成，更新时间：2026-05-25 03:43 UTC
 
 ## design (14)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -23,7 +23,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (36)
+## plan (37)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -58,6 +58,7 @@
 - [审核点按标题去重实施计划](plans/2026-05-24-checkpoint-title-dedup-plan.md) `plan:2026-05-24-checkpoint-title-dedup-plan`
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
+- [文档对比性能优化实施计划](plans/2026-05-25-compare-perf-optimization.md) `plan:2026-05-25-compare-perf-optimization`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
 
