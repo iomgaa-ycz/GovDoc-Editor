@@ -3,10 +3,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AuditLibraryPage } from "./pages/AuditLibraryPage";
-import { AIReviewPage } from "./pages/AIReviewPage";
-import { WorkpaperPage } from "./pages/WorkpaperPage";
-import { AuditResultsPage } from "./pages/AuditResultsPage";
-import { DocComparePage } from "./pages/DocComparePage";
+import { DocCompareHubPage } from "./pages/DocCompareHubPage";
+import { DocCompareDetailPage } from "./pages/DocCompareDetailPage";
+import { AIReviewHubPage } from "./pages/AIReviewHubPage";
+import { AIReviewDetailPage } from "./pages/AIReviewDetailPage";
 
 export default function App() {
   return (
@@ -14,10 +14,12 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/audit-library" element={<AuditLibraryPage />} />
-        <Route path="/ai-review" element={<AIReviewPage />} />
-        <Route path="/workpaper" element={<WorkpaperPage />} />
-        <Route path="/audit-results" element={<AuditResultsPage />} />
-        <Route path="/compare" element={<DocComparePage />} />
+        <Route path="/compare" element={<DocCompareHubPage />} />
+        <Route path="/compare/:reviewId" element={<DocCompareDetailPage />} />
+        <Route path="/ai-review" element={<AIReviewHubPage />} />
+        <Route path="/ai-review/:auditRunId" element={<AIReviewDetailPage />} />
+        <Route path="/audit-results" element={<Navigate replace to="/ai-review" />} />
+        <Route path="/workpaper" element={<Navigate replace to="/ai-review" />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Route>
     </Routes>
