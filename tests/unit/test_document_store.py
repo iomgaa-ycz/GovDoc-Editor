@@ -45,7 +45,7 @@ class TestGetOrConvert:
 
         result = store.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm")
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm", max_workers=3)
         assert result.exists()
         assert result.read_text(encoding="utf-8") == "# Converted content"
 
@@ -60,7 +60,7 @@ class TestGetOrConvert:
 
         store_with_monkey.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey")
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey", max_workers=3)
 
     @patch("govdoc.storage.files._scrivai_to_markdown", return_value="")
     def test_empty_result_raises(self, mock_to_md, store: DocumentStore, tmp_path: Path) -> None:
