@@ -166,7 +166,7 @@ async def compare_uploaded_files(
         await to_thread(_execute_compare)
 
     background_tasks.add_task(_run_compare)
-    return {"review_id": review_id, "status": status}
+    return {"reviewId": review_id, "status": status}
 
 
 @router.get("/{review_id}/status", response_model=CompareRunStatus)
