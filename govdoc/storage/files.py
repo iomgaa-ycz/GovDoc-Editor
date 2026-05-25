@@ -105,7 +105,7 @@ class DocumentStore:
         md = _scrivai_to_markdown(
             raw,
             ocr_backend=self._ocr_backend,
-            max_workers=3,
+            max_workers=1,
         )
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")
