@@ -41,21 +41,25 @@ from govdoc.schemas.compare import (
 CATEGORY_PRIORITY: dict[CompareCategoryId, int] = {
     "paragraph": 0,
     "sentence": 1,
+    "similar": 2,
 }
 
 CATEGORY_LABELS: dict[CompareCategoryId, str] = {
     "paragraph": "相同段落",
     "sentence": "相同句子",
+    "similar": "近似段落",
 }
 
 CATEGORY_COLORS: dict[CompareCategoryId, str] = {
     "paragraph": "#f5b700",
     "sentence": "#12b5cb",
+    "similar": "#9b59b6",
 }
 
 DOCX_HIGHLIGHT_COLORS: dict[CompareCategoryId, WD_COLOR_INDEX] = {
     "paragraph": WD_COLOR_INDEX.YELLOW,
     "sentence": WD_COLOR_INDEX.TURQUOISE,
+    "similar": WD_COLOR_INDEX.VIOLET,
 }
 
 SENTENCE_END_CHARS = {
@@ -374,9 +378,7 @@ def _sentence_covered_by_paragraph(
     if not paragraph_ranges_by_file or doc.file_index not in paragraph_ranges_by_file:
         return False
     return _is_covered_by_ranges(
-        document=doc,
-        start=sentence.start,
-        end=sentence.end,
+        document=doc, start=sentence.start, end=sentence.end,
         ranges=paragraph_ranges_by_file[doc.file_index],
     )
 
@@ -399,7 +401,9 @@ def _build_nfile_sentence_matches(
             first_seen.setdefault(sentence.text, (doc.file_index, order))
 
     texts = [
-        text for text, per_file_sentences in sentence_lookup.items() if len(per_file_sentences) >= 2
+        text
+        for text, per_file_sentences in sentence_lookup.items()
+        if len(per_file_sentences) >= 2
     ]
     texts.sort(key=lambda text: (first_seen[text][0], first_seen[text][1], text))
 
@@ -430,14 +434,69 @@ def _build_nfile_sentence_matches(
     return matches
 
 
+def _build_nfile_similar_matches(
+    documents: list[DocumentModel],
+    exact_matched_texts: set[str],
+) -> list[MatchRecord]:
+    """构建 N 份文档中的近似段落匹配。"""
+    from govdoc.compare.simhash import find_similar_paragraphs
+    from govdoc.runtime import get_config
+
+    threshold = get_config().compare.simhash_threshold
+
+    all_paragraphs = {
+        doc.file_index: [block.text for block in doc.blocks]
+        for doc in documents
+    }
+    similar_matches = find_similar_paragraphs(
+        all_paragraphs=all_paragraphs,
+        threshold=threshold,
+        exact_matched_texts=exact_matched_texts,
+    )
+
+    documents_by_index = {doc.file_index: doc for doc in documents}
+    matches: list[MatchRecord] = []
+
+    for sim in similar_matches:
+        doc_a = documents_by_index[sim.file_index_a]
+        doc_b = documents_by_index[sim.file_index_b]
+        block_a = doc_a.blocks[sim.paragraph_index_a]
+        block_b = doc_b.blocks[sim.paragraph_index_b]
+
+        file_occurrences = {
+            sim.file_index_a: [
+                MatchOccurrence(
+                    file_index=sim.file_index_a,
+                    start=block_a.start,
+                    end=block_a.end,
+                )
+            ],
+            sim.file_index_b: [
+                MatchOccurrence(
+                    file_index=sim.file_index_b,
+                    start=block_b.start,
+                    end=block_b.end,
+                )
+            ],
+        }
+        matches.append(
+            MatchRecord(
+                id=f"similar-{len(matches) + 1:03d}",
+                category="similar",
+                text=sim.text_a,
+                file_occurrences=file_occurrences,
+            )
+        )
+
+    return matches
+
+
 def _build_exact_ranges_by_file(matches: list[MatchRecord]) -> dict[int, list[tuple[int, int]]]:
     """把段落/句子匹配范围按文件聚合，供片段去重使用。"""
     ranges: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for match in matches:
         for file_index, occurrences in match.file_occurrences.items():
-            ranges[file_index].extend(
-                (occurrence.start, occurrence.end) for occurrence in occurrences
-            )
+            ranges[file_index].extend((occurrence.start, occurrence.end) for occurrence in occurrences)
     return {file_index: sorted(items) for file_index, items in ranges.items()}
 
 
@@ -574,10 +633,7 @@ def _build_block_segments(
     if not annotations:
         return [
             CompareBlockSegment(
-                text=block.text,
-                match_ids=[],
-                categories=[],
-                primary_match_id=None,
+                text=block.text, match_ids=[], categories=[], primary_match_id=None,
             )
         ]
 
@@ -594,9 +650,7 @@ def _build_block_segments(
             continue
         current = _segment_for_range(block, start, end, annotations, match_lookup)
         if segments and _can_merge_segments(segments[-1], current):
-            segments[-1] = segments[-1].model_copy(
-                update={"text": segments[-1].text + current.text}
-            )
+            segments[-1] = segments[-1].model_copy(update={"text": segments[-1].text + current.text})
         else:
             segments.append(current)
 
@@ -643,7 +697,9 @@ def _serialize_matches(
             str(file_index): match_segments_by_file.get(file_index, {}).get(match.id, [])
             for file_index in file_indices
         }
-        per_file_counts = {str(file_index): len(items) for file_index, items in occurrences.items()}
+        per_file_counts = {
+            str(file_index): len(items) for file_index, items in occurrences.items()
+        }
         occurrence_count = sum(per_file_counts.values())
         serialized.append(
             CompareMatch(
@@ -695,7 +751,7 @@ def _build_categories() -> list[CompareCategory]:
             label=CATEGORY_LABELS[category],
             color=CATEGORY_COLORS[category],
         )
-        for category in ("paragraph", "sentence")
+        for category in ("paragraph", "sentence", "similar")
     ]
 
 
@@ -727,7 +783,15 @@ def _build_compare_response(
         documents,
         paragraph_ranges_by_file=paragraph_ranges,
     )
-    all_matches = paragraph_matches + sentence_matches
+
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "similar"})
+    similar_matches = _build_nfile_similar_matches(
+        documents=documents,
+        exact_matched_texts={m.text for m in paragraph_matches},
+    )
+
+    all_matches = paragraph_matches + sentence_matches + similar_matches
     match_lookup = {match.id: match for match in all_matches}
 
     match_segments_by_file: dict[int, dict[str, list[CompareOccurrence]]] = {}
@@ -775,6 +839,7 @@ def _build_compare_response(
             common_paragraph_count=len(paragraph_matches),
             common_sentence_count=len(sentence_matches),
             common_segment_count=0,
+            common_similar_count=len(similar_matches),
             match_count=len(serialized_matches),
             min_segment_length=min_segment_length,
         ),

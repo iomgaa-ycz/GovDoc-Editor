@@ -87,6 +87,7 @@ class CompareConfig(BaseModel):
     max_files: int | None = None
     min_segment_length: int = 16
     pdf_timeout_s: int = 300
+    simhash_threshold: int = 10
 
 
 class GovDocConfig(BaseModel):
