@@ -1,14 +1,12 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-24 09:02 UTC
+> 自动生成，更新时间：2026-05-25 03:36 UTC
 
-## design (15)
+## design (14)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
-- [E2E 测试全覆盖设计](designs/e2e-full-coverage.md) `design:e2e-full-coverage`
-- [E2E 测试第二轮修复设计](designs/e2e-fix-round2.md) `design:e2e-fix-round2`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
@@ -16,6 +14,7 @@
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
 - [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
+- [文档对比性能优化设计（去 Tier3 + SimHash + 异步化）](designs/compare-perf-optimization.md) `design:compare-perf-optimization`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
 
