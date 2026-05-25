@@ -14,7 +14,7 @@ def _to_camel(value: str) -> str:
     return first + "".join(part.capitalize() for part in rest)
 
 
-CompareCategoryId = Literal["paragraph", "sentence", "segment"]
+CompareCategoryId = Literal["paragraph", "sentence"]
 
 
 class CompareModel(GovDocModel):

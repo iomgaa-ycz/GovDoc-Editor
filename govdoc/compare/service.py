@@ -17,7 +17,7 @@ import uuid
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
 
-from govdoc.compare.compare import find_nfile_common_segments, find_nfile_exact_matches
+from govdoc.compare.compare import find_nfile_exact_matches
 from govdoc.compare.extractor import extract_docx_paragraphs, extract_markdown_paragraphs
 from govdoc.schemas.compare import (
     CompareArtifacts,
@@ -40,25 +40,21 @@ from govdoc.schemas.compare import (
 CATEGORY_PRIORITY: dict[CompareCategoryId, int] = {
     "paragraph": 0,
     "sentence": 1,
-    "segment": 2,
 }
 
 CATEGORY_LABELS: dict[CompareCategoryId, str] = {
     "paragraph": "相同段落",
     "sentence": "相同句子",
-    "segment": "连续公共片段",
 }
 
 CATEGORY_COLORS: dict[CompareCategoryId, str] = {
     "paragraph": "#f5b700",
     "sentence": "#12b5cb",
-    "segment": "#ff7a59",
 }
 
 DOCX_HIGHLIGHT_COLORS: dict[CompareCategoryId, WD_COLOR_INDEX] = {
     "paragraph": WD_COLOR_INDEX.YELLOW,
     "sentence": WD_COLOR_INDEX.TURQUOISE,
-    "segment": WD_COLOR_INDEX.PINK,
 }
 
 SENTENCE_END_CHARS = {
@@ -466,56 +462,6 @@ def _is_covered_by_ranges(
     return not document.full_text[current:end].strip()
 
 
-def _build_nfile_segment_matches(
-    documents: list[DocumentModel],
-    min_segment_length: int,
-    exact_matches: list[MatchRecord],
-) -> list[MatchRecord]:
-    """构建 N 份文档中的连续公共片段匹配。"""
-    documents_by_index = {doc.file_index: doc for doc in documents}
-    exact_ranges_by_file = _build_exact_ranges_by_file(exact_matches)
-    segments = find_nfile_common_segments(
-        all_texts={doc.file_index: doc.full_text for doc in documents},
-        min_length=min_segment_length,
-    )
-
-    matches: list[MatchRecord] = []
-    for segment in segments:
-        file_occurrences: dict[int, list[MatchOccurrence]] = {}
-        for file_index, ranges in segment.file_ranges.items():
-            document = documents_by_index[file_index]
-            occurrences: list[MatchOccurrence] = []
-            for item in ranges:
-                if _is_covered_by_ranges(
-                    document=document,
-                    start=item.start,
-                    end=item.end,
-                    ranges=exact_ranges_by_file.get(file_index, []),
-                ):
-                    continue
-                occurrences.append(
-                    MatchOccurrence(
-                        file_index=file_index,
-                        start=item.start,
-                        end=item.end,
-                    )
-                )
-            if occurrences:
-                file_occurrences[file_index] = occurrences
-
-        if len(file_occurrences) >= 2:
-            matches.append(
-                MatchRecord(
-                    id=f"segment-{len(matches) + 1:03d}",
-                    category="segment",
-                    text=segment.text,
-                    file_occurrences=file_occurrences,
-                )
-            )
-
-    return matches
-
-
 def _split_occurrence_by_blocks(
     blocks: list[TextBlock],
     occurrence: MatchOccurrence,
@@ -742,7 +688,7 @@ def _build_categories() -> list[CompareCategory]:
             label=CATEGORY_LABELS[category],
             color=CATEGORY_COLORS[category],
         )
-        for category in ("paragraph", "sentence", "segment")
+        for category in ("paragraph", "sentence")
     ]
 
 
@@ -763,12 +709,7 @@ def _build_compare_response(
     sentence_matches = _build_nfile_sentence_matches(
         documents, paragraph_ranges_by_file=paragraph_ranges,
     )
-    segment_matches = _build_nfile_segment_matches(
-        documents=documents,
-        min_segment_length=min_segment_length,
-        exact_matches=paragraph_matches + sentence_matches,
-    )
-    all_matches = paragraph_matches + sentence_matches + segment_matches
+    all_matches = paragraph_matches + sentence_matches
     match_lookup = {match.id: match for match in all_matches}
 
     match_segments_by_file: dict[int, dict[str, list[CompareOccurrence]]] = {}
@@ -815,7 +756,7 @@ def _build_compare_response(
             ],
             common_paragraph_count=len(paragraph_matches),
             common_sentence_count=len(sentence_matches),
-            common_segment_count=len(segment_matches),
+            common_segment_count=0,
             match_count=len(serialized_matches),
             min_segment_length=min_segment_length,
         ),
