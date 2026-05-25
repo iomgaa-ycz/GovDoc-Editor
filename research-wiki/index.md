@@ -1,12 +1,13 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-25 03:43 UTC
+> 自动生成，更新时间：2026-05-25 12:48 UTC
 
-## design (14)
+## design (15)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
+- [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`

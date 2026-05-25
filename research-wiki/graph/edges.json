@@ -205,6 +205,13 @@
       "relation": "implements",
       "evidence": "实施计划包含设计文档中三层递进方案的全部任务",
       "added": "2026-05-25T03:43:35.487286+00:00"
+    },
+    {
+      "source": "design:hub-detail-frontend-redesign",
+      "target": "design:compare-perf-optimization",
+      "relation": "extends",
+      "evidence": "在对比性能优化基础上扩展为完整的 Hub+Detail 前端重构",
+      "added": "2026-05-25T12:48:29.089368+00:00"
     }
   ]
 }
