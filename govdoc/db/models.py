@@ -138,6 +138,20 @@ class ActivityLog(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class CompareRun(SQLModel, table=True):
+    """文档对比任务执行记录。"""
+
+    id: str = Field(default_factory=uid, primary_key=True)
+    status: str = "pending"  # pending / running / completed / failed
+    file_count: int = 0
+    file_names_json: str | None = None  # JSON list[str]
+    progress_json: str | None = None  # JSON: {"phase": "matching", "step": "paragraph"}
+    result_path: str | None = None  # review.json 路径
+    error: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime | None = None
+
+
 class Comment(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     target_type: str

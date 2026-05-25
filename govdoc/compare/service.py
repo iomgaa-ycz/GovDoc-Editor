@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 import json
 import re
 import shutil
@@ -69,6 +70,7 @@ SENTENCE_END_CHARS = {
 
 ALLOWED_SUFFIXES = {".docx", ".pdf"}
 REVIEW_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+ProgressCallback = Callable[[dict], None] | None
 
 
 @dataclass(frozen=True)
@@ -372,7 +374,9 @@ def _sentence_covered_by_paragraph(
     if not paragraph_ranges_by_file or doc.file_index not in paragraph_ranges_by_file:
         return False
     return _is_covered_by_ranges(
-        document=doc, start=sentence.start, end=sentence.end,
+        document=doc,
+        start=sentence.start,
+        end=sentence.end,
         ranges=paragraph_ranges_by_file[doc.file_index],
     )
 
@@ -395,9 +399,7 @@ def _build_nfile_sentence_matches(
             first_seen.setdefault(sentence.text, (doc.file_index, order))
 
     texts = [
-        text
-        for text, per_file_sentences in sentence_lookup.items()
-        if len(per_file_sentences) >= 2
+        text for text, per_file_sentences in sentence_lookup.items() if len(per_file_sentences) >= 2
     ]
     texts.sort(key=lambda text: (first_seen[text][0], first_seen[text][1], text))
 
@@ -433,7 +435,9 @@ def _build_exact_ranges_by_file(matches: list[MatchRecord]) -> dict[int, list[tu
     ranges: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for match in matches:
         for file_index, occurrences in match.file_occurrences.items():
-            ranges[file_index].extend((occurrence.start, occurrence.end) for occurrence in occurrences)
+            ranges[file_index].extend(
+                (occurrence.start, occurrence.end) for occurrence in occurrences
+            )
     return {file_index: sorted(items) for file_index, items in ranges.items()}
 
 
@@ -570,7 +574,10 @@ def _build_block_segments(
     if not annotations:
         return [
             CompareBlockSegment(
-                text=block.text, match_ids=[], categories=[], primary_match_id=None,
+                text=block.text,
+                match_ids=[],
+                categories=[],
+                primary_match_id=None,
             )
         ]
 
@@ -587,7 +594,9 @@ def _build_block_segments(
             continue
         current = _segment_for_range(block, start, end, annotations, match_lookup)
         if segments and _can_merge_segments(segments[-1], current):
-            segments[-1] = segments[-1].model_copy(update={"text": segments[-1].text + current.text})
+            segments[-1] = segments[-1].model_copy(
+                update={"text": segments[-1].text + current.text}
+            )
         else:
             segments.append(current)
 
@@ -634,9 +643,7 @@ def _serialize_matches(
             str(file_index): match_segments_by_file.get(file_index, {}).get(match.id, [])
             for file_index in file_indices
         }
-        per_file_counts = {
-            str(file_index): len(items) for file_index, items in occurrences.items()
-        }
+        per_file_counts = {str(file_index): len(items) for file_index, items in occurrences.items()}
         occurrence_count = sum(per_file_counts.values())
         serialized.append(
             CompareMatch(
@@ -697,17 +704,28 @@ def _build_compare_response(
     review_dir: Path,
     stored_files: list[tuple[Path, str]],
     min_segment_length: int,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """构建完整对比响应并落盘 review.json 与下载文件。"""
-    documents = [
-        _build_document_model(file_index=index, file_name=name, path=path)
-        for index, (path, name) in enumerate(stored_files)
-    ]
+    documents: list[DocumentModel] = []
+    total_files = len(stored_files)
+    for index, (path, name) in enumerate(stored_files):
+        if on_progress is not None:
+            on_progress({"phase": "converting", "current": index, "total": total_files})
+        documents.append(_build_document_model(file_index=index, file_name=name, path=path))
+        if on_progress is not None:
+            on_progress({"phase": "converting", "current": index + 1, "total": total_files})
 
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "paragraph"})
     paragraph_matches = _build_nfile_block_matches(documents)
     paragraph_ranges = _build_exact_ranges_by_file(paragraph_matches)
+
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "sentence"})
     sentence_matches = _build_nfile_sentence_matches(
-        documents, paragraph_ranges_by_file=paragraph_ranges,
+        documents,
+        paragraph_ranges_by_file=paragraph_ranges,
     )
     all_matches = paragraph_matches + sentence_matches
     match_lookup = {match.id: match for match in all_matches}
@@ -781,6 +799,7 @@ def create_compare_bundle(
     files: list[tuple[Path, str]],
     output_root: Path | None = None,
     min_segment_length: int | None = None,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """从多个本地 DOCX/PDF 路径创建对比 review。"""
     _validate_file_count(len(files))
@@ -803,6 +822,7 @@ def create_compare_bundle(
         review_dir=review_dir,
         stored_files=stored_files,
         min_segment_length=resolved_min_segment_length,
+        on_progress=on_progress,
     )
 
 
@@ -810,6 +830,7 @@ def create_compare_bundle_from_bytes(
     files: list[tuple[bytes, str]],
     output_root: Path | None = None,
     min_segment_length: int | None = None,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """从上传字节内容创建 N 文件对比 review。"""
     _validate_file_count(len(files))
@@ -832,6 +853,7 @@ def create_compare_bundle_from_bytes(
         review_dir=review_dir,
         stored_files=stored_files,
         min_segment_length=resolved_min_segment_length,
+        on_progress=on_progress,
     )
 
 

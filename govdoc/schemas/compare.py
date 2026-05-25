@@ -148,3 +148,16 @@ class CompareResponse(CompareModel):
     categories: list[CompareCategory]
     downloads: CompareDownloads
     artifacts: CompareArtifacts
+
+
+class CompareRunStatus(CompareModel):
+    """对比任务状态响应。"""
+
+    review_id: str
+    status: str
+    file_count: int
+    file_names: list[str]
+    progress: dict | None = None
+    error: str | None = None
+    created_at: str
+    completed_at: str | None = None
