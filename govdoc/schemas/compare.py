@@ -14,7 +14,7 @@ def _to_camel(value: str) -> str:
     return first + "".join(part.capitalize() for part in rest)
 
 
-CompareCategoryId = Literal["paragraph", "sentence", "segment"]
+CompareCategoryId = Literal["paragraph", "sentence", "similar"]
 
 
 class CompareModel(GovDocModel):
@@ -52,6 +52,7 @@ class CompareSummary(CompareModel):
     common_paragraph_count: int
     common_sentence_count: int
     common_segment_count: int
+    common_similar_count: int = 0
     match_count: int
     min_segment_length: int
 
@@ -123,6 +124,8 @@ class CompareMatch(CompareModel):
     per_file_counts: dict[str, int]
     file_count: int
     occurrence_count: int
+    similarity: float | None = None
+    text_b: str | None = None
 
 
 class CompareDownloads(CompareModel):
@@ -148,3 +151,16 @@ class CompareResponse(CompareModel):
     categories: list[CompareCategory]
     downloads: CompareDownloads
     artifacts: CompareArtifacts
+
+
+class CompareRunStatus(CompareModel):
+    """对比任务状态响应。"""
+
+    review_id: str
+    status: str
+    file_count: int
+    file_names: list[str]
+    progress: dict | None = None
+    error: str | None = None
+    created_at: str
+    completed_at: str | None = None

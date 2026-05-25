@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import {
   buildCompareDownloadUrl,
   compareFiles,
+  getCompareResult,
+  getCompareStatus,
   type CompareCategoryId,
   type CompareDocument,
   type CompareMatch,
   type CompareResponse,
+  type CompareRunStatus,
   type CompareSummary,
 } from "@/api/compare";
 import { EmptyState } from "@/components/EmptyState";
@@ -21,13 +24,13 @@ import { cn } from "@/lib/utils";
 const CATEGORY_PRIORITY: Record<CompareCategoryId, number> = {
   paragraph: 0,
   sentence: 1,
-  segment: 2,
+  similar: 2,
 };
 
 function categoryCount(summary: CompareSummary, cat: CompareCategoryId): number {
   if (cat === "paragraph") return summary.commonParagraphCount;
   if (cat === "sentence") return summary.commonSentenceCount;
-  return summary.commonSegmentCount;
+  return summary.commonSimilarCount;
 }
 
 function formatFileIndices(indices: number[]): string {
@@ -46,10 +49,11 @@ export function DocComparePage() {
   const [visibleCats, setVisibleCats] = useState<Record<CompareCategoryId, boolean>>({
     paragraph: true,
     sentence: true,
-    segment: true,
+    similar: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [runStatus, setRunStatus] = useState<CompareRunStatus | null>(null);
 
   const visibleMatches = useMemo(
     () => result?.matches.filter((match) => visibleCats[match.category]) ?? [],
@@ -85,15 +89,38 @@ export function DocComparePage() {
     if (files.length < 2) return;
     setLoading(true);
     setError(null);
+    setRunStatus(null);
     try {
-      const response = await compareFiles(files);
-      setResult(response);
-      setSelectedMatchId(response.matches[0]?.id ?? null);
+      const submitResponse = await compareFiles(files);
+      pollStatus(submitResponse.reviewId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "对比失败");
-    } finally {
+      setError(err instanceof Error ? err.message : "提交失败");
       setLoading(false);
     }
+  }
+
+  function pollStatus(reviewId: string) {
+    const poll = async () => {
+      try {
+        const status = await getCompareStatus(reviewId);
+        setRunStatus(status);
+        if (status.status === "completed") {
+          const response = await getCompareResult(reviewId);
+          setResult(response);
+          setSelectedMatchId(response.matches[0]?.id ?? null);
+          setLoading(false);
+        } else if (status.status === "failed") {
+          setError(status.error || "对比失败");
+          setLoading(false);
+        } else {
+          setTimeout(poll, 2000);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "状态查询失败");
+        setLoading(false);
+      }
+    };
+    poll();
   }
 
   function reset() {
@@ -163,7 +190,13 @@ export function DocComparePage() {
                 <div className="flex justify-end">
                   <Button type="submit" disabled={files.length < 2 || loading}>
                     <GitCompareArrows className="h-4 w-4" />
-                    {loading ? "文档转换与对比中..." : "开始对比"}
+                    {loading
+                      ? runStatus?.progress?.phase === "converting"
+                        ? `转换文档中 (${runStatus.progress.current}/${runStatus.progress.total})`
+                        : runStatus?.progress?.phase === "matching"
+                          ? `匹配${runStatus.progress.step === "paragraph" ? "段落" : runStatus.progress.step === "sentence" ? "句子" : "近似段落"}中...`
+                          : "处理中..."
+                      : "开始对比"}
                   </Button>
                 </div>
               </form>
@@ -212,7 +245,7 @@ export function DocComparePage() {
           <MetricCard label="匹配总数" value={result.summary.matchCount} tone="blue" />
           <MetricCard label="相同段落" value={result.summary.commonParagraphCount} tone="amber" />
           <MetricCard label="相同句子" value={result.summary.commonSentenceCount} tone="green" />
-          <MetricCard label="公共片段" value={result.summary.commonSegmentCount} tone="slate" />
+          <MetricCard label="近似段落" value={result.summary.commonSimilarCount} tone="slate" />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

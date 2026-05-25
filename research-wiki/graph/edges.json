@@ -149,6 +149,11 @@
       "id": "plan:2026-05-24-checkpoint-title-dedup-plan",
       "label": "审核点按标题去重实施计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:2026-05-25-compare-perf-optimization",
+      "label": "文档对比性能优化实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -186,6 +191,20 @@
       "relation": "implements",
       "evidence": "实施审核点按标题去重设计",
       "added": "2026-05-24T08:59:36.357843+00:00"
+    },
+    {
+      "source": "design:compare-perf-optimization",
+      "target": "design:compare-nfile-pdf",
+      "relation": "supersedes",
+      "evidence": "性能优化设计在原 N 文件对比设计基础上重构 Tier 3 算法并增加异步化",
+      "added": "2026-05-25T03:36:34.658716+00:00"
+    },
+    {
+      "source": "plan:2026-05-25-compare-perf-optimization",
+      "target": "design:compare-perf-optimization",
+      "relation": "implements",
+      "evidence": "实施计划包含设计文档中三层递进方案的全部任务",
+      "added": "2026-05-25T03:43:35.487286+00:00"
     }
   ]
 }
