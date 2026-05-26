@@ -4,17 +4,18 @@ from __future__ import annotations
 
 from asyncio import to_thread
 from datetime import datetime
+from typing import Any
 import json
 import logging
 from pathlib import Path
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 
 from govdoc.api.deps import get_db_session
-from govdoc.compare.service import create_compare_bundle_from_bytes, get_compare_download
-from govdoc.db.models import CompareRun
+from govdoc.compare.service import create_compare_bundle, get_compare_download
+from govdoc.db.models import CompareRun, Document, uid
 from govdoc.schemas.compare import CompareResponse, CompareRunStatus
 
 
@@ -138,38 +139,62 @@ def _set_compare_run_failed(review_id: str, error: str) -> None:
 
 
 @router.post("", status_code=202)
-async def compare_uploaded_files(
+async def create_compare_run(
+    payload: dict[str, Any],
     background_tasks: BackgroundTasks,
-    files: list[UploadFile] = File(...),
 ) -> dict[str, str]:
-    """接收 N 份 DOCX/PDF 文件，创建异步对比任务并立即返回任务 ID。"""
-    if len(files) < 2:
-        raise HTTPException(status_code=400, detail="至少上传 2 份文件。")
-
-    file_data: list[tuple[bytes, str]] = []
-    file_names: list[str] = []
-    for index, upload in enumerate(files):
-        name = upload.filename or f"file_{index}.docx"
-        _ensure_supported(name)
-        file_data.append((await upload.read(), name))
-        file_names.append(name)
+    """基于已上传文档 ID 创建异步对比任务并立即返回任务 ID。"""
+    document_ids = payload.get("document_ids", [])
+    if len(document_ids) < 2:
+        return JSONResponse(status_code=400, content={"detail": "至少需要 2 个文档"})
 
     with get_db_session() as session:
+        docs: list[Document] = []
+        for document_id in document_ids:
+            document = session.get(Document, document_id)
+            if document is None or document.status != "ready":
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": f"文档 {document_id} 不存在或未就绪"},
+                )
+            docs.append(document)
+
+        file_names = [document.filename for document in docs]
+        review_id = uid()
         compare_run = CompareRun(
-            file_count=len(file_data),
+            id=review_id,
+            status="pending",
+            file_count=len(docs),
             file_names_json=json.dumps(file_names, ensure_ascii=False),
+            document_ids=json.dumps(document_ids),
         )
         session.add(compare_run)
         session.commit()
-        session.refresh(compare_run)
-        review_id = compare_run.id
-        status = compare_run.status
+
+    background_tasks.add_task(
+        _run_compare_from_docs,
+        review_id,
+        [(document.raw_path, document.filename) for document in docs],
+    )
+    return {"reviewId": review_id, "status": "pending"}
+
+
+async def _run_compare_from_docs(
+    review_id: str,
+    file_info_list: list[tuple[str, str]],
+) -> None:
+    """后台执行已上传文档对比任务。
+
+    Args:
+        review_id: 对比任务 ID。
+        file_info_list: `(raw_path, filename)` 对列表，来自 Document 表。
+    """
 
     def _execute_compare() -> None:
         _set_compare_run_running(review_id)
         try:
-            payload = create_compare_bundle_from_bytes(
-                files=file_data,
+            payload = create_compare_bundle(
+                files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
                 on_progress=lambda progress: _update_compare_progress(review_id, progress),
             )
         except (BadZipFile, ValueError) as exc:
@@ -186,11 +211,7 @@ async def compare_uploaded_files(
         result_path = Path(payload.artifacts.review_dir) / "review.json"
         _set_compare_run_completed(review_id, str(result_path))
 
-    async def _run_compare() -> None:
-        await to_thread(_execute_compare)
-
-    background_tasks.add_task(_run_compare)
-    return {"reviewId": review_id, "status": status}
+    await to_thread(_execute_compare)
 
 
 @router.get("/{review_id}/status", response_model=CompareRunStatus)
