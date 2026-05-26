@@ -3,19 +3,18 @@
 # GovDoc E2E 测试运行器（基于 @playwright/cli）
 #
 # 用法：
-#   bash frontend/e2e/run-tests.sh                    # 运行全部 14 个测试（含 LLM）
-#   bash frontend/e2e/run-tests.sh --quick            # 仅运行非 LLM 测试
-#   bash frontend/e2e/run-tests.sh --only 02          # 只运行指定测试
+#   bash frontend/e2e/run-tests.sh                    # 运行全部测试
+#   bash frontend/e2e/run-tests.sh --only files-F1    # 只运行指定测试
+#   bash frontend/e2e/run-tests.sh --page files       # 运行某页面全部测试
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export NO_PROXY="100.70.102.30,100.83.164.94,110.42.53.85,localhost,127.0.0.1"
+export NO_PROXY="100.70.102.30,100.82.33.121,110.42.53.85,localhost,127.0.0.1"
 export no_proxy="$NO_PROXY"
 
 BASE_URL="${E2E_BASE_URL:-http://100.70.102.30:8080}"
-BACKEND_URL="${E2E_BACKEND_URL:-http://100.83.164.94:8001}"
-PROJECT_ROOT="$(cd .. && pwd)"
+BACKEND_URL="${E2E_BACKEND_URL:-http://100.82.33.121:8001}"
 SCREENSHOT_DIR="e2e/screenshots"
 CLI="npx playwright-cli"
 SESSION="govdoc-e2e"
@@ -28,26 +27,28 @@ RESULTS=()
 mkdir -p "$SCREENSHOT_DIR"
 
 # ── 参数解析 ──
-QUICK=false
 ONLY=""
+PAGE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --quick) QUICK=true; shift ;;
         --only) ONLY="$2"; shift 2 ;;
+        --page) PAGE="$2"; shift 2 ;;
         *) echo "未知参数: $1"; exit 1 ;;
     esac
 done
 
-# ── 测试清单 ──
-NON_LLM_TESTS=("01-navigation" "02-import-checkpoints" "03-file-management" "05-doc-compare" "07-audit-results-history" "08-dashboard-details" "09-audit-library-crud" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "14-compare-verify" "15-result-quality")
-LLM_TESTS=("04-ai-extract" "06-ai-audit")
-ALL_TESTS=("01-navigation" "02-import-checkpoints" "03-file-management" "04-ai-extract" "05-doc-compare" "06-ai-audit" "07-audit-results-history" "08-dashboard-details" "09-audit-library-crud" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "14-compare-verify" "15-result-quality")
-QUICK_TESTS=("${NON_LLM_TESTS[@]}")
+# ── 测试清单（按页面分组） ──
+FILES_TESTS=("files-F1-skeleton" "files-F2-upload" "files-F3-search-filter" "files-F4-tags" "files-F5-delete" "files-F6-reconvert" "files-F7-empty-state")
+
+ALL_TESTS=("${FILES_TESTS[@]}")
 
 if [ -n "$ONLY" ]; then
     TESTS=("$ONLY")
-elif [ "$QUICK" = true ]; then
-    TESTS=("${QUICK_TESTS[@]}")
+elif [ -n "$PAGE" ]; then
+    case "$PAGE" in
+        files) TESTS=("${FILES_TESTS[@]}") ;;
+        *) echo "未知页面: $PAGE（可选: files）"; exit 1 ;;
+    esac
 else
     TESTS=("${ALL_TESTS[@]}")
 fi
@@ -57,7 +58,7 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 run_test() {
     local name="$1"
-    local script="e2e/test-${name}.js"
+    local script="e2e/${name}.js"
 
     if [ ! -f "$script" ]; then
         log "⏭ SKIP $name — 脚本不存在: $script"
@@ -74,7 +75,7 @@ run_test() {
     # 打开浏览器
     $CLI -s=$SESSION open "$BASE_URL" --config=.playwright/cli.config.json > /dev/null 2>&1
 
-    # 运行测试（playwright-cli 即使出错也返回 exit 0，需检查输出）
+    # 运行测试
     local start_time=$(date +%s)
     local output
     output=$($CLI -s=$SESSION run-code --filename="$script" 2>&1)

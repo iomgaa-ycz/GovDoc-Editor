@@ -14,8 +14,8 @@ import pytest
 REAL_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "real_data"
 E2E_REPORTS_DIR = Path(__file__).parent / "reports"
 
-BACKEND_BASE = os.environ.get("E2E_BACKEND_URL", "http://100.83.164.94:8001")
-FRONTEND_BASE = os.environ.get("E2E_FRONTEND_URL", "http://100.83.164.94:5174")
+BACKEND_BASE = os.environ.get("E2E_BACKEND_URL", "http://100.82.33.121:8001")
+FRONTEND_BASE = os.environ.get("E2E_FRONTEND_URL", "http://100.82.33.121:5174")
 
 
 def pytest_configure(config):

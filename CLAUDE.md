@@ -84,8 +84,6 @@ cd frontend && npm install && cd ..
 
 ### 2.3 启动服务
 
-我现在调用的后端是8002！！！以8002为准
-
 ```bash
 # 后端（FastAPI）
 source activate govdoc-auditor-v3 && uvicorn govdoc.api.main:app --host 0.0.0.0 --port 8000
@@ -99,16 +97,16 @@ cd frontend && npx vite --host 0.0.0.0 --port 5173
 
 ### 2.3.1 访问部署环境
 
-后端部署在 4090-server（`yuchengzhang@100.83.164.94`，Tailscale），前端部署在律师服务器（`ubuntu@100.70.102.30`，公网 `175.178.131.134`）。
+后端部署在 4090-server（`yuchengzhang@100.82.33.121`，Tailscale），前端部署在律师服务器（`ubuntu@100.70.102.30`，公网 `175.178.131.134`）。
 
 > [!IMPORTANT]
-> - 本地开发机需设置 **无代理** 才能直连：`export NO_PROXY=100.83.164.94,100.70.102.30`
+> - 本地开发机需设置 **无代理** 才能直连：`export NO_PROXY=100.82.33.121,100.70.102.30`
 > - 4090 上 git/pip 需要代理（mihomo）：`export http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890`
 
 | 环境 | 后端 (4090) | 前端 (律师服务器) | 分支 | 用途 |
 |------|------------|-----------------|------|------|
-| testing | `http://100.83.164.94:8001/docs` | `http://175.178.131.134:8080` | master | 工程师验证 |
-| stable | `http://100.83.164.94:8000/docs` | `http://175.178.131.134` | stable | 律师正式使用 |
+| testing | `http://100.82.33.121:8001/docs` | `http://175.178.131.134:8080` | master | 工程师验证 |
+| stable | `http://100.82.33.121:8000/docs` | `http://175.178.131.134` | stable | 律师正式使用 |
 
 **部署命令**：`bash scripts/deploy.sh --target <testing\|stable>`
 
