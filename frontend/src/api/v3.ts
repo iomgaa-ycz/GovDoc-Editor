@@ -7,7 +7,6 @@ import type {
   Project,
   RuleSource,
   RuleUploadResult,
-  TenderDoc,
   WorkpaperDraft,
 } from "../types/ui";
 
@@ -54,24 +53,6 @@ export function createProject(name: string, createdBy: string): Promise<Project>
 
 export function getProject(id: string): Promise<Project> {
   return request(`/api/v1/projects/${id}`);
-}
-
-export function uploadTenderDoc(
-  projectId: string,
-  file: File,
-): Promise<TenderDoc> {
-  const form = new FormData();
-  form.append("file", file);
-  return request(`/api/v1/projects/${projectId}/tender-doc`, {
-    method: "POST",
-    body: form,
-  });
-}
-
-export function listTenderDocs(
-  projectId: string,
-): Promise<TenderDoc[]> {
-  return request(`/api/v1/projects/${projectId}/tender-docs`);
 }
 
 /* ── Rules ── */
@@ -154,8 +135,8 @@ export function listAuditRuns(projectId?: string): Promise<AuditRun[]> {
 
 export function createAuditRun(
   projectId: string,
-  tenderDocId: string,
-  supplementaryDocIds: string[],
+  mainDocumentId: string,
+  supplementaryDocumentIds: string[],
   checkpointIds: string[],
 ): Promise<{ audit_run_id: string; total_count: number; status: string }> {
   return request("/api/v1/audit/runs", {
@@ -163,8 +144,8 @@ export function createAuditRun(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       project_id: projectId,
-      tender_doc_id: tenderDocId,
-      supplementary_doc_ids: supplementaryDocIds,
+      main_document_id: mainDocumentId,
+      supplementary_document_ids: supplementaryDocumentIds,
       checkpoint_ids: checkpointIds,
     }),
   });

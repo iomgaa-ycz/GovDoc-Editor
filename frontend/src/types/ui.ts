@@ -121,19 +121,11 @@ export interface Project {
   created_by: string;
 }
 
-export interface TenderDoc {
-  id: string;
-  project_id: string;
-  filename: string;
-  markdown_path: string;
-  warnings?: string[];
-}
-
 export interface AuditRun {
   id: string;
   project_id: string;
   project_name?: string;
-  tender_doc_id: string;
+  main_document_id: string;
   supplementary_doc_ids?: string[];
   status: AuditRunStatus;
   processed_count: number;
@@ -218,4 +210,34 @@ export interface RecentProject {
   point_count: number;
   issue_count: number;
   last_active: string;
+}
+
+export type DocumentStatus = "uploading" | "converting" | "ready" | "failed";
+
+export interface DocumentTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface GovDocument {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  sha256: string;
+  raw_path: string;
+  markdown_path: string | null;
+  status: DocumentStatus;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  tags: DocumentTag[];
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
 }
