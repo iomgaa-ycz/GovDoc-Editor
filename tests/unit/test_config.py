@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from govdoc.config import load_config
+from govdoc.config import CompareConfig, load_config
 
 
 def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
@@ -35,3 +35,17 @@ def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
     config = load_config(config_path)
     assert config.model.api_key == "secret-key"
     assert config.project_root == Path(__file__).resolve().parents[2]
+
+
+class TestCompareOcrBackend:
+    """验证 CompareConfig 支持 ocr_backend 字段。"""
+
+    def test_default_is_glm(self) -> None:
+        """CompareConfig 默认 ocr_backend 为 glm。"""
+        cfg = CompareConfig()
+        assert cfg.ocr_backend == "glm"
+
+    def test_load_config_reads_compare_ocr_backend(self) -> None:
+        """完整配置加载后 compare.ocr_backend 为 glm。"""
+        cfg = load_config()
+        assert cfg.compare.ocr_backend == "glm"

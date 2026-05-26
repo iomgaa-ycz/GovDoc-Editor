@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlmodel import Session, select
 
-from govdoc.db.models import AuditPointRun, AuditRun, TenderDoc, WorkpaperDraft, WorkpaperFinal
+from govdoc.db.models import AuditPointRun, AuditRun, Document, WorkpaperDraft, WorkpaperFinal
 from govdoc.pipelines.summary import generate_summary
 from govdoc.runtime import get_libraries
 from govdoc.schemas import GovFinding, Workpaper
@@ -80,10 +80,10 @@ async def _finalize_partial(
         raise ValueError(f"AuditRun {audit_run.id} 没有已完成的审核点")
 
     findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed]
-    tender_doc = session.get(TenderDoc, audit_run.tender_doc_id)
+    tender_doc = session.get(Document, audit_run.main_document_id)
     workpaper = Workpaper(
         project_id=audit_run.project_id,
-        tender_doc_path=tender_doc.storage_path if tender_doc is not None else "",
+        tender_doc_path=tender_doc.raw_path if tender_doc is not None else "",
         findings=findings,
         summary=generate_summary(findings),
     )

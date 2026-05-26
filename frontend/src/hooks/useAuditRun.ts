@@ -21,6 +21,15 @@ import { useState } from "react";
 
 import { useWorkbench } from "../context/V3WorkbenchContext";
 
+interface AuditInputDocumentRef {
+  id: string;
+}
+
+interface AuditInputDocs {
+  mainDoc?: AuditInputDocumentRef;
+  supplementaryDocs: AuditInputDocumentRef[];
+}
+
 export interface AuditRunController {
   /** 当前已勾选的审核点 ID 列表 */
   selectedCpIds: string[];
@@ -50,7 +59,9 @@ export function useAuditRun(): AuditRunController {
   }
 
   async function handleStartAudit(): Promise<void> {
-    const inputDocs = activeProject ? auditInputDocs[activeProject.id] : undefined;
+    const inputDocs = activeProject
+      ? (auditInputDocs[activeProject.id] as AuditInputDocs | undefined)
+      : undefined;
     const mainDoc = inputDocs?.mainDoc;
     const supplementaryDocIds = inputDocs?.supplementaryDocs.map((doc) => doc.id) ?? [];
     if (!activeProject || !mainDoc || selectedCpIds.length === 0) return;

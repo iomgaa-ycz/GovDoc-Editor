@@ -32,7 +32,7 @@ export interface ProjectWorkflow {
   removeSupplementaryFile: (index: number) => void;
   /** 正在调用 createProject */
   creating: boolean;
-  /** 正在调用 uploadTenderDoc */
+  /** 正在调用文件上传/关联流程 */
   uploadingTender: boolean;
   /** 上传失败的错误消息（无错误时为 null） */
   uploadError: string | null;

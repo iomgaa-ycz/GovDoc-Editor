@@ -1,14 +1,14 @@
-import { FileText, Loader2, Plus, X } from "lucide-react";
+import { FileCheck, FileText, FolderOpen, Info, Loader2, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { getDocument } from "@/api/documents";
 import {
   createAuditRun,
   createProject,
   listCheckpoints,
   listProjects,
-  uploadTenderDoc,
 } from "@/api/v3";
-import { FileDropzone } from "@/components/FileDropzone";
+import FilePickerModal from "@/components/FilePickerModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import type {
   CheckpointItem,
   GovCheckpointPayload,
+  GovDocument,
   Project,
 } from "@/types/ui";
 
@@ -43,9 +44,13 @@ function parseCheckpoint(item: CheckpointItem): ParsedCheckpoint | null {
   }
 }
 
-function selectedFileLabel(file: File | null): string {
-  if (!file) return "";
-  return `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function deduplicateDocuments(documents: GovDocument[]): GovDocument[] {
+  return [...new Map(documents.map((document) => [document.id, document])).values()];
 }
 
 export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps) {
@@ -53,7 +58,11 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
   const [checkpoints, setCheckpoints] = useState<ParsedCheckpoint[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
-  const [tenderFile, setTenderFile] = useState<File | null>(null);
+  const [mainDoc, setMainDoc] = useState<GovDocument | null>(null);
+  const [suppDocs, setSuppDocs] = useState<GovDocument[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<"single" | "multi">("single");
+  const [pickerTarget, setPickerTarget] = useState<"main" | "supp">("main");
   const [selectedCheckpointIds, setSelectedCheckpointIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -124,17 +133,48 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
     );
   }
 
+  function openPicker(target: "main" | "supp", mode: "single" | "multi"): void {
+    setPickerTarget(target);
+    setPickerMode(mode);
+    setPickerOpen(true);
+  }
+
+  async function handlePickerConfirm(selectedIds: string[]): Promise<void> {
+    if (selectedIds.length === 0) return;
+    setError(null);
+    try {
+      if (pickerTarget === "main") {
+        setMainDoc(await getDocument(selectedIds[0]));
+      } else {
+        const selected = await Promise.all(selectedIds.map((id) => getDocument(id)));
+        setSuppDocs((current) => deduplicateDocuments([...current, ...selected]));
+      }
+      setPickerOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "选择文件失败");
+    }
+  }
+
+  function removeSupplementaryDoc(documentId: string): void {
+    setSuppDocs((current) => current.filter((document) => document.id !== documentId));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProjectId || !tenderFile || selectedCheckpointIds.length === 0) return;
+    if (!selectedProjectId || !mainDoc || selectedCheckpointIds.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
-      const tenderDoc = await uploadTenderDoc(selectedProjectId, tenderFile);
-      await createAuditRun(selectedProjectId, tenderDoc.id, [], selectedCheckpointIds);
+      await createAuditRun(
+        selectedProjectId,
+        mainDoc.id,
+        suppDocs.map((document) => document.id),
+        selectedCheckpointIds,
+      );
       onCreated();
       onClose();
-      setTenderFile(null);
+      setMainDoc(null);
+      setSuppDocs([]);
       setSelectedCheckpointIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "创建审查任务失败");
@@ -155,7 +195,7 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
         <header className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">新建审查任务</h2>
-            <p className="text-sm text-text-muted">选择项目、上传文书并勾选审查要点</p>
+            <p className="text-sm text-text-muted">选择项目、文件并勾选审查要点</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -232,34 +272,86 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
                 <CardTitle>招标文书</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {tenderFile ? (
-                  <div className="flex items-center gap-3 rounded-card border bg-surface px-3 py-3">
-                    <FileText className="h-4 w-4 shrink-0 text-accent" />
+                {mainDoc ? (
+                  <div
+                    className="flex items-center gap-3 rounded-card border px-3 py-3"
+                    style={{ borderColor: "#86EFAC", backgroundColor: "#F0FDF4" }}
+                  >
+                    <FileCheck className="h-4 w-4 shrink-0 text-green-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-text-primary">
-                        {selectedFileLabel(tenderFile)}
+                      <p className="truncate text-sm font-medium text-green-950">
+                        {mainDoc.filename}
                       </p>
-                      <p className="text-xs text-text-muted">提交时将上传为主招标文书</p>
+                      <p className="text-xs text-green-700">{formatFileSize(mainDoc.file_size)}</p>
                     </div>
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setTenderFile(null)}
+                      className="text-xs font-medium text-green-700 underline-offset-2 hover:underline"
+                      onClick={() => openPicker("main", "single")}
                     >
-                      移除
-                    </Button>
+                      更换
+                    </button>
                   </div>
                 ) : (
-                  <FileDropzone
-                    title="点击选择或拖入招标文书"
-                    subtitle="支持 .docx, .pdf"
-                    accept=".docx,.pdf"
-                    onSelect={(files) => setTenderFile(files[0] ?? null)}
-                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-center"
+                    onClick={() => openPicker("main", "single")}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    选择招标文书
+                  </Button>
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>补充文件（可选）</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {suppDocs.length > 0 && (
+                  <div className="space-y-2">
+                    {suppDocs.map((document) => (
+                      <div
+                        key={document.id}
+                        className="flex items-center gap-2 rounded-card border bg-surface px-3 py-2"
+                      >
+                        <FileText className="h-4 w-4 shrink-0 text-text-muted" />
+                        <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                          {document.filename}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => removeSupplementaryDoc(document.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span className="sr-only">移除</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-center"
+                  onClick={() => openPicker("supp", "multi")}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  从文件库添加
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-2">
+              <Info className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs text-amber-900">没有找到需要的文件？请先到「文件管理」页面上传</span>
+            </div>
 
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -320,7 +412,7 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
             disabled={
               submitting ||
               !selectedProjectId ||
-              !tenderFile ||
+              !mainDoc ||
               selectedCheckpointIds.length === 0
             }
           >
@@ -329,6 +421,14 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
           </Button>
         </footer>
       </form>
+
+      <FilePickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={handlePickerConfirm}
+        mode={pickerMode}
+        initialSelected={pickerTarget === "main" ? (mainDoc ? [mainDoc.id] : []) : suppDocs.map((document) => document.id)}
+      />
     </div>
   );
 }

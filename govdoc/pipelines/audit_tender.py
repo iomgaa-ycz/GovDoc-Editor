@@ -26,7 +26,7 @@ from govdoc.db.models import (
     AuditPointRun,
     AuditRun,
     CheckpointFinal,
-    TenderDoc,
+    Document,
     WorkpaperDraft,
 )
 from govdoc.pipelines.common import attach_workspace_output, dump_phase_usage, load_result_payload
@@ -185,11 +185,15 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
 def _add_doc_to_collection(
     coll: Any,
     audit_run_id: str,
-    doc: TenderDoc,
+    doc: Document,
     source_type: str,
 ) -> None:
-    """把单个 TenderDoc 幂等加入 qmd collection。"""
+    """把单个 Document 幂等加入 qmd collection。"""
     if coll.get_document(doc.id) is not None:
+        return
+
+    if not doc.markdown_path:
+        logger.warning("文书未生成 markdown，跳过 qmd 索引: %s", doc.id)
         return
 
     md_path = Path(doc.markdown_path).expanduser().resolve()
@@ -211,8 +215,8 @@ def _add_doc_to_collection(
 
 def _ensure_tender_collection(
     audit_run_id: str,
-    tender_doc: TenderDoc,
-    supplementary_docs: Sequence[TenderDoc] = (),
+    tender_doc: Document,
+    supplementary_docs: Sequence[Document] = (),
     *,
     qmd_client: Any | None = None,
 ) -> str:
@@ -234,9 +238,9 @@ def _ensure_tender_collection(
 
 def _index_tender_doc(
     audit_run: AuditRun,
-    tender_doc: TenderDoc,
+    tender_doc: Document,
     *,
-    supplementary_docs: Sequence[TenderDoc] = (),
+    supplementary_docs: Sequence[Document] = (),
     replay: bool,
 ) -> str | None:
     """为本次 audit run 准备 qmd tender collection。
@@ -300,9 +304,9 @@ def _resolve_point_runs(
 async def _run_single_point(
     point_run: AuditPointRun,
     checkpoint: GovCheckpoint,
-    tender_doc: TenderDoc,
+    tender_doc: Document,
     *,
-    supplementary_docs: Sequence[TenderDoc] = (),
+    supplementary_docs: Sequence[Document] = (),
     audit_run: AuditRun,
     tender_collection: str | None,
     manager: Any,
@@ -340,6 +344,12 @@ async def _run_single_point(
     Returns:
         (workspace, result) 元组；result.status 反映 PES 完成情况。
     """
+    if not tender_doc.markdown_path:
+        raise ValueError(f"文书未生成 markdown: {tender_doc.id}")
+    for doc in supplementary_docs:
+        if not doc.markdown_path:
+            raise ValueError(f"附件文书未生成 markdown: {doc.id}")
+
     checkpoint_path = write_single_checkpoint_json(audit_run.id, checkpoint)
 
     extra_env: dict[str, str] = {
@@ -534,7 +544,7 @@ def _cleanup_tender_collection(collection_id: str | None, *, replay: bool) -> No
 async def _assemble_workpaper_draft(
     audit_run: AuditRun,
     session: Session,
-    tender_doc: TenderDoc,
+    tender_doc: Document,
     template_path: str | Path | None,
 ) -> None:
     """按 completed point_runs 汇总 findings，生成 WorkpaperDraft，更新 audit_run.status。
@@ -549,7 +559,7 @@ async def _assemble_workpaper_draft(
     Args:
         audit_run: 当前 audit run 实例（本函数会直接修改其 ``status`` 字段）。
         session: SQLModel session（用于查 point_runs / WorkpaperDraft 版本号）。
-        tender_doc: 招标文书（提供 ``storage_path`` 给生成的 Workpaper）。
+        tender_doc: 招标文书（提供 ``raw_path`` 给生成的 Workpaper）。
         template_path: docxtpl 模板路径（透传给 ``render_workpaper_docx``）。
 
     Returns:
@@ -565,7 +575,7 @@ async def _assemble_workpaper_draft(
         findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
         workpaper = Workpaper(
             project_id=audit_run.project_id,
-            tender_doc_path=tender_doc.storage_path,
+            tender_doc_path=tender_doc.raw_path,
             findings=findings,
             summary=generate_summary(findings),
         )
@@ -633,9 +643,9 @@ async def run_audit(
     if audit_run is None:
         raise ValueError(f"未找到 AuditRun: {audit_run_id}")
 
-    tender_doc = session.get(TenderDoc, audit_run.tender_doc_id)
+    tender_doc = session.get(Document, audit_run.main_document_id)
     if tender_doc is None:
-        raise ValueError(f"未找到 TenderDoc: {audit_run.tender_doc_id}")
+        raise ValueError(f"未找到 Document: {audit_run.main_document_id}")
 
     try:
         supplementary_doc_ids = json.loads(audit_run.supplementary_doc_ids or "[]")
@@ -646,13 +656,11 @@ async def run_audit(
     ):
         raise ValueError(f"AuditRun {audit_run.id} 附件 ID JSON 不是字符串列表")
 
-    supplementary_docs: list[TenderDoc] = []
+    supplementary_docs: list[Document] = []
     for doc_id in supplementary_doc_ids:
-        doc = session.get(TenderDoc, doc_id)
+        doc = session.get(Document, doc_id)
         if doc is None:
-            raise ValueError(f"未找到附件 TenderDoc: {doc_id}")
-        if doc.project_id != audit_run.project_id:
-            raise ValueError(f"附件 TenderDoc {doc_id} 不属于项目 {audit_run.project_id}")
+            raise ValueError(f"未找到附件 Document: {doc_id}")
         supplementary_docs.append(doc)
 
     # 解析 point_runs：总数（含 completed）+ 过滤后待跑列表

@@ -106,6 +106,7 @@ class DocumentStore:
             raw,
             ocr_backend=self._ocr_backend,
             max_workers=1,
+            timeout=7200,
         )
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")

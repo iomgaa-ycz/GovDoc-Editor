@@ -122,12 +122,11 @@ function resolveBaseUrl(): string {
   return import.meta.env.VITE_GOVDOC_API_BASE_URL || "";
 }
 
-export function compareFiles(files: File[]): Promise<CompareSubmitResponse> {
-  const form = new FormData();
-  files.forEach((file) => form.append("files", file));
+export async function compareDocuments(documentIds: string[]): Promise<CompareSubmitResponse> {
   return request("/api/v1/compare", {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_ids: documentIds }),
   });
 }
 

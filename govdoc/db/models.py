@@ -22,17 +22,6 @@ class Project(SQLModel, table=True):
     created_by: str
 
 
-class TenderDoc(SQLModel, table=True):
-    id: str = Field(default_factory=uid, primary_key=True)
-    project_id: str = Field(foreign_key="project.id")
-    filename: str
-    storage_path: str
-    markdown_path: str
-    qmd_collection: str
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
-    uploaded_by: str | None = None
-
-
 class RuleSource(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     title: str
@@ -68,7 +57,7 @@ class AuditRun(SQLModel, table=True):
 
     id: str = Field(default_factory=uid, primary_key=True)
     project_id: str = Field(foreign_key="project.id")
-    tender_doc_id: str = Field(foreign_key="tenderdoc.id")
+    main_document_id: str = Field(foreign_key="document.id")
     supplementary_doc_ids: str | None = None  # JSON list[str]，附件文书 ID
     checkpoint_final_ids: str  # JSON list[str]
     # pending / running / partial_ready / draft_ready / finalized / failed / waiting_retry / cancelled / interrupted
@@ -145,6 +134,7 @@ class CompareRun(SQLModel, table=True):
     status: str = "pending"  # pending / running / completed / failed
     file_count: int = 0
     file_names_json: str | None = None  # JSON list[str]
+    document_ids: str | None = None
     progress_json: str | None = None  # JSON: {"phase": "matching", "step": "paragraph"}
     result_path: str | None = None  # review.json 路径
     error: str | None = None
@@ -166,3 +156,35 @@ class User(SQLModel, table=True):
     username: str
     display_name: str
     role: str = "reviewer"
+
+
+class Document(SQLModel, table=True):
+    """统一文件管理表，替代 TenderDoc。"""
+
+    id: str = Field(default_factory=uid, primary_key=True)
+    filename: str
+    file_type: str
+    file_size: int
+    sha256: str
+    raw_path: str
+    markdown_path: str | None = None
+    status: str = "uploading"
+    error_message: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Tag(SQLModel, table=True):
+    """文件标签。"""
+
+    id: str = Field(default_factory=uid, primary_key=True)
+    name: str = Field(unique=True)
+    color: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DocumentTag(SQLModel, table=True):
+    """Document 与 Tag 的多对多关联。"""
+
+    document_id: str = Field(foreign_key="document.id", primary_key=True)
+    tag_id: str = Field(foreign_key="tag.id", primary_key=True)

@@ -14,10 +14,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/StatusBadge";
-import { FileDropzone } from "@/components/FileDropzone";
 
 const SEVERITY_VARIANT: Record<string, "err" | "warn" | "default"> = { critical: "err", major: "warn", minor: "default" };
 const SEVERITY_LABEL: Record<string, string> = { critical: "严重", major: "重要", minor: "一般" };
+
+function FileSelectBox({
+  title,
+  subtitle,
+  accept,
+  onSelect,
+}: {
+  title: string;
+  subtitle: string;
+  accept: string;
+  onSelect: (file: File | null) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer flex-col items-center justify-center rounded-card border border-dashed bg-surface px-4 py-8 text-center transition-colors hover:border-accent hover:bg-accent-light">
+      <Upload className="mb-2 h-5 w-5 text-text-muted" />
+      <span className="text-sm font-medium text-text-primary">{title}</span>
+      <span className="mt-1 text-xs text-text-muted">{subtitle}</span>
+      <input
+        type="file"
+        accept={accept}
+        className="sr-only"
+        onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
+      />
+    </label>
+  );
+}
 
 export function AuditLibraryPage() {
   const { checkpoints, extractStatus, extractError, extractCurrentPhase, uploadRuleAndExtract, updateCheckpoint, deleteCheckpoint, importCheckpointFile } = useWorkbench();
@@ -131,7 +156,7 @@ export function AuditLibraryPage() {
                       <button className="text-text-muted hover:text-text-primary text-sm" onClick={() => setUploadFile(null)}>移除</button>
                     </div>
                   ) : (
-                    <FileDropzone title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(f) => setUploadFile(f[0] ?? null)} />
+                    <FileSelectBox title="选择法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={setUploadFile} />
                   )}
                 </div>
                 {extractStatus === "failed" && (
@@ -190,7 +215,7 @@ export function AuditLibraryPage() {
                     <button className="text-text-muted hover:text-text-primary text-sm" onClick={() => setImportFile(null)}>移除</button>
                   </div>
                 ) : (
-                  <FileDropzone title="选择审查点表格" subtitle="支持 .xls, .xlsx, .csv" accept=".xls,.xlsx,.csv" onSelect={(f) => setImportFile(f[0] ?? null)} />
+                  <FileSelectBox title="选择审查点表格" subtitle="支持 .xls, .xlsx, .csv" accept=".xls,.xlsx,.csv" onSelect={setImportFile} />
                 )}
               </div>
               {importResult && (

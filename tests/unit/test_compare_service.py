@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from docx import Document
 
 from govdoc.compare.compare import find_nfile_exact_matches
 from govdoc.compare.service import (
+    _extract_pdf_paragraphs,
     create_compare_bundle,
     create_compare_bundle_from_bytes,
     get_compare_download,
@@ -142,6 +144,7 @@ def test_compare_pdf_uses_document_store_conversion(
 
     class FakeConfig:
         compare = CompareConfig()
+        storage_root = tmp_path
 
     monkeypatch.setattr("govdoc.runtime.get_document_store", lambda: FakeStore())
     monkeypatch.setattr("govdoc.runtime.get_config", lambda: FakeConfig())
@@ -156,6 +159,24 @@ def test_compare_pdf_uses_document_store_conversion(
 
     assert payload.documents.files[0].suffix == ".pdf"
     assert any(match.text == "PDF 共同段落。" for match in payload.matches)
+
+
+def test_compare_bundle_accepts_markdown_files(tmp_path: Path) -> None:
+    """已转换的 .md 文件应直接对比，不需要重新解析原始格式。"""
+    md_a = tmp_path / "a.md"
+    md_b = tmp_path / "b.md"
+    md_a.write_text("共同段落。\n\n独有A。", encoding="utf-8")
+    md_b.write_text("共同段落。\n\n独有B。", encoding="utf-8")
+
+    payload = create_compare_bundle(
+        files=[(md_a, "report_a.doc"), (md_b, "report_b.doc")],
+        output_root=tmp_path / "compare",
+    )
+
+    assert payload.summary.file_count == 2
+    assert payload.summary.common_paragraph_count == 1
+    assert payload.documents.files[0].suffix == ".doc"
+    assert payload.documents.files[1].suffix == ".doc"
 
 
 def test_compare_empty_documents_returns_zero_matches(tmp_path: Path) -> None:
@@ -277,3 +298,30 @@ def test_sentence_dedup_preserves_cross_paragraph_sentences(tmp_path: Path) -> N
     assert payload.summary.common_paragraph_count == 0
     assert payload.summary.common_sentence_count == 1
     assert any(m.text == "第一句共享。" and m.category == "sentence" for m in payload.matches)
+
+
+class TestExtractPdfUsesCompareStore:
+    """验证 _extract_pdf_paragraphs 使用 get_document_store。"""
+
+    @patch("govdoc.runtime.get_document_store")
+    @patch("govdoc.runtime.get_config")
+    def test_calls_compare_store_not_main(
+        self,
+        mock_config: MagicMock,
+        mock_store_fn: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """_extract_pdf_paragraphs 调用 get_document_store。"""
+        mock_config.return_value.compare.pdf_timeout_s = 60
+
+        md_path = tmp_path / "result.md"
+        md_path.write_text("段落一\n\n段落二", encoding="utf-8")
+        mock_store = MagicMock()
+        mock_store.get_or_convert.return_value = md_path
+        mock_store_fn.return_value = mock_store
+
+        result = _extract_pdf_paragraphs(tmp_path / "test.pdf")
+
+        mock_store_fn.assert_called_once()
+        mock_store.get_or_convert.assert_called_once()
+        assert len(result) >= 1
