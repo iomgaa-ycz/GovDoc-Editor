@@ -3,8 +3,8 @@
 # GovDoc E2E 测试运行器（基于 @playwright/cli）
 #
 # 用法：
-#   bash frontend/e2e/run-tests.sh                    # 运行全部 15 个测试（含 LLM）
-#   bash frontend/e2e/run-tests.sh --quick            # 仅运行非 LLM 测试（01-03, 08-13, 15）
+#   bash frontend/e2e/run-tests.sh                    # 运行全部 14 个测试（含 LLM）
+#   bash frontend/e2e/run-tests.sh --quick            # 仅运行非 LLM 测试
 #   bash frontend/e2e/run-tests.sh --only 02          # 只运行指定测试
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -39,8 +39,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── 测试清单 ──
-ALL_TESTS=("01-navigation" "02-import-checkpoints" "03-doc-compare" "04-ai-extract" "05-ai-audit" "06-ai-audit-multifile" "07-audit-results-history" "08-dashboard-details" "09-audit-library-crud" "10-ai-review-workflow" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "14-compare-verify" "15-result-quality")
-QUICK_TESTS=("01-navigation" "02-import-checkpoints" "03-doc-compare" "08-dashboard-details" "09-audit-library-crud" "10-ai-review-workflow" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "15-result-quality")
+NON_LLM_TESTS=("01-navigation" "02-import-checkpoints" "03-file-management" "05-doc-compare" "07-audit-results-history" "08-dashboard-details" "09-audit-library-crud" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "14-compare-verify" "15-result-quality")
+LLM_TESTS=("04-ai-extract" "06-ai-audit")
+ALL_TESTS=("01-navigation" "02-import-checkpoints" "03-file-management" "04-ai-extract" "05-doc-compare" "06-ai-audit" "07-audit-results-history" "08-dashboard-details" "09-audit-library-crud" "11-audit-results-interactions" "12-workpaper-page" "13-doc-compare-advanced" "14-compare-verify" "15-result-quality")
+QUICK_TESTS=("${NON_LLM_TESTS[@]}")
 
 if [ -n "$ONLY" ]; then
     TESTS=("$ONLY")
