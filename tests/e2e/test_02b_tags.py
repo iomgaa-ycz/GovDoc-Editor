@@ -33,10 +33,10 @@ def created_tag(api: httpx.Client) -> dict[str, Any]:
 @pytest.fixture(scope="module")
 def document_for_tag(
     upload_document: Callable[[Path, bool], dict[str, Any]],
-    tender_pdf_path: Path,
+    test_pdf_paths: list[Path],
 ) -> dict[str, Any]:
     """上传一个可打标签的 ready 文档。"""
-    document = upload_document(tender_pdf_path, True)
+    document = upload_document(test_pdf_paths[0], True)
     assert document["status"] == "ready"
     return document
 

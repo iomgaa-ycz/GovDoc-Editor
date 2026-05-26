@@ -30,14 +30,15 @@ def project_id(api: httpx.Client) -> str:
 @pytest.fixture(scope="module")
 def uploaded_pdf_document(
     api: httpx.Client,
-    tender_pdf_path: Path,
+    test_pdf_paths: list[Path],
     wait_for_document_ready: Callable[[str], dict[str, Any]],
 ) -> dict[str, Any]:
-    """上传单个 PDF，并等待后台转换完成。"""
-    with tender_pdf_path.open("rb") as file_obj:
+    """上传第一个测试 PDF，并等待后台转换完成。"""
+    pdf_path = test_pdf_paths[0]
+    with pdf_path.open("rb") as file_obj:
         resp = api.post(
             "/api/v1/documents/upload",
-            files=[("files", (tender_pdf_path.name, file_obj, "application/pdf"))],
+            files=[("files", (pdf_path.name, file_obj, "application/pdf"))],
         )
 
     assert resp.status_code == 201, resp.text
@@ -46,7 +47,7 @@ def uploaded_pdf_document(
     assert len(payload) == 1
     document = payload[0]
     assert "id" in document
-    assert document["filename"] == tender_pdf_path.name
+    assert document["filename"] == pdf_path.name
     assert "status" in document
 
     return wait_for_document_ready(document["id"])
@@ -95,10 +96,10 @@ class TestDocumentUpload:
     """B03-B06: 文件管理中心文档上传、去重与筛选。"""
 
     def test_upload_single_pdf(
-        self, uploaded_pdf_document: dict[str, Any], tender_pdf_path: Path
+        self, uploaded_pdf_document: dict[str, Any], test_pdf_paths: list[Path]
     ) -> None:
         """上传单个 PDF 后应最终进入 ready 状态。"""
-        assert uploaded_pdf_document["filename"] == tender_pdf_path.name
+        assert uploaded_pdf_document["filename"] == test_pdf_paths[0].name
         assert uploaded_pdf_document["status"] == "ready"
         assert uploaded_pdf_document["id"]
         assert uploaded_pdf_document["file_type"] == "pdf"
@@ -107,13 +108,14 @@ class TestDocumentUpload:
         self,
         api: httpx.Client,
         uploaded_pdf_document: dict[str, Any],
-        tender_pdf_path: Path,
+        test_pdf_paths: list[Path],
     ) -> None:
         """同 sha256 文件重复上传应复用同一个 Document。"""
-        with tender_pdf_path.open("rb") as file_obj:
+        pdf_path = test_pdf_paths[0]
+        with pdf_path.open("rb") as file_obj:
             resp = api.post(
                 "/api/v1/documents/upload",
-                files=[("files", (tender_pdf_path.name, file_obj, "application/pdf"))],
+                files=[("files", (pdf_path.name, file_obj, "application/pdf"))],
             )
 
         assert resp.status_code in (200, 201), resp.text

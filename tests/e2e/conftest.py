@@ -130,6 +130,20 @@ def wait_for_document_ready(api: httpx.Client) -> Callable[[str], dict[str, Any]
 
 
 @pytest.fixture(scope="session")
+def test_pdf_paths() -> list[Path]:
+    """三个轻量测试用 PDF 文件。"""
+    names = [
+        "1广东宏业建设工程有限公司.pdf",
+        "2清远市创和建筑工程有限公司.pdf",
+        "3阳山县腾晖建筑工程有限公司.pdf",
+    ]
+    paths = [REAL_DATA_DIR / n for n in names]
+    for p in paths:
+        assert p.exists(), f"测试文件不存在: {p}"
+    return paths
+
+
+@pytest.fixture(scope="session")
 def upload_document(
     api: httpx.Client,
     wait_for_document_ready: Callable[[str], dict[str, Any]],

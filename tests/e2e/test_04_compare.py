@@ -42,12 +42,11 @@ def _wait_for_compare_completed(
 @pytest.fixture(scope="module")
 def compare_documents(
     upload_document: Callable[[Path, bool], dict[str, Any]],
-    tender_docx_path: Path,
-    tender_pdf_path: Path,
+    test_pdf_paths: list[Path],
 ) -> list[dict[str, Any]]:
     """上传两个参与对比的文档，并等待转换完成。"""
-    first = upload_document(tender_docx_path, True)
-    second = upload_document(tender_pdf_path, True)
+    first = upload_document(test_pdf_paths[0], True)
+    second = upload_document(test_pdf_paths[1], True)
     assert first["status"] == "ready"
     assert second["status"] == "ready"
     assert first["id"] != second["id"]

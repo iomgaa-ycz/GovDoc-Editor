@@ -22,8 +22,7 @@ pytestmark = pytest.mark.slow
 def setup_project(
     api: httpx.Client,
     upload_document: Callable[[Path, bool], dict[str, Any]],
-    tender_docx_path: Path,
-    tender_pdf_path: Path,
+    test_pdf_paths: list[Path],
     checkpoint_xls_path: Path,
 ) -> dict[str, Any]:
     """创建项目、上传 Document、导入审核点，返回端到端流程所需 ID。"""
@@ -37,8 +36,8 @@ def setup_project(
     assert resp.status_code == 201, resp.text
     project_id = resp.json()["id"]
 
-    main_document = upload_document(tender_docx_path, True)
-    supplementary_document = upload_document(tender_pdf_path, True)
+    main_document = upload_document(test_pdf_paths[0], True)
+    supplementary_document = upload_document(test_pdf_paths[1], True)
     assert main_document["status"] == "ready"
     assert supplementary_document["status"] == "ready"
 
