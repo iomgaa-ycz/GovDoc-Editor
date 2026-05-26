@@ -202,13 +202,13 @@ def _ensure_supported_suffix(filename: str) -> str:
 
 
 def _extract_pdf_paragraphs(path: Path) -> list[str]:
-    """通过 DocumentStore 缓存路径把 PDF 转换为 Markdown 段落。"""
+    """通过对比专用 DocumentStore 把 PDF 转换为 Markdown 段落。"""
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-    from govdoc.runtime import get_config, get_document_store
+    from govdoc.runtime import get_compare_document_store, get_config
 
     timeout = get_config().compare.pdf_timeout_s
-    store = get_document_store()
+    store = get_compare_document_store()
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         try:
