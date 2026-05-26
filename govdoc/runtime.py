@@ -37,15 +37,7 @@ def get_project_root() -> Path:
 @lru_cache
 def get_document_store() -> DocumentStore:
     cfg = get_config()
-    return DocumentStore(cfg.storage_root, ocr_backend=cfg.app.ocr_backend)
-
-
-@lru_cache
-def get_compare_document_store() -> DocumentStore:
-    """对比模块专用 DocumentStore（独立 storage_root + 独立 OCR 后端）。"""
-    cfg = get_config()
-    compare_root = cfg.storage_root / "compare_prepared"
-    return DocumentStore(compare_root, ocr_backend=cfg.compare.ocr_backend)
+    return DocumentStore(cfg.storage_root, ocr_backend="mineru")
 
 
 @lru_cache

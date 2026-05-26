@@ -34,7 +34,7 @@ class DocumentStore:
     - prepared markdown 存储在稳定的 prepared/ 目录下
     """
 
-    def __init__(self, storage_root: Path, *, ocr_backend: str = "glm") -> None:
+    def __init__(self, storage_root: Path, *, ocr_backend: str = "mineru") -> None:
         self._root = storage_root
         self._ocr_backend = ocr_backend
         self._prepared_dir = storage_root / "prepared"

@@ -27,7 +27,7 @@ class AppConfig(BaseModel):
 
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
-    ocr_backend: str = "glm"
+    ocr_backend: str = "mineru"
 
 
 class ModelServiceConfig(BaseModel):
