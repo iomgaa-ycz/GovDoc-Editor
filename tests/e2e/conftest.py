@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Callable
+from typing import Any
 from pathlib import Path
 
 import httpx
@@ -58,7 +61,11 @@ def api_long(backend_url: str) -> httpx.Client:
 @pytest.fixture(scope="session")
 def tender_docx_path() -> Path:
     """从化区中医医院招标文书 DOCX。"""
-    p = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
+    p = (
+        REAL_DATA_DIR
+        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购"
+        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购.docx"
+    )
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
@@ -66,7 +73,12 @@ def tender_docx_path() -> Path:
 @pytest.fixture(scope="session")
 def tender_pdf_path() -> Path:
     """从化区中医医院招标文书 PDF。"""
-    p = REAL_DATA_DIR / "从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "3、从化区中医医院手术室设备及附件、病房护理及医院设备采购" / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+    p = (
+        REAL_DATA_DIR
+        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购"
+        / "3、从化区中医医院手术室设备及附件、病房护理及医院设备采购"
+        / "从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf"
+    )
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
@@ -74,7 +86,7 @@ def tender_pdf_path() -> Path:
 @pytest.fixture(scope="session")
 def guide_docx_path() -> Path:
     """2025 年专项整治工作指引。"""
-    p = REAL_DATA_DIR / '2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc'
+    p = REAL_DATA_DIR / "2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc"
     assert p.exists(), f"测试文件不存在: {p}"
     return p
 
@@ -85,3 +97,66 @@ def checkpoint_xls_path() -> Path:
     p = REAL_DATA_DIR / "附件9 处理处罚标准.xls"
     assert p.exists(), f"测试文件不存在: {p}"
     return p
+
+
+@pytest.fixture(scope="session")
+def wait_for_document_ready(api: httpx.Client) -> Callable[[str], dict[str, Any]]:
+    """轮询 Document 转换状态，直到 ready 或失败。
+
+    返回值:
+        可接收 doc_id 的闭包，成功时返回最新文档详情。
+    """
+
+    def _wait(doc_id: str, timeout_seconds: int = 300, interval_seconds: int = 5) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout_seconds
+        last_data: dict[str, Any] = {}
+
+        while time.monotonic() < deadline:
+            resp = api.get(f"/api/v1/documents/{doc_id}")
+            assert resp.status_code == 200, resp.text
+            last_data = resp.json()
+            status = last_data.get("status")
+
+            if status == "ready":
+                return last_data
+            if status == "failed":
+                pytest.fail(f"文档转换失败: {doc_id}, error={last_data.get('error_message')}")
+
+            time.sleep(interval_seconds)
+
+        pytest.fail(f"等待文档 ready 超时: {doc_id}, last={last_data}")
+
+    return _wait
+
+
+@pytest.fixture(scope="session")
+def upload_document(
+    api: httpx.Client,
+    wait_for_document_ready: Callable[[str], dict[str, Any]],
+) -> Callable[[Path, bool], dict[str, Any]]:
+    """上传单个文档到文件管理中心，并可选择等待转换完成。
+
+    返回值:
+        可接收文件路径和 wait_ready 标志的闭包，返回文档详情。
+    """
+
+    def _upload(path: Path, wait_ready: bool = True) -> dict[str, Any]:
+        with path.open("rb") as file_obj:
+            resp = api.post(
+                "/api/v1/documents/upload",
+                files=[("files", (path.name, file_obj, "application/octet-stream"))],
+            )
+        assert resp.status_code == 201, resp.text
+        payload = resp.json()
+        assert isinstance(payload, list)
+        assert len(payload) == 1
+        document = payload[0]
+        assert "id" in document
+        assert "filename" in document
+        assert "status" in document
+
+        if wait_ready:
+            return wait_for_document_ready(document["id"])
+        return document
+
+    return _upload
