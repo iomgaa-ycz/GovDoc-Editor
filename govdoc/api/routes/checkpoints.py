@@ -463,11 +463,40 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
         raise HTTPException(status_code=404, detail="Checkpoint 不存在")
 
 
+@router.get("/{checkpoint_id}/libraries")
+async def get_checkpoint_libraries(checkpoint_id: str):
+    """查询审核点被关联到哪些库。"""
+    with get_db_session() as session:
+        final = session.get(CheckpointFinal, checkpoint_id)
+        if final is None:
+            raise HTTPException(status_code=404, detail="Checkpoint 不存在")
+        items = session.exec(
+            select(CheckpointLibraryItem).where(
+                CheckpointLibraryItem.checkpoint_final_id == checkpoint_id,
+            )
+        ).all()
+        library_ids = [item.library_id for item in items]
+        if not library_ids:
+            return []
+        libraries = session.exec(
+            select(CheckpointLibrary).where(CheckpointLibrary.id.in_(library_ids))
+        ).all()
+        return [{"id": lib.id, "name": lib.name} for lib in libraries]
+
+
 @router.delete("/{checkpoint_id}", status_code=204)
 async def delete_checkpoint(checkpoint_id: str) -> Response:
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
+            # 级联删除库内关联
+            items = session.exec(
+                select(CheckpointLibraryItem).where(
+                    CheckpointLibraryItem.checkpoint_final_id == checkpoint_id,
+                )
+            ).all()
+            for item in items:
+                session.delete(item)
             log_activity(
                 session,
                 actor="system",

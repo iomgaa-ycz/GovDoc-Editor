@@ -143,6 +143,7 @@ export function AuditLibraryPage() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingTitle, setDeletingTitle] = useState("");
+  const [deletingLibraries, setDeletingLibraries] = useState<{ id: string; name: string }[]>([]);
 
   const [newLibraryOpen, setNewLibraryOpen] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState("");
@@ -189,18 +190,18 @@ export function AuditLibraryPage() {
         deleted: false,
       }));
     }
-    return (libraryDetail?.checkpoints ?? []).map((member) => {
-      const payload = member.checkpoint
-        ? parseCheckpointPayload(member.checkpoint.payload_json)
-        : null;
-      return {
-        key: member.id,
-        checkpointFinalId: member.checkpoint_final_id,
-        item: member.checkpoint,
-        payload,
-        deleted: member.deleted || payload == null,
-      };
-    });
+    return (libraryDetail?.checkpoints ?? [])
+      .filter((member) => !member.deleted && member.checkpoint != null)
+      .map((member) => {
+        const payload = parseCheckpointPayload(member.checkpoint!.payload_json);
+        return {
+          key: member.id,
+          checkpointFinalId: member.checkpoint_final_id,
+          item: member.checkpoint,
+          payload,
+          deleted: false,
+        };
+      });
   }, [libraryDetail, parsed, selectedLibraryId]);
 
   const categories = [...new Set(parsed.map((item) => item.payload.category))];
@@ -280,10 +281,16 @@ export function AuditLibraryPage() {
     await loadSelectedLibrary();
   }
 
-  function openDelete(item: CheckpointItem) {
+  async function openDelete(item: CheckpointItem) {
     const payload = parseCheckpointPayload(item.payload_json);
     setDeletingId(item.id);
     setDeletingTitle(payload?.title ?? "");
+    setDeletingLibraries([]);
+    try {
+      setDeletingLibraries(await api.getCheckpointLibraries(item.id));
+    } catch {
+      /* 查询失败不影响删除流程 */
+    }
   }
 
   async function confirmDelete() {
@@ -590,7 +597,7 @@ export function AuditLibraryPage() {
                 <p className="text-sm text-text-muted">
                   {selectedLibraryId === "all"
                     ? `已收录 ${checkpoints.length} 个审查要点`
-                    : `可用 ${activeLibrary?.checkpoint_count ?? 0} 个，已删除引用 ${activeLibrary?.deleted_checkpoint_count ?? 0} 个`}
+                    : `已收录 ${activeLibrary?.checkpoint_count ?? 0} 个审查要点`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -720,7 +727,17 @@ export function AuditLibraryPage() {
           <DialogHeader><DialogTitle>确认删除</DialogTitle></DialogHeader>
           <div className="space-y-3 p-5">
             <div className="rounded-btn border border-status-err-border bg-status-err-bg p-3 text-sm font-medium text-status-err">此操作不可撤销</div>
-            <p className="text-sm text-text-secondary">确定要删除审查要点「{deletingTitle}」吗？删除后库内引用会显示为已删除。</p>
+            <p className="text-sm text-text-secondary">确定要删除审查要点「{deletingTitle}」吗？</p>
+            {deletingLibraries.length > 0 && (
+              <div className="rounded-btn border p-3 text-sm">
+                <p className="font-medium text-text-secondary">该审核点存在于以下库中，删除后将一并移出：</p>
+                <ul className="mt-1.5 list-inside list-disc text-text-muted">
+                  {deletingLibraries.map((lib) => (
+                    <li key={lib.id}>{lib.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeletingId(null)}>取消</Button>

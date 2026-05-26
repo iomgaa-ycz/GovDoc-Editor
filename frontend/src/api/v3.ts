@@ -110,6 +110,12 @@ export function updateCheckpoint(
   });
 }
 
+export function getCheckpointLibraries(
+  id: string,
+): Promise<{ id: string; name: string }[]> {
+  return request(`/api/v1/checkpoints/${id}/libraries`);
+}
+
 export function deleteCheckpoint(id: string): Promise<void> {
   return request(`/api/v1/checkpoints/${id}`, { method: "DELETE" });
 }
