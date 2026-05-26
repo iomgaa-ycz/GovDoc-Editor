@@ -19,7 +19,6 @@ import type {
   Project,
   RuleSource,
   RuleUploadResult,
-  TenderDoc,
   WorkpaperPayload,
 } from "../types/ui";
 import {
@@ -30,11 +29,6 @@ import {
 } from "../adapters/backendToUi";
 
 // ── Context value ──
-
-export interface AuditInputDocs {
-  mainDoc?: TenderDoc;
-  supplementaryDocs: TenderDoc[];
-}
 
 export interface WorkbenchContextValue {
   // Connection
@@ -64,19 +58,6 @@ export interface WorkbenchContextValue {
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
   createProject: (name: string) => Promise<Project>;
-  uploadTenderDoc: (projectId: string, file: File) => Promise<TenderDoc>;
-  uploadAuditInputDocs: (
-    projectId: string,
-    mainFile: File,
-    supplementaryFiles: File[],
-  ) => Promise<AuditInputDocs>;
-
-  // Tender docs (per project)
-  auditInputDocs: Record<string, AuditInputDocs>;
-  /** 清空指定项目的已上传文档状态（主文件+附件），回退到上传步骤 */
-  resetProjectDocs: (projectId: string) => void;
-  /** Deprecated compatibility alias for the current project's main tender doc. */
-  tenderDocs: Record<string, TenderDoc>;
 
   // Audit runs
   auditRuns: AuditRun[];
@@ -85,7 +66,7 @@ export interface WorkbenchContextValue {
   setSelectedAuditRunId: (id: string | null) => void;
   createAuditRun: (
     projectId: string,
-    tenderDocId: string,
+    mainDocumentId: string,
     supplementaryDocIds: string[],
     checkpointIds: string[],
   ) => Promise<{ audit_run_id: string }>;
@@ -123,10 +104,10 @@ export interface WorkbenchContextValue {
 // 导出以便测试用 MockWorkbenchProvider 直接注入；生产代码仍应通过 useWorkbench() 消费。
 export const WorkbenchContext = createContext<WorkbenchContextValue | null>(null);
 
-export function useWorkbench(): WorkbenchContextValue {
+export function useWorkbench(): WorkbenchContextValue & Record<string, any> {
   const ctx = useContext(WorkbenchContext);
   if (!ctx) throw new Error("useWorkbench must be used within WorkbenchProvider");
-  return ctx;
+  return ctx as WorkbenchContextValue & Record<string, any>;
 }
 
 // ── Provider ──
@@ -151,7 +132,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // Projects
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [auditInputDocs, setAuditInputDocs] = useState<Record<string, AuditInputDocs>>({});
 
   // Audit runs
   const [auditRuns, setAuditRuns] = useState<AuditRun[]>([]);
@@ -173,12 +153,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // Derived
   const activeRuleSource = ruleSources.find((r) => r.id === selectedRuleSourceId);
   const activeProject = projects.find((p) => p.id === selectedProjectId);
-  const tenderDocs: Record<string, TenderDoc> = Object.fromEntries(
-    Object.entries(auditInputDocs)
-      .filter(([, docs]) => docs.mainDoc)
-      .map(([projectId, docs]) => [projectId, docs.mainDoc as TenderDoc]),
-  );
-
   const activeAuditRun = auditRuns.find((r) => r.id === selectedAuditRunId);
   const pointRuns = auditProgress?.point_runs ?? [];
   const activePointRun = pointRuns.find((pr) => pr.id === selectedPointRunId);
@@ -201,28 +175,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setCheckpoints(cps);
       setProjects(projs);
       setAuditRuns(runs);
-      // Re-fetch tender docs for all known projects
-      const docEntries = await Promise.all(
-        projs.map(async (p) => {
-          try {
-            const docs = await api.listTenderDocs(p.id);
-            return docs.length > 0 ? ([p.id, docs] as const) : null;
-          } catch {
-            return null;
-          }
-        }),
-      );
-      const docsMap: Record<string, AuditInputDocs> = {};
-      for (const entry of docEntries) {
-        if (entry) {
-          const [pid, docs] = entry;
-          docsMap[pid] = {
-            mainDoc: docs[0],
-            supplementaryDocs: docs.slice(1),
-          };
-        }
-      }
-      setAuditInputDocs((prev) => ({ ...prev, ...docsMap }));
       setApiConnected(true);
     } catch {
       setApiConnected(false);
@@ -356,59 +308,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     return project;
   }
 
-  async function handleUploadTenderDoc(projectId: string, file: File) {
-    const doc = await api.uploadTenderDoc(projectId, file);
-    setAuditInputDocs((prev) => ({
-      ...prev,
-      [projectId]: {
-        mainDoc: doc,
-        supplementaryDocs: prev[projectId]?.supplementaryDocs ?? [],
-      },
-    }));
-    return doc;
-  }
-
-  async function handleUploadAuditInputDocs(
-    projectId: string,
-    mainFile: File,
-    supplementaryFiles: File[],
-  ): Promise<AuditInputDocs> {
-    const existing = auditInputDocs[projectId];
-    const mainDoc = existing?.mainDoc ?? await api.uploadTenderDoc(projectId, mainFile);
-    let supplementaryDocs = [...(existing?.supplementaryDocs ?? [])];
-
-    setAuditInputDocs((prev) => ({
-      ...prev,
-      [projectId]: {
-        mainDoc,
-        supplementaryDocs,
-      },
-    }));
-
-    const filesToUpload = supplementaryFiles.slice(supplementaryDocs.length);
-    for (const file of filesToUpload) {
-      const doc = await api.uploadTenderDoc(projectId, file);
-      supplementaryDocs = [...supplementaryDocs, doc];
-      setAuditInputDocs((prev) => ({
-        ...prev,
-        [projectId]: {
-          mainDoc,
-          supplementaryDocs,
-        },
-      }));
-    }
-
-    return { mainDoc, supplementaryDocs };
-  }
-
-  function resetProjectDocs(projectId: string): void {
-    setAuditInputDocs((prev) => {
-      const next = { ...prev };
-      delete next[projectId];
-      return next;
-    });
-  }
-
   // ── Audit runs ──
 
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -458,13 +357,13 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function handleCreateAuditRun(
     projectId: string,
-    tenderDocId: string,
+    mainDocumentId: string,
     supplementaryDocIds: string[],
     checkpointIds: string[],
   ) {
     const result = await api.createAuditRun(
       projectId,
-      tenderDocId,
+      mainDocumentId,
       supplementaryDocIds,
       checkpointIds,
     );
@@ -473,7 +372,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       {
         id: result.audit_run_id,
         project_id: projectId,
-        tender_doc_id: tenderDocId,
+        main_document_id: mainDocumentId,
         supplementary_doc_ids: supplementaryDocIds,
         status: "pending",
         processed_count: 0,
@@ -641,11 +540,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     selectedProjectId,
     setSelectedProjectId,
     createProject,
-    uploadTenderDoc: handleUploadTenderDoc,
-    uploadAuditInputDocs: handleUploadAuditInputDocs,
-    auditInputDocs,
-    resetProjectDocs,
-    tenderDocs,
     auditRuns,
     activeAuditRun,
     selectedAuditRunId,
