@@ -59,6 +59,49 @@ export interface CheckpointItem {
   approved_by: string | null;
 }
 
+export interface CheckpointLibrary {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  checkpoint_count: number;
+  deleted_checkpoint_count: number;
+}
+
+export interface CheckpointLibraryMember {
+  id: string;
+  library_id: string;
+  checkpoint_final_id: string;
+  checkpoint: CheckpointItem | null;
+  deleted: boolean;
+  added_by: string;
+  added_at: string;
+}
+
+export interface CheckpointLibraryDetail extends CheckpointLibrary {
+  checkpoints: CheckpointLibraryMember[];
+}
+
+export interface CheckpointImportPreview {
+  parsed_count: number;
+  created_count: number;
+  reused_count: number;
+  duplicate_count: number;
+  skipped_count: number;
+  skipped_reasons: string[];
+}
+
+export interface CheckpointImportResult {
+  imported_count: number;
+  created_count: number;
+  reused_count: number;
+  linked_count: number;
+  skipped_count: number;
+  skipped_reasons: string[];
+  checkpoints: CheckpointItem[];
+}
+
 // ── Findings ──
 
 export interface GovFindingVerdict {
@@ -127,6 +170,8 @@ export interface AuditRun {
   project_name?: string;
   main_document_id: string;
   supplementary_doc_ids?: string[];
+  checkpoint_library_id?: string | null;
+  checkpoint_library_name_snapshot?: string | null;
   status: AuditRunStatus;
   processed_count: number;
   total_count: number;

@@ -12,11 +12,16 @@
  */
 
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../mocks/server";
 import {
+  addCheckpointsToLibraries,
+  createAuditRun,
+  createCheckpointLibrary,
   createProject,
   getAuditRunProgress,
+  importCheckpoints,
+  listCheckpointLibraries,
   listProjects,
   request,
 } from "@/api/v3";
@@ -93,6 +98,142 @@ describe("request() — URL 与方法", () => {
     });
 
     expect(capturedBody).toEqual({ name: "alpha", n: 2 });
+  });
+});
+
+describe("checkpoint library APIs", () => {
+  it("createCheckpointLibrary() 发送库名称与创建人", async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.post("*/api/v1/checkpoint-libraries", async ({ request: req }) => {
+        capturedBody = await req.json();
+        return HttpResponse.json({
+          id: "lib-1",
+          name: "专项库",
+          description: null,
+          created_by: "tester",
+          created_at: "2026-05-26T00:00:00Z",
+          checkpoint_count: 0,
+          deleted_checkpoint_count: 0,
+        });
+      }),
+    );
+
+    const library = await createCheckpointLibrary("专项库", "", "tester");
+
+    expect(capturedBody).toEqual({
+      name: "专项库",
+      description: null,
+      created_by: "tester",
+    });
+    expect(library.id).toBe("lib-1");
+  });
+
+  it("listCheckpointLibraries() 命中列表端点", async () => {
+    server.use(
+      http.get("*/api/v1/checkpoint-libraries", () =>
+        HttpResponse.json([
+          {
+            id: "lib-1",
+            name: "专项库",
+            description: null,
+            created_by: "tester",
+            created_at: "2026-05-26T00:00:00Z",
+            checkpoint_count: 2,
+            deleted_checkpoint_count: 1,
+          },
+        ]),
+      ),
+    );
+
+    const libraries = await listCheckpointLibraries();
+
+    expect(libraries).toHaveLength(1);
+    expect(libraries[0].checkpoint_count).toBe(2);
+  });
+
+  it("addCheckpointsToLibraries() 发送批量关联请求", async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.post("*/api/v1/checkpoint-libraries/batch-add", async ({ request: req }) => {
+        capturedBody = await req.json();
+        return HttpResponse.json({
+          library_ids: ["lib-1"],
+          checkpoint_ids: ["cp-1", "cp-2"],
+          added_count: 2,
+        });
+      }),
+    );
+
+    const result = await addCheckpointsToLibraries(["lib-1"], ["cp-1", "cp-2"]);
+
+    expect(capturedBody).toEqual({
+      library_ids: ["lib-1"],
+      checkpoint_ids: ["cp-1", "cp-2"],
+    });
+    expect(result.added_count).toBe(2);
+  });
+});
+
+describe("importCheckpoints() — library_ids form field", () => {
+  it("传入目标库时附带 library_ids", async () => {
+    let capturedLibraryIds = "";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const form = init?.body as FormData;
+      capturedLibraryIds = String(form.get("library_ids"));
+      return new Response(
+        JSON.stringify({
+          imported_count: 0,
+          created_count: 0,
+          reused_count: 1,
+          linked_count: 1,
+          skipped_count: 0,
+          skipped_reasons: [],
+          checkpoints: [],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    try {
+      const file = new File(["a,b"], "checkpoints.csv", { type: "text/csv" });
+      const result = await importCheckpoints(file, ["lib-1"]);
+
+      expect(capturedLibraryIds).toBe("[\"lib-1\"]");
+      expect(result.reused_count).toBe(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe("createAuditRun() — checkpoint_library_id", () => {
+  it("按库发起时发送 checkpoint_library_id 且 checkpoint_ids 为空", async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.post("*/api/v1/audit/runs", async ({ request: req }) => {
+        capturedBody = await req.json();
+        return HttpResponse.json({
+          audit_run_id: "run-1",
+          total_count: 3,
+          status: "pending",
+          checkpoint_library_id: "lib-1",
+          checkpoint_library_name_snapshot: "专项库",
+          skipped_deleted_count: 0,
+        });
+      }),
+    );
+
+    const result = await createAuditRun("p1", "td1", [], [], "lib-1");
+
+    expect(capturedBody).toEqual({
+      project_id: "p1",
+      tender_doc_id: "td1",
+      supplementary_doc_ids: [],
+      checkpoint_ids: [],
+      checkpoint_library_id: "lib-1",
+    });
+    expect(result.total_count).toBe(3);
   });
 });
 

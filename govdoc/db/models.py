@@ -8,6 +8,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -37,6 +38,30 @@ class CheckpointFinal(SQLModel, table=True):
     approved_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class CheckpointLibrary(SQLModel, table=True):
+    id: str = Field(default_factory=uid, primary_key=True)
+    name: str
+    description: str | None = None
+    created_by: str = "system"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CheckpointLibraryItem(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "library_id",
+            "checkpoint_final_id",
+            name="uq_checkpointlibraryitem_library_checkpoint",
+        ),
+    )
+
+    id: str = Field(default_factory=uid, primary_key=True)
+    library_id: str = Field(foreign_key="checkpointlibrary.id")
+    checkpoint_final_id: str
+    added_by: str = "system"
+    added_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ExtractRun(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     rule_source_id: str = Field(foreign_key="rulesource.id")
@@ -60,6 +85,8 @@ class AuditRun(SQLModel, table=True):
     main_document_id: str = Field(foreign_key="document.id")
     supplementary_doc_ids: str | None = None  # JSON list[str]，附件文书 ID
     checkpoint_final_ids: str  # JSON list[str]
+    checkpoint_library_id: str | None = None
+    checkpoint_library_name_snapshot: str | None = None
     # pending / running / partial_ready / draft_ready / finalized / failed / waiting_retry / cancelled / interrupted
     status: str = "pending"
     processed_count: int = 0
