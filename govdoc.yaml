@@ -34,4 +34,5 @@ audit:
 compare:
   max_files: null
   min_segment_length: 16
-  pdf_timeout_s: 300
+  pdf_timeout_s: 3600
+  ocr_backend: mineru

@@ -45,7 +45,7 @@ class TestGetOrConvert:
 
         result = store.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm")
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm", max_workers=1)
         assert result.exists()
         assert result.read_text(encoding="utf-8") == "# Converted content"
 
@@ -60,7 +60,7 @@ class TestGetOrConvert:
 
         store_with_monkey.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey")
+        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey", max_workers=1)
 
     @patch("govdoc.storage.files._scrivai_to_markdown", return_value="")
     def test_empty_result_raises(self, mock_to_md, store: DocumentStore, tmp_path: Path) -> None:
@@ -117,3 +117,31 @@ class TestSha256Cache:
         store.get_or_convert(raw_file)
 
         assert mock_to_md.call_count == 1
+
+
+class TestDualStoreIsolation:
+    """验证两个不同 ocr_backend 的 DocumentStore 缓存互不干扰。"""
+
+    @patch("govdoc.storage.files._scrivai_to_markdown")
+    def test_same_file_different_backends_cached_independently(
+        self, mock_to_md, tmp_path: Path
+    ) -> None:
+        """相同文件内容在两个 store 各自独立缓存，互不复用。"""
+        root_a = tmp_path / "store_a"
+        root_b = tmp_path / "store_b"
+        store_a = DocumentStore(root_a, ocr_backend="glm")
+        store_b = DocumentStore(root_b, ocr_backend="mineru")
+
+        raw_file = tmp_path / "test.pdf"
+        raw_file.write_bytes(b"identical pdf content")
+
+        mock_to_md.return_value = "# GLM result"
+        result_a = store_a.get_or_convert(raw_file)
+
+        mock_to_md.return_value = "# MinerU result"
+        result_b = store_b.get_or_convert(raw_file)
+
+        assert mock_to_md.call_count == 2
+        assert result_a.read_text(encoding="utf-8") == "# GLM result"
+        assert result_b.read_text(encoding="utf-8") == "# MinerU result"
+        assert result_a.parent != result_b.parent

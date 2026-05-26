@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 import json
 import re
 import shutil
@@ -17,7 +18,7 @@ import uuid
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
 
-from govdoc.compare.compare import find_nfile_common_segments, find_nfile_exact_matches
+from govdoc.compare.compare import find_nfile_exact_matches
 from govdoc.compare.extractor import extract_docx_paragraphs, extract_markdown_paragraphs
 from govdoc.schemas.compare import (
     CompareArtifacts,
@@ -40,25 +41,25 @@ from govdoc.schemas.compare import (
 CATEGORY_PRIORITY: dict[CompareCategoryId, int] = {
     "paragraph": 0,
     "sentence": 1,
-    "segment": 2,
+    "similar": 2,
 }
 
 CATEGORY_LABELS: dict[CompareCategoryId, str] = {
     "paragraph": "相同段落",
     "sentence": "相同句子",
-    "segment": "连续公共片段",
+    "similar": "近似段落",
 }
 
 CATEGORY_COLORS: dict[CompareCategoryId, str] = {
     "paragraph": "#f5b700",
     "sentence": "#12b5cb",
-    "segment": "#ff7a59",
+    "similar": "#9b59b6",
 }
 
 DOCX_HIGHLIGHT_COLORS: dict[CompareCategoryId, WD_COLOR_INDEX] = {
     "paragraph": WD_COLOR_INDEX.YELLOW,
     "sentence": WD_COLOR_INDEX.TURQUOISE,
-    "segment": WD_COLOR_INDEX.PINK,
+    "similar": WD_COLOR_INDEX.VIOLET,
 }
 
 SENTENCE_END_CHARS = {
@@ -73,6 +74,7 @@ SENTENCE_END_CHARS = {
 
 ALLOWED_SUFFIXES = {".docx", ".pdf"}
 REVIEW_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+ProgressCallback = Callable[[dict], None] | None
 
 
 @dataclass(frozen=True)
@@ -200,13 +202,13 @@ def _ensure_supported_suffix(filename: str) -> str:
 
 
 def _extract_pdf_paragraphs(path: Path) -> list[str]:
-    """通过 DocumentStore 缓存路径把 PDF 转换为 Markdown 段落。"""
+    """通过对比专用 DocumentStore 把 PDF 转换为 Markdown 段落。"""
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-    from govdoc.runtime import get_config, get_document_store
+    from govdoc.runtime import get_compare_document_store, get_config
 
     timeout = get_config().compare.pdf_timeout_s
-    store = get_document_store()
+    store = get_compare_document_store()
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         try:
@@ -432,6 +434,63 @@ def _build_nfile_sentence_matches(
     return matches
 
 
+def _build_nfile_similar_matches(
+    documents: list[DocumentModel],
+    exact_matched_texts: set[str],
+) -> list[MatchRecord]:
+    """构建 N 份文档中的近似段落匹配。"""
+    from govdoc.compare.simhash import find_similar_paragraphs
+    from govdoc.runtime import get_config
+
+    threshold = get_config().compare.simhash_threshold
+
+    all_paragraphs = {
+        doc.file_index: [block.text for block in doc.blocks]
+        for doc in documents
+    }
+    similar_matches = find_similar_paragraphs(
+        all_paragraphs=all_paragraphs,
+        threshold=threshold,
+        exact_matched_texts=exact_matched_texts,
+    )
+
+    documents_by_index = {doc.file_index: doc for doc in documents}
+    matches: list[MatchRecord] = []
+
+    for sim in similar_matches:
+        doc_a = documents_by_index[sim.file_index_a]
+        doc_b = documents_by_index[sim.file_index_b]
+        block_a = doc_a.blocks[sim.paragraph_index_a]
+        block_b = doc_b.blocks[sim.paragraph_index_b]
+
+        file_occurrences = {
+            sim.file_index_a: [
+                MatchOccurrence(
+                    file_index=sim.file_index_a,
+                    start=block_a.start,
+                    end=block_a.end,
+                )
+            ],
+            sim.file_index_b: [
+                MatchOccurrence(
+                    file_index=sim.file_index_b,
+                    start=block_b.start,
+                    end=block_b.end,
+                )
+            ],
+        }
+        matches.append(
+            MatchRecord(
+                id=f"similar-{len(matches) + 1:03d}",
+                category="similar",
+                text=sim.text_a,
+                file_occurrences=file_occurrences,
+            )
+        )
+
+    return matches
+
+
 def _build_exact_ranges_by_file(matches: list[MatchRecord]) -> dict[int, list[tuple[int, int]]]:
     """把段落/句子匹配范围按文件聚合，供片段去重使用。"""
     ranges: dict[int, list[tuple[int, int]]] = defaultdict(list)
@@ -464,56 +523,6 @@ def _is_covered_by_ranges(
             return True
 
     return not document.full_text[current:end].strip()
-
-
-def _build_nfile_segment_matches(
-    documents: list[DocumentModel],
-    min_segment_length: int,
-    exact_matches: list[MatchRecord],
-) -> list[MatchRecord]:
-    """构建 N 份文档中的连续公共片段匹配。"""
-    documents_by_index = {doc.file_index: doc for doc in documents}
-    exact_ranges_by_file = _build_exact_ranges_by_file(exact_matches)
-    segments = find_nfile_common_segments(
-        all_texts={doc.file_index: doc.full_text for doc in documents},
-        min_length=min_segment_length,
-    )
-
-    matches: list[MatchRecord] = []
-    for segment in segments:
-        file_occurrences: dict[int, list[MatchOccurrence]] = {}
-        for file_index, ranges in segment.file_ranges.items():
-            document = documents_by_index[file_index]
-            occurrences: list[MatchOccurrence] = []
-            for item in ranges:
-                if _is_covered_by_ranges(
-                    document=document,
-                    start=item.start,
-                    end=item.end,
-                    ranges=exact_ranges_by_file.get(file_index, []),
-                ):
-                    continue
-                occurrences.append(
-                    MatchOccurrence(
-                        file_index=file_index,
-                        start=item.start,
-                        end=item.end,
-                    )
-                )
-            if occurrences:
-                file_occurrences[file_index] = occurrences
-
-        if len(file_occurrences) >= 2:
-            matches.append(
-                MatchRecord(
-                    id=f"segment-{len(matches) + 1:03d}",
-                    category="segment",
-                    text=segment.text,
-                    file_occurrences=file_occurrences,
-                )
-            )
-
-    return matches
 
 
 def _split_occurrence_by_blocks(
@@ -742,7 +751,7 @@ def _build_categories() -> list[CompareCategory]:
             label=CATEGORY_LABELS[category],
             color=CATEGORY_COLORS[category],
         )
-        for category in ("paragraph", "sentence", "segment")
+        for category in ("paragraph", "sentence", "similar")
     ]
 
 
@@ -751,24 +760,38 @@ def _build_compare_response(
     review_dir: Path,
     stored_files: list[tuple[Path, str]],
     min_segment_length: int,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """构建完整对比响应并落盘 review.json 与下载文件。"""
-    documents = [
-        _build_document_model(file_index=index, file_name=name, path=path)
-        for index, (path, name) in enumerate(stored_files)
-    ]
+    documents: list[DocumentModel] = []
+    total_files = len(stored_files)
+    for index, (path, name) in enumerate(stored_files):
+        if on_progress is not None:
+            on_progress({"phase": "converting", "current": index, "total": total_files})
+        documents.append(_build_document_model(file_index=index, file_name=name, path=path))
+        if on_progress is not None:
+            on_progress({"phase": "converting", "current": index + 1, "total": total_files})
 
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "paragraph"})
     paragraph_matches = _build_nfile_block_matches(documents)
     paragraph_ranges = _build_exact_ranges_by_file(paragraph_matches)
+
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "sentence"})
     sentence_matches = _build_nfile_sentence_matches(
-        documents, paragraph_ranges_by_file=paragraph_ranges,
+        documents,
+        paragraph_ranges_by_file=paragraph_ranges,
     )
-    segment_matches = _build_nfile_segment_matches(
+
+    if on_progress is not None:
+        on_progress({"phase": "matching", "step": "similar"})
+    similar_matches = _build_nfile_similar_matches(
         documents=documents,
-        min_segment_length=min_segment_length,
-        exact_matches=paragraph_matches + sentence_matches,
+        exact_matched_texts={m.text for m in paragraph_matches},
     )
-    all_matches = paragraph_matches + sentence_matches + segment_matches
+
+    all_matches = paragraph_matches + sentence_matches + similar_matches
     match_lookup = {match.id: match for match in all_matches}
 
     match_segments_by_file: dict[int, dict[str, list[CompareOccurrence]]] = {}
@@ -815,7 +838,8 @@ def _build_compare_response(
             ],
             common_paragraph_count=len(paragraph_matches),
             common_sentence_count=len(sentence_matches),
-            common_segment_count=len(segment_matches),
+            common_segment_count=0,
+            common_similar_count=len(similar_matches),
             match_count=len(serialized_matches),
             min_segment_length=min_segment_length,
         ),
@@ -840,6 +864,7 @@ def create_compare_bundle(
     files: list[tuple[Path, str]],
     output_root: Path | None = None,
     min_segment_length: int | None = None,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """从多个本地 DOCX/PDF 路径创建对比 review。"""
     _validate_file_count(len(files))
@@ -862,6 +887,7 @@ def create_compare_bundle(
         review_dir=review_dir,
         stored_files=stored_files,
         min_segment_length=resolved_min_segment_length,
+        on_progress=on_progress,
     )
 
 
@@ -869,6 +895,7 @@ def create_compare_bundle_from_bytes(
     files: list[tuple[bytes, str]],
     output_root: Path | None = None,
     min_segment_length: int | None = None,
+    on_progress: ProgressCallback = None,
 ) -> CompareResponse:
     """从上传字节内容创建 N 文件对比 review。"""
     _validate_file_count(len(files))
@@ -891,6 +918,7 @@ def create_compare_bundle_from_bytes(
         review_dir=review_dir,
         stored_files=stored_files,
         min_segment_length=resolved_min_segment_length,
+        on_progress=on_progress,
     )
 
 

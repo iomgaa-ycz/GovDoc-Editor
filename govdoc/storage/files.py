@@ -102,7 +102,11 @@ class DocumentStore:
 
     def _convert(self, raw: Path, target: Path) -> Path:
         """调用 scrivai.to_markdown 将原始文件转换为 markdown。"""
-        md = _scrivai_to_markdown(raw, ocr_backend=self._ocr_backend)
+        md = _scrivai_to_markdown(
+            raw,
+            ocr_backend=self._ocr_backend,
+            max_workers=1,
+        )
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")
         target.write_text(md, encoding="utf-8")

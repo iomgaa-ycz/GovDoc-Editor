@@ -46,5 +46,37 @@ async page => {
   console.log('Step 6: 列表中有 ' + count + ' 条审核点');
   await page.screenshot({ path: 'e2e/screenshots/02-import-list.png', fullPage: true });
 
+  // Step 7: 再次导入同一 XLS，验证不会继续新增审核点
+  await page.getByRole('button', { name: /上传/ }).click();
+  await page.getByText('导入审查点表格').click();
+  await page.waitForLoadState('domcontentloaded');
+
+  const secondFileInput = page.locator("input[type='file']");
+  await secondFileInput.setInputFiles(XLS_PATH);
+  const secondImportBtn = page.getByRole('button', { name: /启动解析|导入/ });
+  await secondImportBtn.click();
+
+  const secondSuccess = page.getByText(/成功导入/);
+  await secondSuccess.waitFor({ timeout: 60000 });
+  const secondSuccessText = await secondSuccess.textContent();
+  console.log('Step 7: ' + secondSuccessText);
+
+  await page.getByRole('button', { name: /返回列表/ }).click();
+  await page.waitForLoadState('domcontentloaded');
+
+  const rowsAfterSecondImport = page.locator('table tbody tr');
+  await rowsAfterSecondImport.first().waitFor({ timeout: 10000 });
+  const countAfterSecondImport = await rowsAfterSecondImport.count();
+  if (countAfterSecondImport !== count) {
+    throw new Error('重复导入后列表数量发生变化：' + count + ' -> ' + countAfterSecondImport);
+  }
+
+  const importedCountMatch = secondSuccessText.match(/成功导入\s*(\d+)\s*条/);
+  if (importedCountMatch && Number(importedCountMatch[1]) !== 0) {
+    throw new Error('重复导入应成功导入 0 条，实际提示：' + secondSuccessText);
+  }
+
+  await page.screenshot({ path: 'e2e/screenshots/02-import-dedup.png', fullPage: true });
+
   console.log('== test-02-import-checkpoints 全部通过 ==');
 }

@@ -1,20 +1,21 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-24 05:50 UTC
+> 自动生成，更新时间：2026-05-25 12:53 UTC
 
-## design (14)
+## design (15)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
-- [E2E 测试全覆盖设计](designs/e2e-full-coverage.md) `design:e2e-full-coverage`
-- [E2E 测试第二轮修复设计](designs/e2e-fix-round2.md) `design:e2e-fix-round2`
+- [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
+- [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
 - [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
+- [文档对比性能优化设计（去 Tier3 + SimHash + 异步化）](designs/compare-perf-optimization.md) `design:compare-perf-optimization`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
 
@@ -23,7 +24,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (35)
+## plan (38)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -46,6 +47,7 @@
 - [E2E 测试全覆盖实现计划](plans/e2e-full-coverage.md) `plan:e2e-full-coverage`
 - [E2E 测试清单](plans/e2e-test-checklist.md) `plan:e2e-test-checklist`
 - [E2E 测试第二轮修复实现计划](plans/e2e-fix-round2.md) `plan:e2e-fix-round2`
+- [Hub+Detail 前端页面重构实施计划](plans/2026-05-25-hub-detail-frontend-redesign.md) `plan:2026-05-25-hub-detail-frontend-redesign`
 - [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
 - [PR#25 合并清理 + Test 07 实现计划](plans/pr25-merge-cleanup-test07.md) `plan:pr25-merge-cleanup-test07`
 - [PR#27 合并前修复](plans/pr27-merge-fixups.md) `plan:pr27-merge-fixups`
@@ -55,8 +57,10 @@
 - [前端重设计后端接口补全](plans/frontend-redesign-backend-gaps.md) `plan:frontend-redesign-backend-gaps`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
+- [审核点按标题去重实施计划](plans/2026-05-24-checkpoint-title-dedup-plan.md) `plan:2026-05-24-checkpoint-title-dedup-plan`
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
+- [文档对比性能优化实施计划](plans/2026-05-25-compare-perf-optimization.md) `plan:2026-05-25-compare-perf-optimization`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
 

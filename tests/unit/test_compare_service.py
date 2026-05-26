@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from docx import Document
 
-from govdoc.compare.compare import (
-    find_common_segments,
-    find_nfile_common_segments,
-    find_nfile_exact_matches,
-)
+from govdoc.compare.compare import find_nfile_exact_matches
 from govdoc.compare.service import (
+    _extract_pdf_paragraphs,
     create_compare_bundle,
     create_compare_bundle_from_bytes,
     get_compare_download,
@@ -29,15 +27,10 @@ def _write_docx(path: Path, paragraphs: list[str]) -> None:
     document.save(path)
 
 
-def test_match_algorithms_find_nfile_exact_and_segments() -> None:
-    """底层算法应识别 N 文件间完全相同文本和连续公共片段。"""
+def test_match_algorithms_find_nfile_exact_matches() -> None:
+    """底层算法应识别 N 文件间完全相同文本。"""
     exact_matches = find_nfile_exact_matches(
         {0: ["甲", "乙", "甲", "丙"], 1: ["乙", "甲", "丁"]},
-    )
-    segments = find_common_segments(
-        "开头这里有连续公共片段 ABCDEFGHIJ 结尾",
-        "另一份也有连续公共片段 ABCDEFGHIJ 收尾",
-        min_length=12,
     )
 
     by_text = {match.text: match for match in exact_matches}
@@ -45,7 +38,6 @@ def test_match_algorithms_find_nfile_exact_and_segments() -> None:
     assert "乙" in by_text
     assert by_text["甲"].file_positions == {0: [1, 3], 1: [2]}
     assert by_text["乙"].file_positions == {0: [2], 1: [1]}
-    assert any("连续公共片段 ABCDEFGHIJ" in segment.text for segment in segments)
 
 
 def test_nfile_exact_matches_preserve_subset_and_duplicate_positions() -> None:
@@ -62,20 +54,6 @@ def test_nfile_exact_matches_preserve_subset_and_duplicate_positions() -> None:
     assert by_text["甲"].file_positions == {0: [1, 3], 1: [1]}
     assert by_text["乙"].file_positions == {0: [2], 2: [1]}
 
-
-def test_nfile_common_segments_preserve_multiple_ranges() -> None:
-    """N 文件公共片段应保留同一文件内不同位置的重复出现。"""
-    matches = find_nfile_common_segments(
-        {
-            0: "AAA公共片段XYZ BBB 公共片段XYZ CCC",
-            1: "111公共片段XYZ222",
-        },
-        min_length=6,
-    )
-
-    target = next(match for match in matches if "公共片段XYZ" in match.text)
-    assert len(target.file_ranges[0]) >= 2
-    assert len(target.file_ranges[1]) >= 1
 
 
 def _create_three_file_bundle(tmp_path: Path) -> tuple[Path, CompareResponse]:
@@ -104,7 +82,7 @@ def test_create_compare_bundle_summary_and_matches(tmp_path: Path) -> None:
     assert payload.summary.file_count == 3
     assert len(payload.documents.files) == 3
     assert payload.summary.common_paragraph_count == 2
-    assert payload.summary.common_segment_count >= 1
+    assert payload.summary.common_segment_count == 0
     assert repeated.file_indices == [0, 1, 2]
     assert repeated.per_file_counts["0"] == 2
 
@@ -166,8 +144,9 @@ def test_compare_pdf_uses_document_store_conversion(
 
     class FakeConfig:
         compare = CompareConfig()
+        storage_root = tmp_path
 
-    monkeypatch.setattr("govdoc.runtime.get_document_store", lambda: FakeStore())
+    monkeypatch.setattr("govdoc.runtime.get_compare_document_store", lambda: FakeStore())
     monkeypatch.setattr("govdoc.runtime.get_config", lambda: FakeConfig())
 
     payload = create_compare_bundle(
@@ -301,3 +280,30 @@ def test_sentence_dedup_preserves_cross_paragraph_sentences(tmp_path: Path) -> N
     assert payload.summary.common_paragraph_count == 0
     assert payload.summary.common_sentence_count == 1
     assert any(m.text == "第一句共享。" and m.category == "sentence" for m in payload.matches)
+
+
+class TestExtractPdfUsesCompareStore:
+    """验证 _extract_pdf_paragraphs 使用 get_compare_document_store。"""
+
+    @patch("govdoc.runtime.get_compare_document_store")
+    @patch("govdoc.runtime.get_config")
+    def test_calls_compare_store_not_main(
+        self,
+        mock_config: MagicMock,
+        mock_compare_store: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """_extract_pdf_paragraphs 调用 get_compare_document_store 而非 get_document_store。"""
+        mock_config.return_value.compare.pdf_timeout_s = 60
+
+        md_path = tmp_path / "result.md"
+        md_path.write_text("段落一\n\n段落二", encoding="utf-8")
+        mock_store = MagicMock()
+        mock_store.get_or_convert.return_value = md_path
+        mock_compare_store.return_value = mock_store
+
+        result = _extract_pdf_paragraphs(tmp_path / "test.pdf")
+
+        mock_compare_store.assert_called_once()
+        mock_store.get_or_convert.assert_called_once()
+        assert len(result) >= 1
