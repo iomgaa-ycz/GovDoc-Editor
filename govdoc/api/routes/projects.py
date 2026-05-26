@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlmodel import select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import CreateProjectRequest
-from govdoc.db.models import Project, TenderDoc
+from govdoc.db.models import Document, Project
 from govdoc.runtime import get_document_store
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -59,12 +61,13 @@ async def list_tender_docs(project_id: str):
         project = session.get(Project, project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="项目不存在")
-        docs = session.exec(select(TenderDoc).where(TenderDoc.project_id == project_id)).all()
+        docs = session.exec(select(Document).order_by(Document.created_at.desc())).all()
         return [
             {
                 "id": d.id,
-                "project_id": d.project_id,
+                "project_id": project_id,
                 "filename": d.filename,
+                "storage_path": d.raw_path,
                 "markdown_path": d.markdown_path,
             }
             for d in docs
@@ -87,27 +90,29 @@ async def upload_tender_doc(project_id: str, file: UploadFile = File(...)):
     md_path = store.get_or_convert(raw_path, warnings_stack=warnings_stack)
 
     with get_db_session() as session:
-        tender = TenderDoc(
-            project_id=project_id,
+        document = Document(
             filename=file.filename or "tender",
-            storage_path=str(raw_path),
+            file_type=(file.filename or "tender").rsplit(".", 1)[-1].lower(),
+            file_size=len(content),
+            sha256=hashlib.sha256(content).hexdigest(),
+            raw_path=str(raw_path),
             markdown_path=str(md_path),
-            qmd_collection=f"project_{project_id}_tender",
+            status="ready",
         )
-        session.add(tender)
+        session.add(document)
         log_activity(
             session,
             actor="system",
             action="upload_tender_doc",
-            target_type="TenderDoc",
-            target_id=tender.id,
-            after={"filename": tender.filename, "project_id": project_id},
+            target_type="Document",
+            target_id=document.id,
+            after={"filename": document.filename, "project_id": project_id},
         )
         session.commit()
-        session.refresh(tender)
+        session.refresh(document)
         return {
-            "id": tender.id,
-            "filename": tender.filename,
-            "markdown_path": tender.markdown_path,
+            "id": document.id,
+            "filename": document.filename,
+            "markdown_path": document.markdown_path,
             "warnings": warnings_stack,
         }

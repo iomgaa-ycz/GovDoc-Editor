@@ -11,7 +11,7 @@ from sqlmodel import select
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import AuditRunProgressResponse, CreateAuditRunRequest
-from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
+from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Document, Project
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
 logger = logging.getLogger(__name__)
@@ -37,24 +37,21 @@ async def create_audit_run(
     background_tasks: BackgroundTasks,
 ):
     with get_db_session() as session:
-        main_doc = session.get(TenderDoc, payload.tender_doc_id)
-        if main_doc is None or main_doc.project_id != payload.project_id:
-            raise HTTPException(status_code=400, detail="主文书不存在或不属于该项目")
+        main_doc = session.get(Document, payload.main_document_id)
+        if main_doc is None:
+            raise HTTPException(status_code=400, detail="主文书不存在")
 
-        seen = {payload.tender_doc_id}
+        seen = {payload.main_document_id}
         supplementary_doc_ids: list[str] = []
-        for doc_id in payload.supplementary_doc_ids:
+        for doc_id in payload.supplementary_document_ids:
             if doc_id in seen:
                 raise HTTPException(
                     status_code=400,
                     detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
                 )
-            doc = session.get(TenderDoc, doc_id)
-            if doc is None or doc.project_id != payload.project_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"附件不存在或不属于该项目: {doc_id}",
-                )
+            doc = session.get(Document, doc_id)
+            if doc is None:
+                raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
             seen.add(doc_id)
             supplementary_doc_ids.append(doc_id)
 
@@ -65,7 +62,7 @@ async def create_audit_run(
 
         audit_run = AuditRun(
             project_id=payload.project_id,
-            tender_doc_id=payload.tender_doc_id,
+            main_document_id=payload.main_document_id,
             supplementary_doc_ids=json.dumps(supplementary_doc_ids, ensure_ascii=False),
             checkpoint_final_ids=json.dumps(payload.checkpoint_ids, ensure_ascii=False),
             total_count=len(payload.checkpoint_ids),
@@ -81,7 +78,7 @@ async def create_audit_run(
             target_id=audit_run.id,
             after={
                 "project_id": payload.project_id,
-                "tender_doc_id": payload.tender_doc_id,
+                "main_document_id": payload.main_document_id,
             },
         )
         session.commit()
@@ -150,7 +147,8 @@ async def list_audit_runs(project_id: str | None = None):
                 "id": r.id,
                 "project_id": r.project_id,
                 "project_name": project_names.get(r.project_id, ""),
-                "tender_doc_id": r.tender_doc_id,
+                "main_document_id": r.main_document_id,
+                "tender_doc_id": r.main_document_id,
                 "supplementary_doc_ids": _load_supplementary_doc_ids(r.supplementary_doc_ids),
                 "status": r.status,
                 "processed_count": r.processed_count,
@@ -173,7 +171,8 @@ async def get_audit_run(audit_run_id: str):
             "id": run.id,
             "project_id": run.project_id,
             "project_name": project.name if project else "",
-            "tender_doc_id": run.tender_doc_id,
+            "main_document_id": run.main_document_id,
+            "tender_doc_id": run.main_document_id,
             "supplementary_doc_ids": _load_supplementary_doc_ids(run.supplementary_doc_ids),
             "status": run.status,
             "processed_count": run.processed_count,
