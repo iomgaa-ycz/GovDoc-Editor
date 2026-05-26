@@ -160,6 +160,7 @@ async def create_compare_run(
             docs.append(document)
 
         file_names = [document.filename for document in docs]
+        file_info_list = [(document.raw_path, document.filename) for document in docs]
         review_id = uid()
         compare_run = CompareRun(
             id=review_id,
@@ -174,7 +175,7 @@ async def create_compare_run(
     background_tasks.add_task(
         _run_compare_from_docs,
         review_id,
-        [(document.raw_path, document.filename) for document in docs],
+        file_info_list,
     )
     return {"reviewId": review_id, "status": "pending"}
 

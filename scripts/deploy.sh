@@ -69,6 +69,20 @@ deploy_backend() {
 
     log ">>> 后端 $env: 开始部署 (4090:$port, 分支 $branch)"
 
+    # 0. 本地 git push（确保远端能拉到最新代码）
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        log "  ✗ 本地有未提交的改动，请先 commit"
+        git status --short --untracked-files=no | while read -r line; do log "    $line"; done
+        return 1
+    fi
+    local ahead
+    ahead=$(git rev-list --count "origin/${branch}..${branch}" 2>/dev/null || echo 0)
+    if [ "$ahead" -gt 0 ]; then
+        log "  [0/6] 本地领先 origin/${branch} ${ahead} 个提交，自动 push..."
+        git push origin "${branch}" >> "$LOG_FILE" 2>&1
+        log "  ✓ git push 完成"
+    fi
+
     # 1. Git 拉取
     log "  [1/6] git pull ($branch)..."
     ssh "$BACKEND_HOST" "
