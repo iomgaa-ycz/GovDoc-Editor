@@ -21,6 +21,7 @@ import {
   parseFindingJson,
   workpaperToHtml,
 } from "@/adapters/backendToUi";
+import { getDocument } from "@/api/documents";
 import {
   finalizeWorkpaper,
   getAuditRunProgress,
@@ -28,7 +29,6 @@ import {
   getWorkpaperFinalDocxUrl,
   listAuditRuns,
   listCheckpoints,
-  listTenderDocs,
   request,
   retryPointRun,
   updateWorkpaperDraft,
@@ -109,10 +109,10 @@ function projectLabel(run: AuditRun | null): string {
   return run.project_name || `项目 ${run.project_id.slice(0, 8)}`;
 }
 
-function docLabel(run: AuditRun | null, tenderDocName: string | null): string {
-  if (tenderDocName) return tenderDocName;
+function docLabel(run: AuditRun | null, documentName: string | null): string {
+  if (documentName) return documentName;
   if (!run) return "—";
-  return `文书 ${run.tender_doc_id.slice(0, 8)}`;
+  return `文书 ${run.main_document_id.slice(0, 8)}`;
 }
 
 function PointStatusIcon({ status }: { status: string }) {
@@ -149,7 +149,7 @@ export function AIReviewDetailPage() {
   const navigate = useNavigate();
 
   const [run, setRun] = useState<AuditRun | null>(null);
-  const [tenderDocName, setTenderDocName] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<ParsedCheckpoint[]>([]);
   const [progress, setProgress] = useState<AuditRunProgress | null>(null);
   const [selectedPointRunId, setSelectedPointRunId] = useState<string | null>(null);
@@ -222,14 +222,13 @@ export function AIReviewDetailPage() {
             .filter((checkpoint): checkpoint is ParsedCheckpoint => checkpoint != null),
         );
         if (!found) return;
-        listTenderDocs(found.project_id)
-          .then((docs) => {
+        getDocument(found.main_document_id)
+          .then((document) => {
             if (!active) return;
-            const tenderDoc = docs.find((doc) => doc.id === found.tender_doc_id);
-            setTenderDocName(tenderDoc?.filename ?? null);
+            setDocumentName(document.filename);
           })
           .catch(() => {
-            if (active) setTenderDocName(null);
+            if (active) setDocumentName(null);
           });
       })
       .catch((err: unknown) => {
@@ -410,7 +409,7 @@ export function AIReviewDetailPage() {
               <div className="flex justify-between gap-4">
                 <span className="text-text-muted">文书</span>
                 <span className="truncate text-right text-text-primary">
-                  {docLabel(run, tenderDocName)}
+                  {docLabel(run, documentName)}
                 </span>
               </div>
               <div className="flex justify-between">

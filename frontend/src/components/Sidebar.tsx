@@ -1,11 +1,12 @@
-import { Bot, GitCompareArrows, LayoutDashboard, LibraryBig } from "lucide-react";
+import { LayoutDashboard, HardDrive, LibraryBig, Bot, GitCompareArrows } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "工作台总览", icon: LayoutDashboard },
+  { to: "/files", label: "文件管理", icon: HardDrive },
   { to: "/audit-library", label: "审核点库", icon: LibraryBig },
-  { to: "/ai-review", label: "AI 审查", icon: Bot },
+  { to: "/ai-review", label: "AI 审核", icon: Bot },
   { to: "/compare", label: "文档对比", icon: GitCompareArrows },
 ];
 

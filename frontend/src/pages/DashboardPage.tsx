@@ -27,7 +27,7 @@ export function DashboardPage() {
     const run = findLatestAuditRun(projectId);
     if (!run) return;
     setSelectedAuditRunId(run.id);
-    navigate("/audit-results");
+    navigate(`/ai-review/${run.id}`);
   }
 
   useEffect(() => { getDashboardStats().then(setStats).catch(() => {}); }, []);
