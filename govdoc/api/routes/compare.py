@@ -160,7 +160,10 @@ async def create_compare_run(
             docs.append(document)
 
         file_names = [document.filename for document in docs]
-        file_info_list = [(document.raw_path, document.filename) for document in docs]
+        file_info_list = [
+            (document.markdown_path or document.raw_path, document.filename)
+            for document in docs
+        ]
         review_id = uid()
         compare_run = CompareRun(
             id=review_id,

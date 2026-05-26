@@ -161,6 +161,24 @@ def test_compare_pdf_uses_document_store_conversion(
     assert any(match.text == "PDF 共同段落。" for match in payload.matches)
 
 
+def test_compare_bundle_accepts_markdown_files(tmp_path: Path) -> None:
+    """已转换的 .md 文件应直接对比，不需要重新解析原始格式。"""
+    md_a = tmp_path / "a.md"
+    md_b = tmp_path / "b.md"
+    md_a.write_text("共同段落。\n\n独有A。", encoding="utf-8")
+    md_b.write_text("共同段落。\n\n独有B。", encoding="utf-8")
+
+    payload = create_compare_bundle(
+        files=[(md_a, "report_a.doc"), (md_b, "report_b.doc")],
+        output_root=tmp_path / "compare",
+    )
+
+    assert payload.summary.file_count == 2
+    assert payload.summary.common_paragraph_count == 1
+    assert payload.documents.files[0].suffix == ".doc"
+    assert payload.documents.files[1].suffix == ".doc"
+
+
 def test_compare_empty_documents_returns_zero_matches(tmp_path: Path) -> None:
     """两个空文档对比应返回 0 匹配而非崩溃。"""
     first_path = tmp_path / "empty_a.docx"
