@@ -463,6 +463,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // ── Workpaper ──
 
   const wpRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalizePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadWorkpaper(auditRunId: string) {
     try {
@@ -504,21 +505,28 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function handleFinalizeWorkpaper(auditRunId: string) {
     setFinalizeStatus("finalizing");
+    // 清理上一次可能残留的轮询
+    if (finalizePollRef.current) {
+      clearInterval(finalizePollRef.current);
+      finalizePollRef.current = null;
+    }
     try {
       await api.finalizeWorkpaper(auditRunId, "admin");
-      // Poll until the audit run reaches "finalized"
-      const pollFinalize = setInterval(async () => {
+      finalizePollRef.current = setInterval(async () => {
         try {
           const progress = await api.getAuditRunProgress(auditRunId);
           if (progress.status === "finalized") {
-            clearInterval(pollFinalize);
+            clearInterval(finalizePollRef.current!);
+            finalizePollRef.current = null;
             setFinalizeStatus("finalized");
           } else if (progress.status === "failed") {
-            clearInterval(pollFinalize);
+            clearInterval(finalizePollRef.current!);
+            finalizePollRef.current = null;
             setFinalizeStatus("error");
           }
         } catch {
-          clearInterval(pollFinalize);
+          clearInterval(finalizePollRef.current!);
+          finalizePollRef.current = null;
           setFinalizeStatus("error");
         }
       }, 2000);
@@ -628,6 +636,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     deleteCheckpoint: handleDeleteCheckpoint,
     refreshAll,
   };
+
+  // 组件卸载时清理所有轮询定时器
+  useEffect(() => {
+    return () => {
+      if (finalizePollRef.current) {
+        clearInterval(finalizePollRef.current);
+      }
+    };
+  }, []);
 
   return (
     <WorkbenchContext.Provider value={value}>

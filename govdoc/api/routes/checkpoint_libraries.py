@@ -75,10 +75,7 @@ def add_checkpoints_to_libraries(
         found_library_ids = {library.id for library in libraries}
         missing_library_ids = set(clean_library_ids) - found_library_ids
         if missing_library_ids:
-            raise HTTPException(
-                status_code=404,
-                detail=f"审核点库不存在: {', '.join(sorted(missing_library_ids))}",
-            )
+            raise ValueError(f"审核点库不存在: {', '.join(sorted(missing_library_ids))}")
 
         checkpoints = session.exec(
             select(CheckpointFinal).where(CheckpointFinal.id.in_(clean_checkpoint_ids))
@@ -86,10 +83,7 @@ def add_checkpoints_to_libraries(
         found_checkpoint_ids = {checkpoint.id for checkpoint in checkpoints}
         missing_checkpoint_ids = set(clean_checkpoint_ids) - found_checkpoint_ids
         if missing_checkpoint_ids:
-            raise HTTPException(
-                status_code=404,
-                detail=f"审核点不存在: {', '.join(sorted(missing_checkpoint_ids))}",
-            )
+            raise ValueError(f"审核点不存在: {', '.join(sorted(missing_checkpoint_ids))}")
 
         existing_items = session.exec(
             select(CheckpointLibraryItem).where(
@@ -303,15 +297,18 @@ async def add_checkpoints_to_library(
     library_id: str,
     payload: LibraryCheckpointIdsRequest,
 ):
-    added_count = add_checkpoints_to_libraries(
-        [library_id],
-        payload.checkpoint_ids,
-        actor=payload.actor,
-    )
+    try:
+        added_count = add_checkpoints_to_libraries(
+            [library_id],
+            payload.checkpoint_ids,
+            actor=payload.actor,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     return {"library_id": library_id, "added_count": added_count}
 
 
-@router.delete("/{library_id}/checkpoints")
+@router.post("/{library_id}/checkpoints/remove")
 async def remove_checkpoints_from_library(
     library_id: str,
     payload: LibraryCheckpointIdsRequest,
@@ -348,11 +345,14 @@ async def remove_checkpoints_from_library(
 async def batch_add_checkpoints_to_libraries(
     payload: BatchAddCheckpointsToLibrariesRequest,
 ):
-    added_count = add_checkpoints_to_libraries(
-        payload.library_ids,
-        payload.checkpoint_ids,
-        actor=payload.actor,
-    )
+    try:
+        added_count = add_checkpoints_to_libraries(
+            payload.library_ids,
+            payload.checkpoint_ids,
+            actor=payload.actor,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     return {
         "library_ids": _dedupe_ids(payload.library_ids),
         "checkpoint_ids": _dedupe_ids(payload.checkpoint_ids),

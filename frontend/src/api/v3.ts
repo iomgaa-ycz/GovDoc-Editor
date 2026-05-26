@@ -204,8 +204,8 @@ export function removeCheckpointsFromLibrary(
   libraryId: string,
   checkpointIds: string[],
 ): Promise<{ library_id: string; removed_count: number }> {
-  return request(`/api/v1/checkpoint-libraries/${libraryId}/checkpoints`, {
-    method: "DELETE",
+  return request(`/api/v1/checkpoint-libraries/${libraryId}/checkpoints/remove`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ checkpoint_ids: checkpointIds }),
   });
