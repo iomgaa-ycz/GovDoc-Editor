@@ -110,6 +110,11 @@ export interface WorkbenchContextValue {
     libraryId: string,
     checkpointIds: string[],
   ) => Promise<number>;
+  updateCheckpointLibrary: (
+    id: string,
+    name: string,
+    description: string,
+  ) => Promise<void>;
   deleteCheckpointLibrary: (id: string) => Promise<void>;
 
   // Checkpoint CRUD
@@ -580,6 +585,19 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     return result.removed_count;
   }
 
+  async function handleUpdateCheckpointLibrary(
+    id: string,
+    name: string,
+    description: string,
+  ) {
+    await api.updateCheckpointLibrary(id, name, description);
+    setCheckpointLibraries((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, name, description } : item,
+      ),
+    );
+  }
+
   async function handleDeleteCheckpointLibrary(id: string) {
     await api.deleteCheckpointLibrary(id);
     setCheckpointLibraries((prev) => prev.filter((item) => item.id !== id));
@@ -631,6 +649,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     createCheckpointLibrary: handleCreateCheckpointLibrary,
     addCheckpointsToLibraries: handleAddCheckpointsToLibraries,
     removeCheckpointsFromLibrary: handleRemoveCheckpointsFromLibrary,
+    updateCheckpointLibrary: handleUpdateCheckpointLibrary,
     deleteCheckpointLibrary: handleDeleteCheckpointLibrary,
     updateCheckpoint: handleUpdateCheckpoint,
     deleteCheckpoint: handleDeleteCheckpoint,

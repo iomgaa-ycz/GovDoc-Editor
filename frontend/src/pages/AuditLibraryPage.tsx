@@ -114,6 +114,7 @@ export function AuditLibraryPage() {
     addCheckpointsToLibraries,
     removeCheckpointsFromLibrary,
     deleteCheckpointLibrary,
+    updateCheckpointLibrary,
     refreshAll,
   } = useWorkbench();
 
@@ -148,6 +149,10 @@ export function AuditLibraryPage() {
   const [newLibraryDesc, setNewLibraryDesc] = useState("");
   const [creatingLibrary, setCreatingLibrary] = useState(false);
   const [deletingLibraryId, setDeletingLibraryId] = useState<string | null>(null);
+  const [editingLibraryId, setEditingLibraryId] = useState<string | null>(null);
+  const [editLibraryName, setEditLibraryName] = useState("");
+  const [editLibraryDesc, setEditLibraryDesc] = useState("");
+  const [savingLibrary, setSavingLibrary] = useState(false);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [targetLibraryIds, setTargetLibraryIds] = useState<string[]>([]);
@@ -336,6 +341,27 @@ export function AuditLibraryPage() {
     await refreshAll();
   }
 
+  function openEditLibrary() {
+    const library = checkpointLibraries.find((item) => item.id === selectedLibraryId);
+    if (!library) return;
+    setEditingLibraryId(library.id);
+    setEditLibraryName(library.name);
+    setEditLibraryDesc(library.description ?? "");
+  }
+
+  async function saveEditLibrary() {
+    if (!editingLibraryId) return;
+    const name = editLibraryName.trim();
+    if (!name) return;
+    setSavingLibrary(true);
+    try {
+      await updateCheckpointLibrary(editingLibraryId, name, editLibraryDesc);
+      setEditingLibraryId(null);
+    } finally {
+      setSavingLibrary(false);
+    }
+  }
+
   if (mode === "extract") {
     return (
       <div className="flex flex-col">
@@ -521,17 +547,36 @@ export function AuditLibraryPage() {
             </button>
             <div className="space-y-1">
               {checkpointLibraries.map((library) => (
-                <button
+                <div
                   key={library.id}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-sm",
+                    "group flex items-center justify-between rounded-btn px-3 py-2 text-sm",
                     selectedLibraryId === library.id ? "bg-accent text-white" : "hover:bg-surface",
                   )}
-                  onClick={() => setSelectedLibraryId(library.id)}
                 >
-                  <span className="min-w-0 flex-1 truncate">{library.name}</span>
-                  <span className="ml-2 text-xs">{library.checkpoint_count}</span>
-                </button>
+                  <button
+                    className="min-w-0 flex-1 truncate text-left"
+                    onClick={() => setSelectedLibraryId(library.id)}
+                  >
+                    {library.name}
+                    <span className="ml-2 text-xs">{library.checkpoint_count}</span>
+                  </button>
+                  <button
+                    className={cn(
+                      "ml-1 shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-black/10",
+                      selectedLibraryId === library.id && "text-white",
+                      selectedLibraryId === library.id ? "group-hover:opacity-100" : "group-hover:opacity-70",
+                    )}
+                    onClick={() => {
+                      setSelectedLibraryId(library.id);
+                      setEditingLibraryId(library.id);
+                      setEditLibraryName(library.name);
+                      setEditLibraryDesc(library.description ?? "");
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
               ))}
             </div>
           </aside>
@@ -559,6 +604,11 @@ export function AuditLibraryPage() {
                 {selectedLibraryId !== "all" && (
                   <Button variant="secondary" disabled={selectedIds.length === 0} onClick={removeSelectedFromCurrentLibrary}>
                     移出当前库
+                  </Button>
+                )}
+                {selectedLibraryId !== "all" && (
+                  <Button variant="secondary" onClick={openEditLibrary}>
+                    <Pencil className="h-4 w-4" /> 编辑库
                   </Button>
                 )}
                 {selectedLibraryId !== "all" && (
@@ -694,6 +744,32 @@ export function AuditLibraryPage() {
             <Button disabled={!newLibraryName.trim() || creatingLibrary} onClick={confirmCreateLibrary}>
               {creatingLibrary && <Loader2 className="h-4 w-4 animate-spin" />}
               创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingLibraryId != null} onOpenChange={(open: boolean) => { if (!open) setEditingLibraryId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑审核点库</DialogTitle>
+            <DialogDescription>修改库名称和说明。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 p-5">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">库名称</label>
+              <Input value={editLibraryName} onChange={(e) => setEditLibraryName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">说明</label>
+              <Textarea placeholder="可选" value={editLibraryDesc} onChange={(e) => setEditLibraryDesc(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEditingLibraryId(null)}>取消</Button>
+            <Button disabled={!editLibraryName.trim() || savingLibrary} onClick={saveEditLibrary}>
+              {savingLibrary && <Loader2 className="h-4 w-4 animate-spin" />}
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>
