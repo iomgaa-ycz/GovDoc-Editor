@@ -34,7 +34,7 @@ class DocumentStore:
     - prepared markdown 存储在稳定的 prepared/ 目录下
     """
 
-    def __init__(self, storage_root: Path, *, ocr_backend: str = "mineru") -> None:
+    def __init__(self, storage_root: Path, *, ocr_backend: str = "glm") -> None:
         self._root = storage_root
         self._ocr_backend = ocr_backend
         self._prepared_dir = storage_root / "prepared"
@@ -106,7 +106,7 @@ class DocumentStore:
             raw,
             ocr_backend=self._ocr_backend,
             max_workers=1,
-            timeout=3600,
+            timeout=7200,
         )
         if not md or not md.strip():
             raise RuntimeError(f"to_markdown 返回空内容: {raw}")

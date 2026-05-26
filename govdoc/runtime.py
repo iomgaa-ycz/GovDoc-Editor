@@ -37,7 +37,7 @@ def get_project_root() -> Path:
 @lru_cache
 def get_document_store() -> DocumentStore:
     cfg = get_config()
-    return DocumentStore(cfg.storage_root, ocr_backend="mineru")
+    return DocumentStore(cfg.storage_root, ocr_backend=cfg.app.ocr_backend)
 
 
 @lru_cache

@@ -57,6 +57,26 @@ LOG_FILE="$LOG_DIR/deploy_${TARGET}_$(date +%Y%m%d_%H%M%S).log"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 
+# ── stable 前置检查：master 是否已合并到 stable ──
+check_master_merged_to_stable() {
+    log ">>> 检查 master 是否已合并到 stable..."
+    git fetch origin master stable >> "$LOG_FILE" 2>&1
+    local unmerged
+    unmerged=$(git rev-list --count origin/stable..origin/master 2>/dev/null || echo "?")
+    if [ "$unmerged" = "?" ]; then
+        log "  ✗ 无法比较分支，请确认 origin/master 和 origin/stable 均存在"
+        return 1
+    fi
+    if [ "$unmerged" != "0" ]; then
+        log "  ✗ master 有 ${unmerged} 个提交尚未合并到 stable"
+        log "    最近未合并的提交："
+        git log --oneline origin/stable..origin/master | head -5 | while read -r line; do log "      $line"; done
+        log "  请先执行: git checkout stable && git merge master && git push origin stable"
+        return 1
+    fi
+    log "  ✓ master 已完全合并到 stable"
+}
+
 # ── 后端部署函数 ──
 deploy_backend() {
     local env="$1"    # testing or stable
@@ -152,7 +172,7 @@ deploy_backend() {
     " >> "$LOG_FILE" 2>&1
     log "  ✓ uvicorn 已启动 (tmux: ${tmux_name}, 日志: ${log_path})"
 
-    # 7. 健康检查（等待更久，mineru 首次加载模型较慢）
+    # 7. 健康检查
     log "  [7/7] 等待健康检查（最长 120s）..."
     local ok=false
     for i in $(seq 1 60); do
@@ -213,11 +233,11 @@ echo "=========================================" | tee -a "$LOG_FILE"
 
 case "$TARGET" in
     backend-testing)  deploy_backend testing ;;
-    backend-stable)   deploy_backend stable ;;
+    backend-stable)   check_master_merged_to_stable && deploy_backend stable ;;
     frontend-testing) deploy_frontend testing ;;
-    frontend-stable)  deploy_frontend stable ;;
+    frontend-stable)  check_master_merged_to_stable && deploy_frontend stable ;;
     testing)          deploy_backend testing && deploy_frontend testing ;;
-    stable)           deploy_backend stable && deploy_frontend stable ;;
+    stable)           check_master_merged_to_stable && deploy_backend stable && deploy_frontend stable ;;
     *)
         log "错误: 无效的 target '${TARGET}'"
         log "可选: testing | stable | backend-testing | backend-stable | frontend-testing | frontend-stable"

@@ -40,12 +40,12 @@ def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
 class TestCompareOcrBackend:
     """验证 CompareConfig 支持 ocr_backend 字段。"""
 
-    def test_default_is_mineru(self) -> None:
-        """CompareConfig 默认 ocr_backend 为 mineru。"""
+    def test_default_is_glm(self) -> None:
+        """CompareConfig 默认 ocr_backend 为 glm。"""
         cfg = CompareConfig()
-        assert cfg.ocr_backend == "mineru"
+        assert cfg.ocr_backend == "glm"
 
     def test_load_config_reads_compare_ocr_backend(self) -> None:
-        """完整配置加载后 compare.ocr_backend 为 mineru。"""
+        """完整配置加载后 compare.ocr_backend 为 glm。"""
         cfg = load_config()
-        assert cfg.compare.ocr_backend == "mineru"
+        assert cfg.compare.ocr_backend == "glm"
