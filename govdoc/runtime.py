@@ -41,6 +41,14 @@ def get_document_store() -> DocumentStore:
 
 
 @lru_cache
+def get_compare_document_store() -> DocumentStore:
+    """对比模块专用 DocumentStore（独立 storage_root + 独立 OCR 后端）。"""
+    cfg = get_config()
+    compare_root = cfg.storage_root / "compare_prepared"
+    return DocumentStore(compare_root, ocr_backend=cfg.compare.ocr_backend)
+
+
+@lru_cache
 def get_qmd() -> Any:
     return build_qmd_client_from_config(get_config().qmd_db_path)
 
