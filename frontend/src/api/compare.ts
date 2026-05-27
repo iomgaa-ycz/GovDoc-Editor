@@ -160,10 +160,20 @@ export interface MatchSummaryItem {
   similarity: number | null;
 }
 
+export interface MatchPagination {
+  category: CompareCategoryId;
+  page: number;
+  pageSize: number;
+  totalInCategory: number;
+  totalPages: number;
+  categoryCounts: Record<string, number>;
+}
+
 export interface CompareSummaryResponse {
   reviewId: string;
   summary: CompareSummary;
   matches: MatchSummaryItem[];
+  matchPagination: MatchPagination;
   categories: CompareCategory[];
   downloads: { files: Record<string, string> };
   artifacts: { reviewDir: string; downloadNames: Record<string, string> };
@@ -184,8 +194,16 @@ export interface CompareContextResponse {
 
 // --- 分层加载 API ---
 
-export function getCompareSummary(reviewId: string): Promise<CompareSummaryResponse> {
-  return request(`/api/v1/compare/${reviewId}/summary`);
+export function getCompareSummary(
+  reviewId: string,
+  category?: CompareCategoryId,
+  page = 1,
+  pageSize = 100,
+): Promise<CompareSummaryResponse> {
+  const cat = category || "paragraph";
+  return request(
+    `/api/v1/compare/${reviewId}/summary?category=${cat}&page=${page}&page_size=${pageSize}`,
+  );
 }
 
 export function getCompareContext(
