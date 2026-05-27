@@ -862,6 +862,10 @@ def _build_compare_response(
         json.dumps(payload.model_dump(mode="json", by_alias=True), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    from govdoc.compare.splitter import split_compare_response
+    split_compare_response(payload, review_dir)
+
     return payload
 
 

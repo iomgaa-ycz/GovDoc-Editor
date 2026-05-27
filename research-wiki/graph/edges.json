@@ -154,6 +154,16 @@
       "id": "plan:2026-05-25-compare-perf-optimization",
       "label": "文档对比性能优化实施计划",
       "type": "plan"
+    },
+    {
+      "id": "design:compare-lazy-load",
+      "label": "文档对比分层加载与前端重构",
+      "type": "design"
+    },
+    {
+      "id": "plan:compare-lazy-load",
+      "label": "文档对比分层加载与前端重构实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -219,6 +229,13 @@
       "relation": "implements",
       "evidence": "实施 Hub+Detail 前端重构设计的全部任务",
       "added": "2026-05-25T12:53:35.682532+00:00"
+    },
+    {
+      "source": "plan:compare-lazy-load",
+      "target": "design:compare-lazy-load",
+      "relation": "implements",
+      "evidence": "实施计划基于 compare-lazy-load 设计文档",
+      "added": "2026-05-27T03:30:17.479290+00:00"
     }
   ]
 }

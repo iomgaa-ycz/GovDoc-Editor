@@ -187,35 +187,35 @@ async def _run_compare_from_docs(
     review_id: str,
     file_info_list: list[tuple[str, str]],
 ) -> None:
-    """后台执行已上传文档对比任务。
+    """后台执行已上传文档对比任务。"""
+    from govdoc.compare.concurrency import get_compare_semaphore
+    from govdoc.runtime import get_config
 
-    Args:
-        review_id: 对比任务 ID。
-        file_info_list: `(raw_path, filename)` 对列表，来自 Document 表。
-    """
+    sem = get_compare_semaphore(get_config().compare.max_concurrent)
 
-    def _execute_compare() -> None:
-        _set_compare_run_running(review_id)
-        try:
-            payload = create_compare_bundle(
-                files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
-                on_progress=lambda progress: _update_compare_progress(review_id, progress),
-            )
-        except (BadZipFile, ValueError) as exc:
-            _set_compare_run_failed(review_id, f"文件解析失败: {exc}")
-            return
-        except (RuntimeError, OSError) as exc:
-            _set_compare_run_failed(review_id, f"文档转换失败: {exc}")
-            return
-        except Exception:
-            logger.exception("后台对比执行失败: %s", review_id)
-            _set_compare_run_failed(review_id, "后台任务异常退出")
-            return
+    async with sem:
+        def _execute_compare() -> None:
+            _set_compare_run_running(review_id)
+            try:
+                payload = create_compare_bundle(
+                    files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
+                    on_progress=lambda progress: _update_compare_progress(review_id, progress),
+                )
+            except (BadZipFile, ValueError) as exc:
+                _set_compare_run_failed(review_id, f"文件解析失败: {exc}")
+                return
+            except (RuntimeError, OSError) as exc:
+                _set_compare_run_failed(review_id, f"文档转换失败: {exc}")
+                return
+            except Exception:
+                logger.exception("后台对比执行失败: %s", review_id)
+                _set_compare_run_failed(review_id, "后台任务异常退出")
+                return
 
-        result_path = Path(payload.artifacts.review_dir) / "review.json"
-        _set_compare_run_completed(review_id, str(result_path))
+            result_path = Path(payload.artifacts.review_dir) / "review.json"
+            _set_compare_run_completed(review_id, str(result_path))
 
-    await to_thread(_execute_compare)
+        await to_thread(_execute_compare)
 
 
 @router.get("/{review_id}/status", response_model=CompareRunStatus)
@@ -262,6 +262,52 @@ def get_compare_result(review_id: str) -> CompareResponse:
         raise HTTPException(status_code=500, detail="对比结果文件损坏。") from exc
 
 
+@router.get("/{review_id}/summary")
+def get_compare_summary(review_id: str) -> dict:
+    """读取对比摘要（轻量版，不含文档全文）。"""
+    with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="对比任务不存在。")
+        if run.status != "completed":
+            raise HTTPException(status_code=409, detail="对比任务尚未完成。")
+        result_path = run.result_path
+
+    if result_path is None:
+        raise HTTPException(status_code=404, detail="对比结果不存在。")
+
+    review_dir = Path(result_path).parent
+    summary_path = review_dir / "summary.json"
+    if not summary_path.exists():
+        raise HTTPException(status_code=404, detail="摘要文件不存在，请重新对比。")
+
+    return json.loads(summary_path.read_text(encoding="utf-8"))
+
+
+@router.get("/{review_id}/context")
+def get_compare_context(review_id: str, matchId: str, surrounding: int = 3) -> dict:
+    """按需加载指定匹配项的上下文段落。"""
+    with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="对比任务不存在。")
+        if run.status != "completed":
+            raise HTTPException(status_code=409, detail="对比任务尚未完成。")
+        result_path = run.result_path
+
+    if result_path is None:
+        raise HTTPException(status_code=404, detail="对比结果不存在。")
+
+    review_dir = Path(result_path).parent
+    from govdoc.compare.context_loader import load_match_context
+    try:
+        return load_match_context(review_dir, matchId, surrounding=surrounding)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="拆分文件缺失，请重新对比。") from exc
+
+
 @router.get("/{review_id}/download/{file_index}")
 def download_compare_file(
     review_id: str,
@@ -278,3 +324,52 @@ def download_compare_file(
         filename=download.filename,
         media_type=DOCX_MEDIA_TYPE,
     )
+
+
+def _load_failed_run_document_ids(review_id: str) -> list[str]:
+    """从失败的 CompareRun 中提取 document_ids。"""
+    with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="对比任务不存在。")
+        if run.status != "failed":
+            raise HTTPException(status_code=409, detail="仅失败任务可重试。")
+        document_ids = json.loads(run.document_ids) if run.document_ids else []
+    if len(document_ids) < 2:
+        raise HTTPException(status_code=400, detail="原始文档信息丢失，无法重试。")
+    return document_ids
+
+
+def _create_retry_run(document_ids: list[str]) -> tuple[str, list[tuple[str, str]]]:
+    """校验文档并创建重试用的 CompareRun。"""
+    with get_db_session() as session:
+        docs = []
+        for doc_id in document_ids:
+            doc = session.get(Document, doc_id)
+            if doc is None or doc.status != "ready":
+                raise HTTPException(status_code=400, detail=f"文档 {doc_id} 不存在或未就绪。")
+            docs.append(doc)
+
+        file_names = [d.filename for d in docs]
+        file_info_list = [(d.markdown_path or d.raw_path, d.filename) for d in docs]
+        new_id = uid()
+        new_run = CompareRun(
+            id=new_id, status="pending", file_count=len(docs),
+            file_names_json=json.dumps(file_names, ensure_ascii=False),
+            document_ids=json.dumps(document_ids),
+        )
+        session.add(new_run)
+        session.commit()
+    return new_id, file_info_list
+
+
+@router.post("/{review_id}/retry", status_code=202)
+async def retry_compare_run(
+    review_id: str,
+    background_tasks: BackgroundTasks,
+) -> dict[str, str]:
+    """重试失败的对比任务（创建新任务）。"""
+    document_ids = _load_failed_run_document_ids(review_id)
+    new_id, file_info_list = _create_retry_run(document_ids)
+    background_tasks.add_task(_run_compare_from_docs, new_id, file_info_list)
+    return {"reviewId": new_id, "status": "pending"}
