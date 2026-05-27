@@ -36,3 +36,4 @@ compare:
   min_segment_length: 16
   pdf_timeout_s: 7200
   ocr_backend: glm
+  max_concurrent: 1

@@ -76,3 +76,8 @@
 - [2026-05-25 12:48 UTC] 重建索引: 97 篇页面
 - [2026-05-25 12:53 UTC] 新增边: plan:2026-05-25-hub-detail-frontend-redesign --implements--> design:hub-detail-frontend-redesign
 - [2026-05-25 12:53 UTC] 重建索引: 98 篇页面
+- [2026-05-27 03:22 UTC] 新增 design: 文档对比分层加载与前端重构 (design:compare-lazy-load)
+- [2026-05-27 03:24 UTC] 重建索引: 105 篇页面
+- [2026-05-27 03:26 UTC] 新增 plan: 文档对比分层加载与前端重构实施计划 (plan:compare-lazy-load)
+- [2026-05-27 03:30 UTC] 新增边: plan:compare-lazy-load --implements--> design:compare-lazy-load
+- [2026-05-27 03:30 UTC] 重建索引: 107 篇页面

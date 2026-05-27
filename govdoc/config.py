@@ -89,6 +89,7 @@ class CompareConfig(BaseModel):
     pdf_timeout_s: int = 7200
     simhash_threshold: int = 10
     ocr_backend: str = "glm"
+    max_concurrent: int = 1
 
 
 class GovDocConfig(BaseModel):

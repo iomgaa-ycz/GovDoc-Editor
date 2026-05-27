@@ -145,3 +145,59 @@ export function listCompareRuns(): Promise<CompareRunStatus[]> {
 export function buildCompareDownloadUrl(path: string): string {
   return `${resolveBaseUrl()}${path}`;
 }
+
+// --- 分层加载类型 ---
+
+export interface MatchSummaryItem {
+  id: string;
+  category: CompareCategoryId;
+  label: string;
+  color: string;
+  length: number;
+  fileIndices: number[];
+  occurrenceCount: number;
+  preview: string;
+  similarity: number | null;
+}
+
+export interface CompareSummaryResponse {
+  reviewId: string;
+  summary: CompareSummary;
+  matches: MatchSummaryItem[];
+  categories: CompareCategory[];
+  downloads: { files: Record<string, string> };
+  artifacts: { reviewDir: string; downloadNames: Record<string, string> };
+}
+
+export interface FileContext {
+  fileIndex: number;
+  name: string;
+  totalBlocks: number;
+  matchBlockIndex: number;
+  blocks: CompareDocumentBlock[];
+}
+
+export interface CompareContextResponse {
+  match: MatchSummaryItem & { text?: string };
+  fileContexts: FileContext[];
+}
+
+// --- 分层加载 API ---
+
+export function getCompareSummary(reviewId: string): Promise<CompareSummaryResponse> {
+  return request(`/api/v1/compare/${reviewId}/summary`);
+}
+
+export function getCompareContext(
+  reviewId: string,
+  matchId: string,
+  surrounding = 3,
+): Promise<CompareContextResponse> {
+  return request(
+    `/api/v1/compare/${reviewId}/context?matchId=${encodeURIComponent(matchId)}&surrounding=${surrounding}`,
+  );
+}
+
+export function retryCompareRun(reviewId: string): Promise<CompareSubmitResponse> {
+  return request(`/api/v1/compare/${reviewId}/retry`, { method: "POST" });
+}
