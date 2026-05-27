@@ -5,7 +5,6 @@ from govdoc.schemas.compare import (
     FileContext,
     CompareContextResponse,
     CompareSummary,
-    CompareCategory,
     CompareDownloads,
     CompareArtifacts,
 )
