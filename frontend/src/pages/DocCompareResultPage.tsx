@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, Loader2, RotateCcw } from "lucide-react";
 
@@ -9,6 +9,7 @@ import {
   type CompareCategoryId,
   type CompareContextResponse,
   type CompareSummaryResponse,
+  type MatchPagination,
   type MatchSummaryItem,
 } from "@/api/compare";
 import { MetricCard } from "@/components/MetricCard";
@@ -17,19 +18,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-type FilterId = "all" | CompareCategoryId;
-
-const FILTERS: Array<{ id: FilterId; label: string }> = [
-  { id: "all", label: "全部" },
+const CATEGORY_FILTERS: Array<{ id: CompareCategoryId; label: string }> = [
   { id: "paragraph", label: "完全重复" },
   { id: "sentence", label: "高度相似" },
   { id: "similar", label: "疑似抄袭" },
 ];
-
-function filterCount(summary: CompareSummaryResponse, filter: FilterId): number {
-  if (filter === "all") return summary.matches.length;
-  return summary.matches.filter((m) => m.category === filter).length;
-}
 
 function formatFileIndices(indices: number[]): string {
   return indices.map((i) => `文件 ${i + 1}`).join("、");
@@ -42,23 +35,48 @@ function totalParagraphCount(summary: CompareSummaryResponse): number {
 export function DocCompareResultPage() {
   const { reviewId } = useParams<{ reviewId: string }>();
   const [summary, setSummary] = useState<CompareSummaryResponse | null>(null);
+  const [activeCategory, setActiveCategory] = useState<CompareCategoryId>("paragraph");
+  const [matches, setMatches] = useState<MatchSummaryItem[]>([]);
+  const [pagination, setPagination] = useState<MatchPagination | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [context, setContext] = useState<CompareContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!reviewId) return;
     setLoading(true);
-    getCompareSummary(reviewId)
+    setMatches([]);
+    getCompareSummary(reviewId, activeCategory, 1)
       .then((data) => {
         setSummary(data);
+        setMatches(data.matches);
+        setPagination(data.matchPagination);
         setError(null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
-  }, [reviewId]);
+  }, [reviewId, activeCategory]);
+
+  function loadMore() {
+    if (!reviewId || !pagination || pagination.page >= pagination.totalPages || loadingMore) return;
+    setLoadingMore(true);
+    getCompareSummary(reviewId, activeCategory, pagination.page + 1)
+      .then((data) => {
+        setMatches((prev) => [...prev, ...data.matches]);
+        setPagination(data.matchPagination);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }
+
+  function handleCategoryChange(category: CompareCategoryId) {
+    setActiveCategory(category);
+    setSelectedMatchId(null);
+    setContext(null);
+  }
 
   useEffect(() => {
     if (!reviewId || !selectedMatchId) {
@@ -118,14 +136,29 @@ export function DocCompareResultPage() {
         {selectedMatchId && context ? (
           <ContextView
             summary={summary}
+            matches={matches}
+            pagination={pagination}
             context={context}
             selectedMatchId={selectedMatchId}
+            activeCategory={activeCategory}
             onSelect={setSelectedMatchId}
+            onCategoryChange={handleCategoryChange}
             onBack={() => setSelectedMatchId(null)}
+            onLoadMore={loadMore}
             loading={contextLoading}
+            loadingMore={loadingMore}
           />
         ) : (
-          <SummaryView summary={summary} onSelectMatch={setSelectedMatchId} />
+          <SummaryView
+            summary={summary}
+            matches={matches}
+            pagination={pagination}
+            activeCategory={activeCategory}
+            onCategoryChange={handleCategoryChange}
+            onSelectMatch={setSelectedMatchId}
+            onLoadMore={loadMore}
+            loadingMore={loadingMore}
+          />
         )}
       </main>
     </div>
@@ -134,20 +167,26 @@ export function DocCompareResultPage() {
 
 function SummaryView({
   summary,
+  matches,
+  pagination,
+  activeCategory,
+  onCategoryChange,
   onSelectMatch,
+  onLoadMore,
+  loadingMore,
 }: {
   summary: CompareSummaryResponse;
+  matches: MatchSummaryItem[];
+  pagination: MatchPagination | null;
+  activeCategory: CompareCategoryId;
+  onCategoryChange: (cat: CompareCategoryId) => void;
   onSelectMatch: (id: string) => void;
+  onLoadMore: () => void;
+  loadingMore: boolean;
 }) {
-  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
-
-  const visibleMatches = useMemo(
-    () =>
-      activeFilter === "all"
-        ? summary.matches
-        : summary.matches.filter((m) => m.category === activeFilter),
-    [activeFilter, summary.matches],
-  );
+  const counts = pagination?.categoryCounts ?? {};
+  const totalInCategory = pagination?.totalInCategory ?? matches.length;
+  const hasMore = pagination ? pagination.page < pagination.totalPages : false;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-auto p-7">
@@ -155,7 +194,7 @@ function SummaryView({
         <div>
           <h1 className="text-lg font-semibold text-text-primary">文档对比结果</h1>
           <p className="text-sm text-text-muted">
-            共 {summary.summary.fileCount} 份文件 · {summary.matches.length.toLocaleString()} 条匹配
+            共 {summary.summary.fileCount} 份文件
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -189,8 +228,9 @@ function SummaryView({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {FILTERS.map((filter) => {
-          const active = activeFilter === filter.id;
+        {CATEGORY_FILTERS.map((filter) => {
+          const active = activeCategory === filter.id;
+          const count = counts[filter.id] ?? 0;
           return (
             <button
               key={filter.id}
@@ -200,9 +240,9 @@ function SummaryView({
                   ? "border-accent bg-accent text-white"
                   : "border-gray-300 bg-white text-text-secondary hover:bg-surface",
               )}
-              onClick={() => setActiveFilter(filter.id)}
+              onClick={() => onCategoryChange(filter.id)}
             >
-              {filter.label} ({filterCount(summary, filter.id).toLocaleString()})
+              {filter.label} ({count.toLocaleString()})
             </button>
           );
         })}
@@ -212,7 +252,9 @@ function SummaryView({
         <CardHeader className="flex-row items-center justify-between space-y-0 border-b">
           <div>
             <CardTitle>匹配清单</CardTitle>
-            <p className="mt-1 text-xs text-text-muted">点击任意匹配项查看各文件对应段落</p>
+            <p className="mt-1 text-xs text-text-muted">
+              {totalInCategory.toLocaleString()} 条 · 已加载 {matches.length} 条 · 点击查看各文件对应段落
+            </p>
           </div>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-auto p-0">
@@ -222,7 +264,7 @@ function SummaryView({
             <span>涉及文件</span>
             <span>出现次数</span>
           </div>
-          {visibleMatches.map((match) => (
+          {matches.map((match) => (
             <button
               key={match.id}
               className="grid w-full grid-cols-[100px_minmax(0,1fr)_140px_80px] items-center border-b px-4 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-accent-light"
@@ -241,6 +283,17 @@ function SummaryView({
               <span className="text-xs text-text-muted">{match.occurrenceCount} 处</span>
             </button>
           ))}
+          {hasMore && (
+            <div className="flex justify-center border-t py-3">
+              <Button variant="ghost" size="sm" onClick={onLoadMore} disabled={loadingMore}>
+                {loadingMore ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> 加载中...</>
+                ) : (
+                  `加载更多（还有 ${(totalInCategory - matches.length).toLocaleString()} 条）`
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -249,53 +302,57 @@ function SummaryView({
 
 function ContextView({
   summary,
+  matches,
+  pagination,
   context,
   selectedMatchId,
+  activeCategory,
   onSelect,
+  onCategoryChange,
   onBack,
+  onLoadMore,
   loading,
+  loadingMore,
 }: {
   summary: CompareSummaryResponse;
+  matches: MatchSummaryItem[];
+  pagination: MatchPagination | null;
   context: CompareContextResponse;
   selectedMatchId: string;
+  activeCategory: CompareCategoryId;
   onSelect: (id: string) => void;
+  onCategoryChange: (cat: CompareCategoryId) => void;
   onBack: () => void;
+  onLoadMore: () => void;
   loading: boolean;
+  loadingMore: boolean;
 }) {
-  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
-
-  const visibleMatches = useMemo(
-    () =>
-      activeFilter === "all"
-        ? summary.matches
-        : summary.matches.filter((m) => m.category === activeFilter),
-    [activeFilter, summary.matches],
-  );
+  const counts = pagination?.categoryCounts ?? {};
+  const hasMore = pagination ? pagination.page < pagination.totalPages : false;
 
   return (
     <div className="flex h-full">
-      {/* 左侧匹配清单 */}
       <div className="flex w-[300px] shrink-0 flex-col border-r bg-surface-card">
         <div className="space-y-3 border-b p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">匹配清单</h3>
             <span className="text-xs text-text-muted">
-              {summary.matches.length.toLocaleString()} 项
+              {(pagination?.totalInCategory ?? matches.length).toLocaleString()} 项
             </span>
           </div>
-          <div className="flex gap-1.5">
-            {FILTERS.map((f) => (
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORY_FILTERS.map((f) => (
               <button
                 key={f.id}
                 className={cn(
                   "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  activeFilter === f.id
+                  activeCategory === f.id
                     ? "bg-accent text-white"
                     : "bg-surface text-text-muted hover:bg-gray-200",
                 )}
-                onClick={() => setActiveFilter(f.id)}
+                onClick={() => onCategoryChange(f.id)}
               >
-                {f.label}
+                {f.label} ({(counts[f.id] ?? 0).toLocaleString()})
               </button>
             ))}
           </div>
@@ -305,7 +362,7 @@ function ContextView({
           </Button>
         </div>
         <ScrollArea className="flex-1">
-          {visibleMatches.map((match) => (
+          {matches.map((match) => (
             <button
               key={match.id}
               className={cn(
@@ -323,6 +380,13 @@ function ContextView({
               </p>
             </button>
           ))}
+          {hasMore && (
+            <div className="flex justify-center py-3">
+              <Button variant="ghost" size="sm" onClick={onLoadMore} disabled={loadingMore}>
+                {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "加载更多"}
+              </Button>
+            </div>
+          )}
         </ScrollArea>
       </div>
 
