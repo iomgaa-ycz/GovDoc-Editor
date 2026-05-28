@@ -289,22 +289,22 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
               <CardHeader>
                 <CardTitle>招标文书</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 overflow-hidden">
                 {mainDoc ? (
                   <div
-                    className="flex items-center gap-3 rounded-card border px-3 py-3"
+                    className="grid w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-card border px-3 py-3"
                     style={{ borderColor: "#86EFAC", backgroundColor: "#F0FDF4" }}
                   >
                     <FileCheck className="h-4 w-4 shrink-0 text-green-600" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-green-950">
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="block max-w-full truncate text-sm font-medium text-green-950" title={mainDoc.filename}>
                         {mainDoc.filename}
                       </p>
                       <p className="text-xs text-green-700">{formatFileSize(mainDoc.file_size)}</p>
                     </div>
                     <button
                       type="button"
-                      className="text-xs font-medium text-green-700 underline-offset-2 hover:underline"
+                      className="shrink-0 whitespace-nowrap text-xs font-medium text-green-700 underline-offset-2 hover:underline"
                       onClick={() => openPicker("main", "single")}
                     >
                       更换
@@ -328,23 +328,23 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
               <CardHeader>
                 <CardTitle>补充文件（可选）</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 overflow-hidden">
                 {suppDocs.length > 0 && (
                   <div className="space-y-2">
                     {suppDocs.map((document) => (
                       <div
                         key={document.id}
-                        className="flex items-center gap-2 rounded-card border bg-surface px-3 py-2"
+                        className="grid w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-card border bg-surface px-3 py-2"
                       >
                         <FileText className="h-4 w-4 shrink-0 text-text-muted" />
-                        <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                        <span className="block min-w-0 truncate text-sm text-text-primary" title={document.filename}>
                           {document.filename}
                         </span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 shrink-0"
                           onClick={() => removeSupplementaryDoc(document.id)}
                         >
                           <X className="h-3.5 w-3.5" />
