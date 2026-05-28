@@ -1,16 +1,18 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-27 03:30 UTC
+> 自动生成，更新时间：2026-05-28 09:02 UTC
 
-## design (19)
+## design (21)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
+- [2026-05-28-scrivai-0.2.3-converter-upgrade-design](designs/2026-05-28-scrivai-0.2.3-converter-upgrade-design.md) `design:2026-05-28-scrivai-0.2.3-converter-upgrade-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
+- [Scrivai 0.2.3 MarkdownConverter 升级设计](designs/scrivai-0.2.3-converter-upgrade.md) `design:scrivai-0.2.3-converter-upgrade`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
@@ -28,7 +30,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (43)
+## plan (45)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -45,6 +47,7 @@
 - [2026-05-23-e2e-full-coverage](plans/2026-05-23-e2e-full-coverage.md) `plan:2026-05-23-e2e-full-coverage`
 - [2026-05-23-pr27-merge-fixups](plans/2026-05-23-pr27-merge-fixups.md) `plan:2026-05-23-pr27-merge-fixups`
 - [2026-05-25-compare-mineru-ocr](plans/2026-05-25-compare-mineru-ocr.md) `plan:2026-05-25-compare-mineru-ocr`
+- [2026-05-28-scrivai-0.2.3-converter-upgrade](plans/2026-05-28-scrivai-0.2.3-converter-upgrade.md) `plan:2026-05-28-scrivai-0.2.3-converter-upgrade`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
@@ -56,6 +59,7 @@
 - [Issue #17: AI 审核页面主文件+附件上传](plans/issue-17-multifile-upload.md) `plan:issue-17-multifile-upload`
 - [PR#25 合并清理 + Test 07 实现计划](plans/pr25-merge-cleanup-test07.md) `plan:pr25-merge-cleanup-test07`
 - [PR#27 合并前修复](plans/pr27-merge-fixups.md) `plan:pr27-merge-fixups`
+- [Scrivai 0.2.3 MarkdownConverter 升级实施计划](plans/scrivai-0.2.3-converter-upgrade.md) `plan:scrivai-0.2.3-converter-upgrade`
 - [Wiki-Site 渲染站点搭建实施计划](plans/wiki-site-setup-impl.md) `plan:wiki-site-setup-impl`
 - [前端契约测试基础设施计划](plans/frontend-contract-tests.md) `plan:frontend-contract-tests`
 - [前端重构：Tailwind CSS + shadcn/ui](plans/frontend-tailwind-refactor.md) `plan:frontend-tailwind-refactor`

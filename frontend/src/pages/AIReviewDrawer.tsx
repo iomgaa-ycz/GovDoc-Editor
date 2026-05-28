@@ -6,6 +6,7 @@ import {
   createAuditRun,
   createProject,
   listCheckpoints,
+  listCheckpointLibraries,
   listProjects,
 } from "@/api/v3";
 import FilePickerModal from "@/components/FilePickerModal";
@@ -23,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   CheckpointItem,
+  CheckpointLibrary,
   GovCheckpointPayload,
   GovDocument,
   Project,
@@ -56,6 +58,7 @@ function deduplicateDocuments(documents: GovDocument[]): GovDocument[] {
 export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [checkpoints, setCheckpoints] = useState<ParsedCheckpoint[]>([]);
+  const [checkpointLibraries, setCheckpointLibraries] = useState<CheckpointLibrary[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [mainDoc, setMainDoc] = useState<GovDocument | null>(null);
@@ -63,6 +66,8 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<"single" | "multi">("single");
   const [pickerTarget, setPickerTarget] = useState<"main" | "supp">("main");
+  const [selectionMode, setSelectionMode] = useState<"library" | "manual">("library");
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [selectedCheckpointIds, setSelectedCheckpointIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -73,16 +78,19 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
     () => projects.find((project) => project.id === selectedProjectId),
     [projects, selectedProjectId],
   );
+  const selectedLibraryCount =
+    checkpointLibraries.find((library) => library.id === selectedLibraryId)?.checkpoint_count ?? 0;
 
   useEffect(() => {
     if (!open) return;
     let active = true;
     setLoading(true);
     setError(null);
-    Promise.all([listProjects(), listCheckpoints()])
-      .then(([nextProjects, nextCheckpoints]) => {
+    Promise.all([listProjects(), listCheckpoints(), listCheckpointLibraries()])
+      .then(([nextProjects, nextCheckpoints, nextLibraries]) => {
         if (!active) return;
         setProjects(nextProjects);
+        setCheckpointLibraries(nextLibraries);
         setCheckpoints(
           nextCheckpoints
             .map(parseCheckpoint)
@@ -93,6 +101,12 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
             ? current
             : nextProjects[0]?.id ?? null,
         );
+        setSelectedLibraryId((current) =>
+          current && nextLibraries.some((library) => library.id === current)
+            ? current
+            : nextLibraries[0]?.id ?? null,
+        );
+        setSelectionMode(nextLibraries.length > 0 ? "library" : "manual");
       })
       .catch((err: unknown) => {
         if (active) setError(err instanceof Error ? err.message : "加载数据失败");
@@ -161,7 +175,10 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProjectId || !mainDoc || selectedCheckpointIds.length === 0) return;
+    const usingLibrary = selectionMode === "library";
+    if (!selectedProjectId || !mainDoc) return;
+    if (usingLibrary && (!selectedLibraryId || selectedLibraryCount === 0)) return;
+    if (!usingLibrary && selectedCheckpointIds.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -169,7 +186,8 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
         selectedProjectId,
         mainDoc.id,
         suppDocs.map((document) => document.id),
-        selectedCheckpointIds,
+        usingLibrary ? [] : selectedCheckpointIds,
+        usingLibrary ? selectedLibraryId : null,
       );
       onCreated();
       onClose();
@@ -195,7 +213,7 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
         <header className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">新建审查任务</h2>
-            <p className="text-sm text-text-muted">选择项目、文件并勾选审查要点</p>
+            <p className="text-sm text-text-muted">选择项目、文件并选择审核点库或手动勾选要点</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -271,22 +289,22 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
               <CardHeader>
                 <CardTitle>招标文书</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 overflow-hidden">
                 {mainDoc ? (
                   <div
-                    className="flex items-center gap-3 rounded-card border px-3 py-3"
+                    className="grid w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-card border px-3 py-3"
                     style={{ borderColor: "#86EFAC", backgroundColor: "#F0FDF4" }}
                   >
                     <FileCheck className="h-4 w-4 shrink-0 text-green-600" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-green-950">
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="block max-w-full truncate text-sm font-medium text-green-950" title={mainDoc.filename}>
                         {mainDoc.filename}
                       </p>
                       <p className="text-xs text-green-700">{formatFileSize(mainDoc.file_size)}</p>
                     </div>
                     <button
                       type="button"
-                      className="text-xs font-medium text-green-700 underline-offset-2 hover:underline"
+                      className="shrink-0 whitespace-nowrap text-xs font-medium text-green-700 underline-offset-2 hover:underline"
                       onClick={() => openPicker("main", "single")}
                     >
                       更换
@@ -310,23 +328,23 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
               <CardHeader>
                 <CardTitle>补充文件（可选）</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 overflow-hidden">
                 {suppDocs.length > 0 && (
                   <div className="space-y-2">
                     {suppDocs.map((document) => (
                       <div
                         key={document.id}
-                        className="flex items-center gap-2 rounded-card border bg-surface px-3 py-2"
+                        className="grid w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-card border bg-surface px-3 py-2"
                       >
                         <FileText className="h-4 w-4 shrink-0 text-text-muted" />
-                        <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                        <span className="block min-w-0 truncate text-sm text-text-primary" title={document.filename}>
                           {document.filename}
                         </span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 shrink-0"
                           onClick={() => removeSupplementaryDoc(document.id)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -355,13 +373,67 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
 
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>审查要点</CardTitle>
+                <CardTitle>审查范围</CardTitle>
                 <span className="text-sm text-text-muted">
-                  已选 {selectedCheckpointIds.length} / {checkpoints.length}
+                  {selectionMode === "library" ? selectedLibraryCount : selectedCheckpointIds.length} 个要点
                 </span>
               </CardHeader>
-              <CardContent>
-                {checkpoints.length === 0 ? (
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-btn border px-3 py-2 text-sm font-medium",
+                      selectionMode === "library" ? "border-accent bg-accent-light text-accent" : "hover:bg-surface",
+                    )}
+                    onClick={() => setSelectionMode("library")}
+                    disabled={checkpointLibraries.length === 0}
+                  >
+                    按审核点库
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-btn border px-3 py-2 text-sm font-medium",
+                      selectionMode === "manual" ? "border-accent bg-accent-light text-accent" : "hover:bg-surface",
+                    )}
+                    onClick={() => setSelectionMode("manual")}
+                  >
+                    手动选择
+                  </button>
+                </div>
+
+                {selectionMode === "library" ? (
+                  checkpointLibraries.length === 0 ? (
+                    <div className="rounded-card border border-dashed py-10 text-center text-sm text-text-muted">
+                      暂无审核点库，请先在审核点库页面创建并入库。
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-text-primary">审核点库</label>
+                      <Select
+                        value={selectedLibraryId ?? undefined}
+                        onValueChange={(value: string) => setSelectedLibraryId(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择审核点库" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {checkpointLibraries.map((library) => (
+                            <SelectItem key={library.id} value={library.id}>
+                              {library.name}（{library.checkpoint_count}）
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedLibraryId && (
+                        <p className="text-xs text-text-muted">
+                          发起后将固定使用该库当前可用审核点；之后库内容变化不会影响本次任务。
+                        </p>
+                      )}
+                    </div>
+                  )
+                ) : checkpoints.length === 0 ? (
                   <div className="rounded-card border border-dashed py-10 text-center text-sm text-text-muted">
                     暂无审查要点，请先在审核点库中导入或创建。
                   </div>
@@ -413,11 +485,13 @@ export function AIReviewDrawer({ open, onClose, onCreated }: AIReviewDrawerProps
               submitting ||
               !selectedProjectId ||
               !mainDoc ||
-              selectedCheckpointIds.length === 0
+              (selectionMode === "library"
+                ? !selectedLibraryId || selectedLibraryCount === 0
+                : selectedCheckpointIds.length === 0)
             }
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            开始审查（{selectedCheckpointIds.length} 个要点）
+            开始审查（{selectionMode === "library" ? selectedLibraryCount : selectedCheckpointIds.length} 个要点）
           </Button>
         </footer>
       </form>

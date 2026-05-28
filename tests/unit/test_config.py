@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from govdoc.config import CompareConfig, load_config
+from govdoc.config import load_config
 
 
 def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
@@ -37,15 +37,17 @@ def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
     assert config.project_root == Path(__file__).resolve().parents[2]
 
 
-class TestCompareOcrBackend:
-    """验证 CompareConfig 支持 ocr_backend 字段。"""
+class TestConverterConfig:
+    """验证 AppConfig.converter 字段。"""
 
-    def test_default_is_glm(self) -> None:
-        """CompareConfig 默认 ocr_backend 为 glm。"""
-        cfg = CompareConfig()
-        assert cfg.ocr_backend == "glm"
+    def test_default_is_empty_dict(self) -> None:
+        """AppConfig 默认 converter 为空 dict。"""
+        from govdoc.config import AppConfig
 
-    def test_load_config_reads_compare_ocr_backend(self) -> None:
-        """完整配置加载后 compare.ocr_backend 为 glm。"""
+        cfg = AppConfig()
+        assert cfg.converter == {}
+
+    def test_load_config_reads_converter(self) -> None:
+        """完整配置加载后 app.converter 包含后端配置。"""
         cfg = load_config()
-        assert cfg.compare.ocr_backend == "glm"
+        assert "monkey_endpoints" in cfg.app.converter

@@ -6,8 +6,9 @@ import hashlib
 import json
 import warnings
 from pathlib import Path
+from typing import Any
 
-from scrivai import to_markdown as _scrivai_to_markdown
+from scrivai import MarkdownConverter
 
 from govdoc.config import load_config
 
@@ -34,9 +35,14 @@ class DocumentStore:
     - prepared markdown 存储在稳定的 prepared/ 目录下
     """
 
-    def __init__(self, storage_root: Path, *, ocr_backend: str = "glm") -> None:
+    def __init__(
+        self,
+        storage_root: Path,
+        *,
+        converter_kwargs: dict[str, Any] | None = None,
+    ) -> None:
         self._root = storage_root
-        self._ocr_backend = ocr_backend
+        self._converter = MarkdownConverter(**(converter_kwargs or {}))
         self._prepared_dir = storage_root / "prepared"
         self._raw_dir = storage_root / "raw"
         self._prepared_dir.mkdir(parents=True, exist_ok=True)
@@ -101,15 +107,10 @@ class DocumentStore:
         return prepared
 
     def _convert(self, raw: Path, target: Path) -> Path:
-        """调用 scrivai.to_markdown 将原始文件转换为 markdown。"""
-        md = _scrivai_to_markdown(
-            raw,
-            ocr_backend=self._ocr_backend,
-            max_workers=1,
-            timeout=7200,
-        )
+        """调用 MarkdownConverter.convert 将原始文件转换为 markdown。"""
+        md = self._converter.convert(raw)
         if not md or not md.strip():
-            raise RuntimeError(f"to_markdown 返回空内容: {raw}")
+            raise RuntimeError(f"MarkdownConverter.convert 返回空内容: {raw}")
         target.write_text(md, encoding="utf-8")
         return target
 
@@ -122,3 +123,7 @@ class DocumentStore:
         }
         mf = self._manifest_path(raw)
         mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def close(self) -> None:
+        """释放 MarkdownConverter 线程池资源。"""
+        self._converter.close()

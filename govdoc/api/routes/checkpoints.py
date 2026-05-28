@@ -7,14 +7,20 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import UpdateCheckpointRequest
-from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal
+from govdoc.db.models import (
+    AuditPointRun,
+    AuditRun,
+    CheckpointFinal,
+    CheckpointLibrary,
+    CheckpointLibraryItem,
+)
 from govdoc.schemas import GovCheckpoint
 
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
@@ -59,6 +65,7 @@ class DedupStats:
     removed_existing_count: int = 0
     rewired_audit_point_runs: int = 0
     rewired_audit_runs: int = 0
+    rewired_library_items: int = 0
 
 
 def _checkpoint_title_key(payload_json: str) -> str | None:
@@ -93,7 +100,7 @@ def _dedupe_ids_preserving_order(ids: list[str]) -> list[str]:
 def _rewire_checkpoint_references(
     session: Session,
     replacement_map: dict[str, str],
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """把被删除审核点的引用迁移到保留审核点。
 
     Args:
@@ -107,7 +114,7 @@ def _rewire_checkpoint_references(
         CheckpointDedupError: AuditRun.checkpoint_final_ids 不是合法 JSON list[str]。
     """
     if not replacement_map:
-        return 0, 0
+        return 0, 0, 0
 
     old_ids = list(replacement_map)
     point_runs = session.exec(
@@ -137,7 +144,28 @@ def _rewire_checkpoint_references(
             session.add(audit_run)
             rewired_audit_runs += 1
 
-    return len(point_runs), rewired_audit_runs
+    library_items = session.exec(
+        select(CheckpointLibraryItem).where(
+            CheckpointLibraryItem.checkpoint_final_id.in_(old_ids)
+        )
+    ).all()
+    rewired_library_items = 0
+    for item in library_items:
+        keep_id = replacement_map[item.checkpoint_final_id]
+        duplicate = session.exec(
+            select(CheckpointLibraryItem).where(
+                CheckpointLibraryItem.library_id == item.library_id,
+                CheckpointLibraryItem.checkpoint_final_id == keep_id,
+            )
+        ).first()
+        if duplicate is not None:
+            session.delete(item)
+        else:
+            item.checkpoint_final_id = keep_id
+            session.add(item)
+        rewired_library_items += 1
+
+    return len(point_runs), rewired_audit_runs, rewired_library_items
 
 
 def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
@@ -172,7 +200,9 @@ def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
             replacement_map[final.id] = keep.id
             delete_targets.append(final)
 
-    rewired_point_runs, rewired_audit_runs = _rewire_checkpoint_references(session, replacement_map)
+    rewired_point_runs, rewired_audit_runs, rewired_library_items = (
+        _rewire_checkpoint_references(session, replacement_map)
+    )
     for final in delete_targets:
         session.delete(final)
 
@@ -180,21 +210,38 @@ def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
         removed_existing_count=len(delete_targets),
         rewired_audit_point_runs=rewired_point_runs,
         rewired_audit_runs=rewired_audit_runs,
+        rewired_library_items=rewired_library_items,
     )
 
 
-@router.post("/import")
-async def import_checkpoints(file: UploadFile = File(...)):
-    """上传审查点表格（xls/xlsx/csv），批量写入审核点库。"""
-    filename = file.filename or ""
+def _validate_checkpoint_upload(filename: str) -> str:
     suffix = Path(filename).suffix.lower()
     if suffix not in _ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式: {suffix}，仅支持 .xls / .xlsx / .csv",
         )
+    return suffix
 
-    content = await file.read()
+
+def _parse_library_ids(raw: str | None) -> list[str]:
+    if raw is None or not raw.strip():
+        return []
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="library_ids 必须是 JSON 字符串数组") from exc
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise HTTPException(status_code=400, detail="library_ids 必须是 JSON 字符串数组")
+    return _dedupe_ids_preserving_order([item for item in value if item])
+
+
+def _parse_checkpoint_upload(
+    *,
+    filename: str,
+    content: bytes,
+) -> tuple[list[GovCheckpoint], list[str]]:
+    suffix = _validate_checkpoint_upload(filename)
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(content)
         tmp_path = Path(tmp.name)
@@ -202,7 +249,7 @@ async def import_checkpoints(file: UploadFile = File(...)):
     try:
         from govdoc.parsers.checkpoint_import import parse_checkpoint_file
 
-        checkpoints, skipped_reasons = parse_checkpoint_file(tmp_path)
+        return parse_checkpoint_file(tmp_path)
     except ModuleNotFoundError as exc:
         missing = exc.name or "解析依赖"
         raise HTTPException(
@@ -212,19 +259,158 @@ async def import_checkpoints(file: UploadFile = File(...)):
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    imported: list[dict[str, str | None]] = []
+
+def _title_to_final(session: Session) -> dict[str, CheckpointFinal]:
+    result: dict[str, CheckpointFinal] = {}
+    for final in session.exec(select(CheckpointFinal)).all():
+        title = _checkpoint_title_key(final.payload_json)
+        if title is None:
+            continue
+        result[title] = final
+    return result
+
+
+def _validate_libraries(session: Session, library_ids: list[str]) -> list[CheckpointLibrary]:
+    if not library_ids:
+        return []
+    libraries = session.exec(
+        select(CheckpointLibrary).where(CheckpointLibrary.id.in_(library_ids))
+    ).all()
+    found_ids = {library.id for library in libraries}
+    missing_ids = set(library_ids) - found_ids
+    if missing_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=f"审核点库不存在: {', '.join(sorted(missing_ids))}",
+        )
+    return libraries
+
+
+def _add_library_items_in_session(
+    session: Session,
+    *,
+    library_ids: list[str],
+    checkpoint_ids: list[str],
+    actor: str = "system:import",
+) -> int:
+    if not library_ids or not checkpoint_ids:
+        return 0
+    existing_items = session.exec(
+        select(CheckpointLibraryItem).where(
+            CheckpointLibraryItem.library_id.in_(library_ids),
+            CheckpointLibraryItem.checkpoint_final_id.in_(checkpoint_ids),
+        )
+    ).all()
+    existing_pairs = {
+        (item.library_id, item.checkpoint_final_id) for item in existing_items
+    }
+    linked_count = 0
+    for library_id in library_ids:
+        for checkpoint_id in checkpoint_ids:
+            pair = (library_id, checkpoint_id)
+            if pair in existing_pairs:
+                continue
+            session.add(
+                CheckpointLibraryItem(
+                    library_id=library_id,
+                    checkpoint_final_id=checkpoint_id,
+                    added_by=actor,
+                )
+            )
+            existing_pairs.add(pair)
+            linked_count += 1
+    return linked_count
+
+
+@router.post("/import/preview")
+async def preview_import_checkpoints(
+    file: UploadFile = File(...),
+    library_ids: str | None = Form(None),
+):
+    """解析审查点表格并返回新增/复用预估，不写入数据库。"""
+    filename = file.filename or ""
+    checkpoints, skipped_reasons = _parse_checkpoint_upload(
+        filename=filename,
+        content=await file.read(),
+    )
+    parsed_library_ids = _parse_library_ids(library_ids)
+
     with get_db_session() as session:
+        _validate_libraries(session, parsed_library_ids)
+        existing_titles = set(_title_to_final(session))
+
+    seen_titles: set[str] = set()
+    created_count = 0
+    reused_count = 0
+    duplicate_count = 0
+    for cp in checkpoints:
+        title_key = cp.title.strip()
+        if not title_key:
+            skipped_reasons.append("审核点标题为空")
+            continue
+        if title_key in seen_titles:
+            duplicate_count += 1
+            skipped_reasons.append(f"审核点标题已存在，跳过导入：{title_key}")
+            continue
+        seen_titles.add(title_key)
+        if title_key in existing_titles and parsed_library_ids:
+            reused_count += 1
+        elif title_key in existing_titles:
+            duplicate_count += 1
+            skipped_reasons.append(f"审核点标题已存在，跳过导入：{title_key}")
+        else:
+            created_count += 1
+
+    return {
+        "parsed_count": len(checkpoints),
+        "created_count": created_count,
+        "reused_count": reused_count,
+        "duplicate_count": duplicate_count,
+        "skipped_count": len(skipped_reasons),
+        "skipped_reasons": skipped_reasons,
+    }
+
+
+@router.post("/import")
+async def import_checkpoints(
+    file: UploadFile = File(...),
+    library_ids: str | None = Form(None),
+):
+    """上传审查点表格（xls/xlsx/csv），批量写入审核点库。"""
+    filename = file.filename or ""
+    checkpoints, skipped_reasons = _parse_checkpoint_upload(
+        filename=filename,
+        content=await file.read(),
+    )
+    parsed_library_ids = _parse_library_ids(library_ids)
+
+    imported: list[dict[str, str | None]] = []
+    reused: list[dict[str, str | None]] = []
+    target_checkpoint_ids: list[str] = []
+    linked_count = 0
+    with get_db_session() as session:
+        _validate_libraries(session, parsed_library_ids)
         deduplicate_existing_checkpoints(session)
-        existing_titles = {
-            title
-            for final in session.exec(select(CheckpointFinal)).all()
-            if (title := _checkpoint_title_key(final.payload_json)) is not None
-        }
+        existing_by_title = _title_to_final(session)
+        seen_upload_titles: set[str] = set()
 
         for cp in checkpoints:
             title_key = cp.title.strip()
-            if title_key in existing_titles:
+            if not title_key:
+                skipped_reasons.append("审核点标题为空")
+                continue
+            if title_key in seen_upload_titles:
                 skipped_reasons.append(f"审核点标题已存在，跳过导入：{title_key}")
+                continue
+            seen_upload_titles.add(title_key)
+
+            existing_final = existing_by_title.get(title_key)
+            if existing_final is not None:
+                if parsed_library_ids:
+                    reused.append(_serialize_final(existing_final))
+                    target_checkpoint_ids.append(existing_final.id)
+                else:
+                    skipped_reasons.append(f"审核点标题已存在，跳过导入：{title_key}")
                 continue
 
             final = CheckpointFinal(
@@ -233,15 +419,24 @@ async def import_checkpoints(file: UploadFile = File(...)):
             )
             session.add(final)
             session.flush()
-            existing_titles.add(title_key)
+            existing_by_title[title_key] = final
+            target_checkpoint_ids.append(final.id)
             imported.append(_serialize_final(final))
+        linked_count = _add_library_items_in_session(
+            session,
+            library_ids=parsed_library_ids,
+            checkpoint_ids=target_checkpoint_ids,
+        )
         session.commit()
 
     return {
         "imported_count": len(imported),
+        "created_count": len(imported),
+        "reused_count": len(reused),
+        "linked_count": linked_count,
         "skipped_count": len(skipped_reasons),
         "skipped_reasons": skipped_reasons,
-        "checkpoints": imported,
+        "checkpoints": imported + reused,
     }
 
 
@@ -268,11 +463,40 @@ async def update_checkpoint(checkpoint_id: str, payload: UpdateCheckpointRequest
         raise HTTPException(status_code=404, detail="Checkpoint 不存在")
 
 
+@router.get("/{checkpoint_id}/libraries")
+async def get_checkpoint_libraries(checkpoint_id: str):
+    """查询审核点被关联到哪些库。"""
+    with get_db_session() as session:
+        final = session.get(CheckpointFinal, checkpoint_id)
+        if final is None:
+            raise HTTPException(status_code=404, detail="Checkpoint 不存在")
+        items = session.exec(
+            select(CheckpointLibraryItem).where(
+                CheckpointLibraryItem.checkpoint_final_id == checkpoint_id,
+            )
+        ).all()
+        library_ids = [item.library_id for item in items]
+        if not library_ids:
+            return []
+        libraries = session.exec(
+            select(CheckpointLibrary).where(CheckpointLibrary.id.in_(library_ids))
+        ).all()
+        return [{"id": lib.id, "name": lib.name} for lib in libraries]
+
+
 @router.delete("/{checkpoint_id}", status_code=204)
 async def delete_checkpoint(checkpoint_id: str) -> Response:
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
         if final is not None:
+            # 级联删除库内关联
+            items = session.exec(
+                select(CheckpointLibraryItem).where(
+                    CheckpointLibraryItem.checkpoint_final_id == checkpoint_id,
+                )
+            ).all()
+            for item in items:
+                session.delete(item)
             log_activity(
                 session,
                 actor="system",

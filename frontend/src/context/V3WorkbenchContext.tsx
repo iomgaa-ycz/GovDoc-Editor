@@ -13,6 +13,8 @@ import type {
   AuditRun,
   AuditRunProgress,
   CheckpointItem,
+  CheckpointImportResult,
+  CheckpointLibrary,
   GovCheckpointPayload,
   GovFinding,
   LogEntry,
@@ -43,6 +45,7 @@ export interface WorkbenchContextValue {
   // Checkpoints
   checkpoints: CheckpointItem[];
   finalCheckpoints: Array<CheckpointItem & { parsed: GovCheckpointPayload }>;
+  checkpointLibraries: CheckpointLibrary[];
 
   // Extraction
   extractingRuleSourceId: string | null;
@@ -69,6 +72,7 @@ export interface WorkbenchContextValue {
     mainDocumentId: string,
     supplementaryDocIds: string[],
     checkpointIds: string[],
+    checkpointLibraryId?: string | null,
   ) => Promise<{ audit_run_id: string }>;
   auditProgress: AuditRunProgress | null;
   logs: LogEntry[];
@@ -91,7 +95,27 @@ export interface WorkbenchContextValue {
   finalizeWorkpaper: (auditRunId: string) => Promise<void>;
 
   // Checkpoint import
-  importCheckpointFile: (file: File) => Promise<{ imported_count: number; skipped_count: number }>;
+  importCheckpointFile: (
+    file: File,
+    libraryIds?: string[],
+  ) => Promise<CheckpointImportResult>;
+
+  // Checkpoint libraries
+  createCheckpointLibrary: (name: string, description?: string) => Promise<CheckpointLibrary>;
+  addCheckpointsToLibraries: (
+    libraryIds: string[],
+    checkpointIds: string[],
+  ) => Promise<number>;
+  removeCheckpointsFromLibrary: (
+    libraryId: string,
+    checkpointIds: string[],
+  ) => Promise<number>;
+  updateCheckpointLibrary: (
+    id: string,
+    name: string,
+    description: string,
+  ) => Promise<void>;
+  deleteCheckpointLibrary: (id: string) => Promise<void>;
 
   // Checkpoint CRUD
   updateCheckpoint: (id: string, payload: GovCheckpointPayload) => Promise<void>;
@@ -104,10 +128,10 @@ export interface WorkbenchContextValue {
 // 导出以便测试用 MockWorkbenchProvider 直接注入；生产代码仍应通过 useWorkbench() 消费。
 export const WorkbenchContext = createContext<WorkbenchContextValue | null>(null);
 
-export function useWorkbench(): WorkbenchContextValue & Record<string, any> {
+export function useWorkbench(): WorkbenchContextValue {
   const ctx = useContext(WorkbenchContext);
   if (!ctx) throw new Error("useWorkbench must be used within WorkbenchProvider");
-  return ctx as WorkbenchContextValue & Record<string, any>;
+  return ctx;
 }
 
 // ── Provider ──
@@ -122,6 +146,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   // Checkpoints
   const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([]);
+  const [checkpointLibraries, setCheckpointLibraries] = useState<CheckpointLibrary[]>([]);
 
   // Extraction
   const [extractingRuleSourceId, setExtractingRuleSourceId] = useState<string | null>(null);
@@ -165,14 +190,16 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function refreshAll() {
     try {
-      const [sources, cps, projs, runs] = await Promise.all([
+      const [sources, cps, libraries, projs, runs] = await Promise.all([
         api.listRuleSources(),
         api.listCheckpoints(),
+        api.listCheckpointLibraries(),
         api.listProjects(),
         api.listAuditRuns(),
       ]);
       setRuleSources(sources);
       setCheckpoints(cps);
+      setCheckpointLibraries(libraries);
       setProjects(projs);
       setAuditRuns(runs);
       setApiConnected(true);
@@ -360,12 +387,14 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     mainDocumentId: string,
     supplementaryDocIds: string[],
     checkpointIds: string[],
+    checkpointLibraryId?: string | null,
   ) {
     const result = await api.createAuditRun(
       projectId,
       mainDocumentId,
       supplementaryDocIds,
       checkpointIds,
+      checkpointLibraryId,
     );
     // Add to auditRuns immediately
     setAuditRuns((prev) => [
@@ -374,6 +403,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         project_id: projectId,
         main_document_id: mainDocumentId,
         supplementary_doc_ids: supplementaryDocIds,
+        checkpoint_library_id: result.checkpoint_library_id ?? checkpointLibraryId ?? null,
+        checkpoint_library_name_snapshot: result.checkpoint_library_name_snapshot ?? null,
         status: "pending",
         processed_count: 0,
         total_count: result.total_count,
@@ -437,6 +468,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // ── Workpaper ──
 
   const wpRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalizePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadWorkpaper(auditRunId: string) {
     try {
@@ -478,21 +510,28 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   async function handleFinalizeWorkpaper(auditRunId: string) {
     setFinalizeStatus("finalizing");
+    // 清理上一次可能残留的轮询
+    if (finalizePollRef.current) {
+      clearInterval(finalizePollRef.current);
+      finalizePollRef.current = null;
+    }
     try {
       await api.finalizeWorkpaper(auditRunId, "admin");
-      // Poll until the audit run reaches "finalized"
-      const pollFinalize = setInterval(async () => {
+      finalizePollRef.current = setInterval(async () => {
         try {
           const progress = await api.getAuditRunProgress(auditRunId);
           if (progress.status === "finalized") {
-            clearInterval(pollFinalize);
+            clearInterval(finalizePollRef.current!);
+            finalizePollRef.current = null;
             setFinalizeStatus("finalized");
           } else if (progress.status === "failed") {
-            clearInterval(pollFinalize);
+            clearInterval(finalizePollRef.current!);
+            finalizePollRef.current = null;
             setFinalizeStatus("error");
           }
         } catch {
-          clearInterval(pollFinalize);
+          clearInterval(finalizePollRef.current!);
+          finalizePollRef.current = null;
           setFinalizeStatus("error");
         }
       }, 2000);
@@ -513,10 +552,55 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     await refreshAll();
   }
 
-  async function handleImportCheckpointFile(file: File) {
-    const result = await api.importCheckpoints(file);
+  async function handleImportCheckpointFile(file: File, libraryIds: string[] = []) {
+    const result = await api.importCheckpoints(file, libraryIds);
     await refreshAll();
-    return { imported_count: result.imported_count, skipped_count: result.skipped_count };
+    return result;
+  }
+
+  async function handleCreateCheckpointLibrary(name: string, description = "") {
+    const library = await api.createCheckpointLibrary(name, description);
+    setCheckpointLibraries((prev) => [
+      library,
+      ...prev.filter((item) => item.id !== library.id),
+    ]);
+    return library;
+  }
+
+  async function handleAddCheckpointsToLibraries(
+    libraryIds: string[],
+    checkpointIds: string[],
+  ) {
+    const result = await api.addCheckpointsToLibraries(libraryIds, checkpointIds);
+    setCheckpointLibraries(await api.listCheckpointLibraries());
+    return result.added_count;
+  }
+
+  async function handleRemoveCheckpointsFromLibrary(
+    libraryId: string,
+    checkpointIds: string[],
+  ) {
+    const result = await api.removeCheckpointsFromLibrary(libraryId, checkpointIds);
+    setCheckpointLibraries(await api.listCheckpointLibraries());
+    return result.removed_count;
+  }
+
+  async function handleUpdateCheckpointLibrary(
+    id: string,
+    name: string,
+    description: string,
+  ) {
+    await api.updateCheckpointLibrary(id, name, description);
+    setCheckpointLibraries((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, name, description } : item,
+      ),
+    );
+  }
+
+  async function handleDeleteCheckpointLibrary(id: string) {
+    await api.deleteCheckpointLibrary(id);
+    setCheckpointLibraries((prev) => prev.filter((item) => item.id !== id));
   }
 
   // ── Context value ──
@@ -529,6 +613,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setSelectedRuleSourceId,
     checkpoints,
     finalCheckpoints,
+    checkpointLibraries,
     extractingRuleSourceId,
     extractStatus,
     extractError,
@@ -561,10 +646,24 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     saveWorkpaper,
     finalizeWorkpaper: handleFinalizeWorkpaper,
     importCheckpointFile: handleImportCheckpointFile,
+    createCheckpointLibrary: handleCreateCheckpointLibrary,
+    addCheckpointsToLibraries: handleAddCheckpointsToLibraries,
+    removeCheckpointsFromLibrary: handleRemoveCheckpointsFromLibrary,
+    updateCheckpointLibrary: handleUpdateCheckpointLibrary,
+    deleteCheckpointLibrary: handleDeleteCheckpointLibrary,
     updateCheckpoint: handleUpdateCheckpoint,
     deleteCheckpoint: handleDeleteCheckpoint,
     refreshAll,
   };
+
+  // 组件卸载时清理所有轮询定时器
+  useEffect(() => {
+    return () => {
+      if (finalizePollRef.current) clearInterval(finalizePollRef.current);
+      if (progressRef.current) clearInterval(progressRef.current);
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   return (
     <WorkbenchContext.Provider value={value}>

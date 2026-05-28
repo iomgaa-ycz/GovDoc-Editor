@@ -164,6 +164,16 @@
       "id": "plan:compare-lazy-load",
       "label": "文档对比分层加载与前端重构实施计划",
       "type": "plan"
+    },
+    {
+      "id": "design:scrivai-0.2.3-converter-upgrade",
+      "label": "Scrivai 0.2.3 MarkdownConverter 升级设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:scrivai-0.2.3-converter-upgrade",
+      "label": "Scrivai 0.2.3 MarkdownConverter 升级实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -236,6 +246,13 @@
       "relation": "implements",
       "evidence": "实施计划基于 compare-lazy-load 设计文档",
       "added": "2026-05-27T03:30:17.479290+00:00"
+    },
+    {
+      "source": "plan:scrivai-0.2.3-converter-upgrade",
+      "target": "design:scrivai-0.2.3-converter-upgrade",
+      "relation": "implements",
+      "evidence": "实施计划基于设计文档 2026-05-28-scrivai-0.2.3-converter-upgrade-design.md",
+      "added": "2026-05-28T09:02:27.765031+00:00"
     }
   ]
 }

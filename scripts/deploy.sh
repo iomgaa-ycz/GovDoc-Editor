@@ -163,8 +163,9 @@ deploy_backend() {
     ssh "$BACKEND_HOST" "
         tmux new-session -d -s ${tmux_name} \"
             eval \\\"\\\$(\\\$HOME/miniconda3/bin/conda shell.bash hook)\\\" && conda activate govdoc-auditor-v3 && \
-            export no_proxy=110.42.53.85,100.81.95.44,localhost,127.0.0.1 && export NO_PROXY=\\\$no_proxy && \
+            export no_proxy=110.42.53.85,100.81.95.44,100.83.164.94,localhost,127.0.0.1 && export NO_PROXY=\\\$no_proxy && \
             export CUDA_VISIBLE_DEVICES=0 && \
+            export HF_HUB_OFFLINE=1 && \
             cd ~/Project/${dir} && \
             uvicorn govdoc.api.main:app --host 0.0.0.0 --port ${port} 2>&1 | tee ${log_path}; \
             echo === ${tmux_name} STOPPED ===; sleep 86400
