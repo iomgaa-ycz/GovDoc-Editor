@@ -33,6 +33,7 @@ vendor/
 node_modules/
 frontend/dist/
 *.tsbuildinfo
+frontend/vite.config.ts
 
 # 前端测试产物
 frontend/coverage/
