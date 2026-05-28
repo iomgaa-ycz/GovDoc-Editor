@@ -1,7 +1,21 @@
 app:
   storage_root: ./data/storage
   database_url: sqlite:///./data/app.sqlite
-  ocr_backend: glm
+  converter:
+    mode: api
+    dispatch: fallback
+    api_backends: [monkey, glm]
+    monkey_endpoints:
+      - "http://100.83.164.94:7866"
+      - "http://100.83.164.94:7867"
+    concurrency_per_group:
+      monkey: 3
+      glm: 1
+    max_failures:
+      monkey: 3
+    timeout: 600
+    chunk_pages: 50
+    overlap_pages: 2
 
 model:
   model: glm-5.1
@@ -35,5 +49,5 @@ compare:
   max_files: null
   min_segment_length: 16
   pdf_timeout_s: 7200
-  ocr_backend: glm
+  simhash_threshold: 10
   max_concurrent: 1
