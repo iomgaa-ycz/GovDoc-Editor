@@ -228,8 +228,8 @@ describe("createAuditRun() — checkpoint_library_id", () => {
 
     expect(capturedBody).toEqual({
       project_id: "p1",
-      tender_doc_id: "td1",
-      supplementary_doc_ids: [],
+      main_document_id: "td1",
+      supplementary_document_ids: [],
       checkpoint_ids: [],
       checkpoint_library_id: "lib-1",
     });
