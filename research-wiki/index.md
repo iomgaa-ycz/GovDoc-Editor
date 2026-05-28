@@ -1,16 +1,18 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-27 03:30 UTC
+> 自动生成，更新时间：2026-05-28 08:59 UTC
 
-## design (19)
+## design (21)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
+- [2026-05-28-scrivai-0.2.3-converter-upgrade-design](designs/2026-05-28-scrivai-0.2.3-converter-upgrade-design.md) `design:2026-05-28-scrivai-0.2.3-converter-upgrade-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
 - [L2 Harness Manifest 修正——指向原始招标文件](designs/2026-05-16-harness-manifest-fix-design.md) `design:2026-05-16-harness-manifest-fix-design`
 - [N 文件对比 + PDF 支持设计](designs/compare-nfile-pdf.md) `design:compare-nfile-pdf`
+- [Scrivai 0.2.3 MarkdownConverter 升级设计](designs/scrivai-0.2.3-converter-upgrade.md) `design:scrivai-0.2.3-converter-upgrade`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
