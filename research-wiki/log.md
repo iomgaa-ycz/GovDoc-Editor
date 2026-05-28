@@ -83,3 +83,6 @@
 - [2026-05-27 03:30 UTC] 重建索引: 107 篇页面
 - [2026-05-28 08:59 UTC] 新增 design: Scrivai 0.2.3 MarkdownConverter 升级设计 (design:scrivai-0.2.3-converter-upgrade)
 - [2026-05-28 08:59 UTC] 重建索引: 109 篇页面
+- [2026-05-28 09:02 UTC] 新增 plan: Scrivai 0.2.3 MarkdownConverter 升级实施计划 (plan:scrivai-0.2.3-converter-upgrade)
+- [2026-05-28 09:02 UTC] 新增边: plan:scrivai-0.2.3-converter-upgrade --implements--> design:scrivai-0.2.3-converter-upgrade
+- [2026-05-28 09:02 UTC] 重建索引: 111 篇页面
