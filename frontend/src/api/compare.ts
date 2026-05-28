@@ -122,12 +122,11 @@ function resolveBaseUrl(): string {
   return import.meta.env.VITE_GOVDOC_API_BASE_URL || "";
 }
 
-export function compareFiles(files: File[]): Promise<CompareSubmitResponse> {
-  const form = new FormData();
-  files.forEach((file) => form.append("files", file));
+export async function compareDocuments(documentIds: string[]): Promise<CompareSubmitResponse> {
   return request("/api/v1/compare", {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_ids: documentIds }),
   });
 }
 
@@ -145,4 +144,78 @@ export function listCompareRuns(): Promise<CompareRunStatus[]> {
 
 export function buildCompareDownloadUrl(path: string): string {
   return `${resolveBaseUrl()}${path}`;
+}
+
+// --- 分层加载类型 ---
+
+export interface MatchSummaryItem {
+  id: string;
+  category: CompareCategoryId;
+  label: string;
+  color: string;
+  length: number;
+  fileIndices: number[];
+  occurrenceCount: number;
+  preview: string;
+  similarity: number | null;
+}
+
+export interface MatchPagination {
+  category: CompareCategoryId;
+  page: number;
+  pageSize: number;
+  totalInCategory: number;
+  totalPages: number;
+  categoryCounts: Record<string, number>;
+}
+
+export interface CompareSummaryResponse {
+  reviewId: string;
+  summary: CompareSummary;
+  matches: MatchSummaryItem[];
+  matchPagination: MatchPagination;
+  categories: CompareCategory[];
+  downloads: { files: Record<string, string> };
+  artifacts: { reviewDir: string; downloadNames: Record<string, string> };
+}
+
+export interface FileContext {
+  fileIndex: number;
+  name: string;
+  totalBlocks: number;
+  matchBlockIndex: number;
+  blocks: CompareDocumentBlock[];
+}
+
+export interface CompareContextResponse {
+  match: MatchSummaryItem & { text?: string };
+  fileContexts: FileContext[];
+}
+
+// --- 分层加载 API ---
+
+export function getCompareSummary(
+  reviewId: string,
+  category?: CompareCategoryId,
+  page = 1,
+  pageSize = 100,
+): Promise<CompareSummaryResponse> {
+  const cat = category || "paragraph";
+  return request(
+    `/api/v1/compare/${reviewId}/summary?category=${cat}&page=${page}&page_size=${pageSize}`,
+  );
+}
+
+export function getCompareContext(
+  reviewId: string,
+  matchId: string,
+  surrounding = 3,
+): Promise<CompareContextResponse> {
+  return request(
+    `/api/v1/compare/${reviewId}/context?matchId=${encodeURIComponent(matchId)}&surrounding=${surrounding}`,
+  );
+}
+
+export function retryCompareRun(reviewId: string): Promise<CompareSubmitResponse> {
+  return request(`/api/v1/compare/${reviewId}/retry`, { method: "POST" });
 }

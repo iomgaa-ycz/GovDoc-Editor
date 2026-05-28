@@ -6,14 +6,13 @@ import { listAuditRuns } from "@/api/v3";
 import { EmptyState } from "@/components/EmptyState";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { AIReviewDrawer } from "@/pages/AIReviewDrawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { AuditRun } from "@/types/ui";
-
-import { AIReviewDrawer } from "./AIReviewDrawer";
 
 const RUNNING_STATUSES = new Set(["pending", "running", "waiting_retry", "partial_ready"]);
 const COMPLETED_STATUSES = new Set(["completed", "draft_ready", "finalized"]);
@@ -39,7 +38,7 @@ function runTitle(run: AuditRun): string {
 }
 
 function runDocLabel(run: AuditRun): string {
-  return `文书 ${run.tender_doc_id.slice(0, 8)}`;
+  return `文书 ${run.main_document_id.slice(0, 8)}`;
 }
 
 export function AIReviewHubPage() {

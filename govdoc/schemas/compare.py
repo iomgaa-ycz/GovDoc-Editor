@@ -164,3 +164,46 @@ class CompareRunStatus(CompareModel):
     error: str | None = None
     created_at: str
     completed_at: str | None = None
+
+
+class MatchSummaryItem(CompareModel):
+    """摘要中的匹配项（无完整 text，只有 preview）。"""
+
+    id: str
+    category: CompareCategoryId
+    label: str
+    color: str
+    length: int
+    file_indices: list[int]
+    occurrence_count: int
+    preview: str
+    text: str | None = None
+    similarity: float | None = None
+
+
+class CompareSummaryResponse(CompareModel):
+    """分层加载摘要响应（不含 documents）。"""
+
+    review_id: str
+    summary: CompareSummary
+    matches: list[MatchSummaryItem]
+    categories: list[CompareCategory]
+    downloads: CompareDownloads
+    artifacts: CompareArtifacts
+
+
+class FileContext(CompareModel):
+    """单个文件的匹配上下文。"""
+
+    file_index: int
+    name: str
+    total_blocks: int
+    match_block_index: int
+    blocks: list[CompareDocumentBlock]
+
+
+class CompareContextResponse(CompareModel):
+    """按需加载的匹配上下文响应。"""
+
+    match: MatchSummaryItem
+    file_contexts: list[FileContext]

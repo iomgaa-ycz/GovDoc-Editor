@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -626,14 +627,24 @@ def _clean_harness_state(session: Any) -> None:
         ExtractRun,
         Project,
         RuleSource,
-        TenderDoc,
+        Document,
         WorkpaperDraft,
     )
 
     harness_projects = session.exec(select(Project).where(Project.created_by == "harness")).all()
     for proj in harness_projects:
         audit_runs = session.exec(select(AuditRun).where(AuditRun.project_id == proj.id)).all()
+        document_ids: set[str] = set()
         for ar in audit_runs:
+            document_ids.add(ar.main_document_id)
+            try:
+                supplementary_doc_ids = json.loads(ar.supplementary_doc_ids or "[]")
+            except json.JSONDecodeError:
+                supplementary_doc_ids = []
+            if isinstance(supplementary_doc_ids, list):
+                document_ids.update(
+                    doc_id for doc_id in supplementary_doc_ids if isinstance(doc_id, str)
+                )
             for apr in session.exec(
                 select(AuditPointRun).where(AuditPointRun.audit_run_id == ar.id)
             ).all():
@@ -643,8 +654,10 @@ def _clean_harness_state(session: Any) -> None:
             ).all():
                 session.delete(wd)
             session.delete(ar)
-        for td in session.exec(select(TenderDoc).where(TenderDoc.project_id == proj.id)).all():
-            session.delete(td)
+        for document_id in document_ids:
+            document = session.get(Document, document_id)
+            if document is not None:
+                session.delete(document)
         session.delete(proj)
 
     for rs in session.exec(
@@ -682,7 +695,7 @@ def _ensure_rule_source(rule: Any, session: Any) -> str:
 
 def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
     """确保审核运行已创建（含金标准审核点导入 + AuditPointRun），返回 audit_run_id。"""
-    from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
+    from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Document, Project
     from govdoc.parsers.checkpoint_import import parse_checkpoint_file
     from govdoc.storage.files import DocumentStore
     from govdoc.runtime import get_config
@@ -700,12 +713,14 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
     if warnings_stack:
         logger.warning("文书转换警告: %s", warnings_stack)
 
-    tender_doc = TenderDoc(
-        project_id=project.id,
+    content = tender_path.read_bytes()
+    tender_doc = Document(
         filename=tender_path.name,
-        storage_path=str(tender_path),
+        file_type=tender_path.suffix.lower().lstrip(".") or "unknown",
+        file_size=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        raw_path=str(tender_path),
         markdown_path=str(md_path),
-        qmd_collection="",
     )
     session.add(tender_doc)
     session.commit()
@@ -739,7 +754,7 @@ def _ensure_audit_run(proj: Any, session: Any, manifest: Any) -> str:
 
     audit_run = AuditRun(
         project_id=project.id,
-        tender_doc_id=tender_doc.id,
+        main_document_id=tender_doc.id,
         checkpoint_final_ids=json.dumps(cp_ids),
         total_count=len(cp_ids),
         status="pending",

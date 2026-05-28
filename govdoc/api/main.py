@@ -21,12 +21,15 @@ from fastapi.responses import JSONResponse
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.routes.audit import router as audit_router
+from govdoc.api.routes.checkpoint_libraries import router as checkpoint_libraries_router
 from govdoc.api.routes.checkpoints import router as checkpoints_router
 from govdoc.api.routes.compare import router as compare_router
 from govdoc.api.routes.comments import router as comments_router
 from govdoc.api.routes.dashboard import router as dashboard_router
+from govdoc.api.routes.documents import router as documents_router
 from govdoc.api.routes.projects import router as projects_router
 from govdoc.api.routes.rules import router as rules_router
+from govdoc.api.routes.tags import router as tags_router
 from govdoc.api.routes.workpapers import router as workpapers_router
 from govdoc.db.session import init_db
 
@@ -118,11 +121,14 @@ def create_app() -> FastAPI:
     app.include_router(projects_router)
     app.include_router(rules_router)
     app.include_router(checkpoints_router)
+    app.include_router(checkpoint_libraries_router)
     app.include_router(audit_router)
     app.include_router(workpapers_router)
     app.include_router(compare_router)
     app.include_router(comments_router)
     app.include_router(dashboard_router)
+    app.include_router(documents_router)
+    app.include_router(tags_router)
     return app
 
 

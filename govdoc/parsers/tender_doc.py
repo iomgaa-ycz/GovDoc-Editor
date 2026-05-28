@@ -1,4 +1,4 @@
-"""TenderDocParser.
+"""DocumentParser.
 
 设计基线：`docs/design.md` §6 / `docs/TD.md` T0.10。
 """

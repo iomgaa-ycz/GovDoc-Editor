@@ -2,12 +2,15 @@ import type {
   AuditRun,
   AuditRunProgress,
   CheckpointItem,
+  CheckpointImportPreview,
+  CheckpointImportResult,
+  CheckpointLibrary,
+  CheckpointLibraryDetail,
   Comment,
   DashboardStats,
   Project,
   RuleSource,
   RuleUploadResult,
-  TenderDoc,
   WorkpaperDraft,
 } from "../types/ui";
 
@@ -54,24 +57,6 @@ export function createProject(name: string, createdBy: string): Promise<Project>
 
 export function getProject(id: string): Promise<Project> {
   return request(`/api/v1/projects/${id}`);
-}
-
-export function uploadTenderDoc(
-  projectId: string,
-  file: File,
-): Promise<TenderDoc> {
-  const form = new FormData();
-  form.append("file", file);
-  return request(`/api/v1/projects/${projectId}/tender-doc`, {
-    method: "POST",
-    body: form,
-  });
-}
-
-export function listTenderDocs(
-  projectId: string,
-): Promise<TenderDoc[]> {
-  return request(`/api/v1/projects/${projectId}/tender-docs`);
 }
 
 /* ── Rules ── */
@@ -125,23 +110,110 @@ export function updateCheckpoint(
   });
 }
 
+export function getCheckpointLibraries(
+  id: string,
+): Promise<{ id: string; name: string }[]> {
+  return request(`/api/v1/checkpoints/${id}/libraries`);
+}
+
 export function deleteCheckpoint(id: string): Promise<void> {
   return request(`/api/v1/checkpoints/${id}`, { method: "DELETE" });
 }
 
 export function importCheckpoints(
   file: File,
-): Promise<{
-  imported_count: number;
-  skipped_count: number;
-  skipped_reasons: string[];
-  checkpoints: CheckpointItem[];
-}> {
+  libraryIds: string[] = [],
+): Promise<CheckpointImportResult> {
   const form = new FormData();
   form.append("file", file);
+  if (libraryIds.length > 0) {
+    form.append("library_ids", JSON.stringify(libraryIds));
+  }
   return request("/api/v1/checkpoints/import", {
     method: "POST",
     body: form,
+  });
+}
+
+export function previewCheckpointImport(
+  file: File,
+  libraryIds: string[] = [],
+): Promise<CheckpointImportPreview> {
+  const form = new FormData();
+  form.append("file", file);
+  if (libraryIds.length > 0) {
+    form.append("library_ids", JSON.stringify(libraryIds));
+  }
+  return request("/api/v1/checkpoints/import/preview", {
+    method: "POST",
+    body: form,
+  });
+}
+
+/* ── Checkpoint libraries ── */
+
+export function listCheckpointLibraries(): Promise<CheckpointLibrary[]> {
+  return request("/api/v1/checkpoint-libraries");
+}
+
+export function createCheckpointLibrary(
+  name: string,
+  description = "",
+  createdBy = "system",
+): Promise<CheckpointLibrary> {
+  return request("/api/v1/checkpoint-libraries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      description: description || null,
+      created_by: createdBy,
+    }),
+  });
+}
+
+export function getCheckpointLibrary(id: string): Promise<CheckpointLibraryDetail> {
+  return request(`/api/v1/checkpoint-libraries/${id}`);
+}
+
+export function updateCheckpointLibrary(
+  id: string,
+  name: string,
+  description = "",
+): Promise<CheckpointLibrary> {
+  return request(`/api/v1/checkpoint-libraries/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description: description || null }),
+  });
+}
+
+export function deleteCheckpointLibrary(id: string): Promise<void> {
+  return request(`/api/v1/checkpoint-libraries/${id}`, { method: "DELETE" });
+}
+
+export function addCheckpointsToLibraries(
+  libraryIds: string[],
+  checkpointIds: string[],
+): Promise<{ library_ids: string[]; checkpoint_ids: string[]; added_count: number }> {
+  return request("/api/v1/checkpoint-libraries/batch-add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      library_ids: libraryIds,
+      checkpoint_ids: checkpointIds,
+    }),
+  });
+}
+
+export function removeCheckpointsFromLibrary(
+  libraryId: string,
+  checkpointIds: string[],
+): Promise<{ library_id: string; removed_count: number }> {
+  return request(`/api/v1/checkpoint-libraries/${libraryId}/checkpoints/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checkpoint_ids: checkpointIds }),
   });
 }
 
@@ -154,18 +226,27 @@ export function listAuditRuns(projectId?: string): Promise<AuditRun[]> {
 
 export function createAuditRun(
   projectId: string,
-  tenderDocId: string,
-  supplementaryDocIds: string[],
+  mainDocumentId: string,
+  supplementaryDocumentIds: string[],
   checkpointIds: string[],
-): Promise<{ audit_run_id: string; total_count: number; status: string }> {
+  checkpointLibraryId?: string | null,
+): Promise<{
+  audit_run_id: string;
+  total_count: number;
+  status: string;
+  checkpoint_library_id?: string | null;
+  checkpoint_library_name_snapshot?: string | null;
+  skipped_deleted_count?: number;
+}> {
   return request("/api/v1/audit/runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       project_id: projectId,
-      tender_doc_id: tenderDocId,
-      supplementary_doc_ids: supplementaryDocIds,
+      main_document_id: mainDocumentId,
+      supplementary_document_ids: supplementaryDocumentIds,
       checkpoint_ids: checkpointIds,
+      checkpoint_library_id: checkpointLibraryId || null,
     }),
   });
 }

@@ -205,10 +205,10 @@ def _extract_pdf_paragraphs(path: Path) -> list[str]:
     """通过对比专用 DocumentStore 把 PDF 转换为 Markdown 段落。"""
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-    from govdoc.runtime import get_compare_document_store, get_config
+    from govdoc.runtime import get_config, get_document_store
 
     timeout = get_config().compare.pdf_timeout_s
-    store = get_compare_document_store()
+    store = get_document_store()
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         try:
@@ -221,14 +221,19 @@ def _extract_pdf_paragraphs(path: Path) -> list[str]:
 
 
 def _build_document_model(file_index: int, file_name: str, path: Path) -> DocumentModel:
-    """把 DOCX/PDF 段落转换为带全文偏移的内部文档模型。"""
-    suffix = _ensure_supported_suffix(file_name)
-    if suffix == ".docx":
-        paragraphs = extract_docx_paragraphs(path)
-    elif suffix == ".pdf":
-        paragraphs = _extract_pdf_paragraphs(path)
+    """把 DOCX/PDF/MD 段落转换为带全文偏移的内部文档模型。"""
+    actual_suffix = path.suffix.lower()
+    if actual_suffix == ".md":
+        paragraphs = extract_markdown_paragraphs(path.read_text(encoding="utf-8"))
+        suffix = Path(file_name).suffix.lower() or ".md"
     else:
-        raise ValueError(f"不支持的文件格式: {suffix}")
+        suffix = _ensure_supported_suffix(file_name)
+        if suffix == ".docx":
+            paragraphs = extract_docx_paragraphs(path)
+        elif suffix == ".pdf":
+            paragraphs = _extract_pdf_paragraphs(path)
+        else:
+            raise ValueError(f"不支持的文件格式: {suffix}")
 
     blocks: list[TextBlock] = []
     cursor = 0
@@ -857,6 +862,10 @@ def _build_compare_response(
         json.dumps(payload.model_dump(mode="json", by_alias=True), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    from govdoc.compare.splitter import split_compare_response
+    split_compare_response(payload, review_dir)
+
     return payload
 
 
@@ -877,8 +886,12 @@ def create_compare_bundle(
 
     stored_files: list[tuple[Path, str]] = []
     for file_index, (source_path, source_name) in enumerate(files):
-        _ensure_supported_suffix(source_name)
+        actual_suffix = source_path.suffix.lower()
+        if actual_suffix != ".md":
+            _ensure_supported_suffix(source_name)
         stored_path = uploads_dir / f"file_{file_index}_{_sanitize_filename(source_name)}"
+        if actual_suffix == ".md":
+            stored_path = stored_path.with_suffix(".md")
         shutil.copy2(source_path, stored_path)
         stored_files.append((stored_path, source_name))
 

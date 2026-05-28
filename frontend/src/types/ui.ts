@@ -59,6 +59,49 @@ export interface CheckpointItem {
   approved_by: string | null;
 }
 
+export interface CheckpointLibrary {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  checkpoint_count: number;
+  deleted_checkpoint_count: number;
+}
+
+export interface CheckpointLibraryMember {
+  id: string;
+  library_id: string;
+  checkpoint_final_id: string;
+  checkpoint: CheckpointItem | null;
+  deleted: boolean;
+  added_by: string;
+  added_at: string;
+}
+
+export interface CheckpointLibraryDetail extends CheckpointLibrary {
+  checkpoints: CheckpointLibraryMember[];
+}
+
+export interface CheckpointImportPreview {
+  parsed_count: number;
+  created_count: number;
+  reused_count: number;
+  duplicate_count: number;
+  skipped_count: number;
+  skipped_reasons: string[];
+}
+
+export interface CheckpointImportResult {
+  imported_count: number;
+  created_count: number;
+  reused_count: number;
+  linked_count: number;
+  skipped_count: number;
+  skipped_reasons: string[];
+  checkpoints: CheckpointItem[];
+}
+
 // ── Findings ──
 
 export interface GovFindingVerdict {
@@ -121,20 +164,14 @@ export interface Project {
   created_by: string;
 }
 
-export interface TenderDoc {
-  id: string;
-  project_id: string;
-  filename: string;
-  markdown_path: string;
-  warnings?: string[];
-}
-
 export interface AuditRun {
   id: string;
   project_id: string;
   project_name?: string;
-  tender_doc_id: string;
+  main_document_id: string;
   supplementary_doc_ids?: string[];
+  checkpoint_library_id?: string | null;
+  checkpoint_library_name_snapshot?: string | null;
   status: AuditRunStatus;
   processed_count: number;
   total_count: number;
@@ -218,4 +255,34 @@ export interface RecentProject {
   point_count: number;
   issue_count: number;
   last_active: string;
+}
+
+export type DocumentStatus = "uploading" | "converting" | "ready" | "failed";
+
+export interface DocumentTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface GovDocument {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  sha256: string;
+  raw_path: string;
+  markdown_path: string | null;
+  status: DocumentStatus;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  tags: DocumentTag[];
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
 }

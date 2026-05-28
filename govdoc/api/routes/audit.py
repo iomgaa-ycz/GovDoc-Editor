@@ -6,12 +6,20 @@ import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
 from govdoc.api.schemas import AuditRunProgressResponse, CreateAuditRunRequest
-from govdoc.db.models import AuditPointRun, AuditRun, CheckpointFinal, Project, TenderDoc
+from govdoc.db.models import (
+    AuditPointRun,
+    AuditRun,
+    CheckpointFinal,
+    CheckpointLibrary,
+    CheckpointLibraryItem,
+    Document,
+    Project,
+)
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
 logger = logging.getLogger(__name__)
@@ -31,44 +39,88 @@ def _load_supplementary_doc_ids(raw: str | None) -> list[str]:
     return value if isinstance(value, list) else []
 
 
+def _resolve_checkpoint_ids_from_library(
+    session: "Session",
+    library_id: str,
+) -> tuple[CheckpointLibrary, list[str], int]:
+    """从审核点库解析出有效审核点 ID 列表，跳过已删除的审核点。"""
+    library = session.get(CheckpointLibrary, library_id)
+    if library is None:
+        raise HTTPException(status_code=400, detail=f"审核点库不存在: {library_id}")
+
+    items = session.exec(
+        select(CheckpointLibraryItem).where(CheckpointLibraryItem.library_id == library_id)
+    ).all()
+    all_cp_ids = [item.checkpoint_final_id for item in items]
+    if not all_cp_ids:
+        raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")
+
+    existing_ids = set(
+        session.exec(
+            select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))
+        ).all()
+    )
+
+    checkpoint_ids = [cp_id for cp_id in all_cp_ids if cp_id in existing_ids]
+    skipped_deleted_count = len(all_cp_ids) - len(checkpoint_ids)
+
+    if not checkpoint_ids:
+        raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")
+    return library, checkpoint_ids, skipped_deleted_count
+
+
 @router.post("/runs", status_code=202)
 async def create_audit_run(
     payload: CreateAuditRunRequest,
     background_tasks: BackgroundTasks,
 ):
     with get_db_session() as session:
-        main_doc = session.get(TenderDoc, payload.tender_doc_id)
-        if main_doc is None or main_doc.project_id != payload.project_id:
-            raise HTTPException(status_code=400, detail="主文书不存在或不属于该项目")
+        main_doc = session.get(Document, payload.main_document_id)
+        if main_doc is None:
+            raise HTTPException(status_code=400, detail="主文书不存在")
 
-        seen = {payload.tender_doc_id}
+        seen = {payload.main_document_id}
         supplementary_doc_ids: list[str] = []
-        for doc_id in payload.supplementary_doc_ids:
+        for doc_id in payload.supplementary_document_ids:
             if doc_id in seen:
                 raise HTTPException(
                     status_code=400,
                     detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
                 )
-            doc = session.get(TenderDoc, doc_id)
-            if doc is None or doc.project_id != payload.project_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"附件不存在或不属于该项目: {doc_id}",
-                )
+            doc = session.get(Document, doc_id)
+            if doc is None:
+                raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
             seen.add(doc_id)
             supplementary_doc_ids.append(doc_id)
 
-        for cp_id in payload.checkpoint_ids:
+        checkpoint_ids = list(payload.checkpoint_ids)
+        source_library: CheckpointLibrary | None = None
+        skipped_deleted_count = 0
+        if payload.checkpoint_library_id:
+            if checkpoint_ids:
+                raise HTTPException(status_code=400, detail="checkpoint_ids 与 checkpoint_library_id 不能同时传")
+            source_library, checkpoint_ids, skipped_deleted_count = (
+                _resolve_checkpoint_ids_from_library(
+                    session,
+                    payload.checkpoint_library_id,
+                )
+            )
+        elif not checkpoint_ids:
+            raise HTTPException(status_code=400, detail="至少需要选择一个审核点或审核点库")
+
+        for cp_id in checkpoint_ids:
             cp = session.get(CheckpointFinal, cp_id)
             if cp is None:
                 raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
 
         audit_run = AuditRun(
             project_id=payload.project_id,
-            tender_doc_id=payload.tender_doc_id,
+            main_document_id=payload.main_document_id,
             supplementary_doc_ids=json.dumps(supplementary_doc_ids, ensure_ascii=False),
-            checkpoint_final_ids=json.dumps(payload.checkpoint_ids, ensure_ascii=False),
-            total_count=len(payload.checkpoint_ids),
+            checkpoint_final_ids=json.dumps(checkpoint_ids, ensure_ascii=False),
+            checkpoint_library_id=source_library.id if source_library else None,
+            checkpoint_library_name_snapshot=source_library.name if source_library else None,
+            total_count=len(checkpoint_ids),
         )
         session.add(audit_run)
         if hasattr(audit_run, "created_by"):
@@ -81,13 +133,14 @@ async def create_audit_run(
             target_id=audit_run.id,
             after={
                 "project_id": payload.project_id,
-                "tender_doc_id": payload.tender_doc_id,
+                "main_document_id": payload.main_document_id,
+                "checkpoint_library_id": source_library.id if source_library else None,
             },
         )
         session.commit()
         session.refresh(audit_run)
 
-        for cp_id in payload.checkpoint_ids:
+        for cp_id in checkpoint_ids:
             point_run = AuditPointRun(
                 audit_run_id=audit_run.id,
                 checkpoint_final_id=cp_id,
@@ -99,6 +152,9 @@ async def create_audit_run(
             "audit_run_id": audit_run.id,
             "total_count": audit_run.total_count,
             "status": audit_run.status,
+            "checkpoint_library_id": audit_run.checkpoint_library_id,
+            "checkpoint_library_name_snapshot": audit_run.checkpoint_library_name_snapshot,
+            "skipped_deleted_count": skipped_deleted_count,
         }
 
     from govdoc.pipelines.audit_tender import run_audit
@@ -150,8 +206,11 @@ async def list_audit_runs(project_id: str | None = None):
                 "id": r.id,
                 "project_id": r.project_id,
                 "project_name": project_names.get(r.project_id, ""),
-                "tender_doc_id": r.tender_doc_id,
+                "main_document_id": r.main_document_id,
+                "tender_doc_id": r.main_document_id,
                 "supplementary_doc_ids": _load_supplementary_doc_ids(r.supplementary_doc_ids),
+                "checkpoint_library_id": r.checkpoint_library_id,
+                "checkpoint_library_name_snapshot": r.checkpoint_library_name_snapshot,
                 "status": r.status,
                 "processed_count": r.processed_count,
                 "total_count": r.total_count,
@@ -173,8 +232,11 @@ async def get_audit_run(audit_run_id: str):
             "id": run.id,
             "project_id": run.project_id,
             "project_name": project.name if project else "",
-            "tender_doc_id": run.tender_doc_id,
+            "main_document_id": run.main_document_id,
+            "tender_doc_id": run.main_document_id,
             "supplementary_doc_ids": _load_supplementary_doc_ids(run.supplementary_doc_ids),
+            "checkpoint_library_id": run.checkpoint_library_id,
+            "checkpoint_library_name_snapshot": run.checkpoint_library_name_snapshot,
             "status": run.status,
             "processed_count": run.processed_count,
             "total_count": run.total_count,
