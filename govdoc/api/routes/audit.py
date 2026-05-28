@@ -128,7 +128,7 @@ async def create_audit_run(
             target_id=audit_run.id,
             after={
                 "project_id": payload.project_id,
-"main_document_id": payload.main_document_id,
+                "main_document_id": payload.main_document_id,
                 "checkpoint_library_id": source_library.id if source_library else None,
             },
         )
