@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from govdoc.config import CompareConfig, load_config
+from govdoc.config import load_config
 
 
 def test_load_config_expands_environment_variables(tmp_path, monkeypatch):
