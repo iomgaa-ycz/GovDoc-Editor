@@ -35,8 +35,8 @@ from govdoc.db.models import (
     CheckpointFinal,
     CheckpointLibrary,
     CheckpointLibraryItem,
+    Document,
     Project,
-    TenderDoc,
 )
 
 
@@ -128,22 +128,23 @@ def _csv_with_rows(rows: list[tuple[str, str]]) -> bytes:
     return body.encode("utf-8")
 
 
-def _seed_project_and_tender(session: Session) -> tuple[Project, TenderDoc]:
+def _seed_project_and_document(session: Session) -> tuple[Project, Document]:
     """创建 AuditRun 外键依赖的项目和文书。"""
     project = Project(name="去重测试项目", created_by="tester")
     session.add(project)
     session.flush()
-    tender = TenderDoc(
-        project_id=project.id,
+    document = Document(
         filename="tender.docx",
-        storage_path="/tmp/tender.docx",
+        file_type="docx",
+        file_size=1024,
+        sha256=uuid.uuid4().hex,
+        raw_path="/tmp/tender.docx",
         markdown_path="/tmp/tender.md",
-        qmd_collection="test_collection",
-        uploaded_by="tester",
+        status="ready",
     )
-    session.add(tender)
+    session.add(document)
     session.flush()
-    return project, tender
+    return project, document
 
 
 # ────────────────────────────────────────────────
@@ -426,7 +427,7 @@ class TestImportCheckpoints:
         newer_time = older_time + timedelta(hours=1)
 
         with Session(engine) as session:
-            project, tender = _seed_project_and_tender(session)
+            project, document = _seed_project_and_document(session)
             older = CheckpointFinal(
                 payload_json=_checkpoint_payload("引用重复标题", "旧记录"),
                 approved_by="tester",
@@ -442,7 +443,7 @@ class TestImportCheckpoints:
             session.flush()
             audit_run = AuditRun(
                 project_id=project.id,
-                tender_doc_id=tender.id,
+                main_document_id=document.id,
                 checkpoint_final_ids=json.dumps([older.id], ensure_ascii=False),
             )
             session.add(audit_run)
@@ -476,7 +477,7 @@ class TestImportCheckpoints:
         newer_time = older_time + timedelta(hours=1)
 
         with Session(engine) as session:
-            project, tender = _seed_project_and_tender(session)
+            project, document = _seed_project_and_document(session)
             older = CheckpointFinal(
                 payload_json=_checkpoint_payload("列表重复标题", "旧记录"),
                 approved_by="tester",
@@ -498,7 +499,7 @@ class TestImportCheckpoints:
             session.flush()
             audit_run = AuditRun(
                 project_id=project.id,
-                tender_doc_id=tender.id,
+                main_document_id=document.id,
                 checkpoint_final_ids=json.dumps(
                     [older.id, newer.id, older.id, stable.id],
                     ensure_ascii=False,

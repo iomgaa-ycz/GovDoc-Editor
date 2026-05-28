@@ -148,9 +148,8 @@ def test_remove_checkpoints_from_library(client, engine):
         json={"library_ids": [library_id], "checkpoint_ids": [checkpoint_id]},
     )
 
-    resp = client.request(
-        "DELETE",
-        f"/api/v1/checkpoint-libraries/{library_id}/checkpoints",
+    resp = client.post(
+        f"/api/v1/checkpoint-libraries/{library_id}/checkpoints/remove",
         json={"checkpoint_ids": [checkpoint_id]},
     )
 

@@ -19,8 +19,8 @@ from govdoc.db.models import (
     CheckpointFinal,
     CheckpointLibrary,
     CheckpointLibraryItem,
+    Document,
     Project,
-    TenderDoc,
 )
 
 
@@ -77,15 +77,16 @@ def _seed_library_case(engine) -> tuple[str, str, str, list[str]]:
         project = Project(name="快照项目", created_by="tester")
         session.add(project)
         session.flush()
-        tender = TenderDoc(
-            project_id=project.id,
+        document = Document(
             filename="tender.docx",
-            storage_path="/tmp/tender.docx",
+            file_type="docx",
+            file_size=1024,
+            sha256=uuid.uuid4().hex,
+            raw_path="/tmp/tender.docx",
             markdown_path="/tmp/tender.md",
-            qmd_collection="test_collection",
-            uploaded_by="tester",
+            status="ready",
         )
-        session.add(tender)
+        session.add(document)
         library = CheckpointLibrary(name="快照审核库", created_by="tester")
         session.add(library)
         session.flush()
@@ -106,17 +107,17 @@ def _seed_library_case(engine) -> tuple[str, str, str, list[str]]:
                 )
             )
         session.commit()
-        return project.id, tender.id, library.id, checkpoint_ids
+        return project.id, document.id, library.id, checkpoint_ids
 
 
 def test_create_audit_run_from_library_snapshots_checkpoint_ids(client, engine):
-    project_id, tender_id, library_id, checkpoint_ids = _seed_library_case(engine)
+    project_id, document_id, library_id, checkpoint_ids = _seed_library_case(engine)
 
     resp = client.post(
         "/api/v1/audit/runs",
         json={
             "project_id": project_id,
-            "tender_doc_id": tender_id,
+            "main_document_id": document_id,
             "checkpoint_library_id": library_id,
         },
     )
@@ -162,27 +163,28 @@ def test_create_audit_run_rejects_empty_library(client, engine):
         project = Project(name="空库项目", created_by="tester")
         session.add(project)
         session.flush()
-        tender = TenderDoc(
-            project_id=project.id,
+        document = Document(
             filename="tender.docx",
-            storage_path="/tmp/tender.docx",
+            file_type="docx",
+            file_size=1024,
+            sha256=uuid.uuid4().hex,
+            raw_path="/tmp/tender.docx",
             markdown_path="/tmp/tender.md",
-            qmd_collection="test_collection",
-            uploaded_by="tester",
+            status="ready",
         )
-        session.add(tender)
+        session.add(document)
         library = CheckpointLibrary(name="空库", created_by="tester")
         session.add(library)
         session.commit()
         project_id = project.id
-        tender_id = tender.id
+        document_id = document.id
         library_id = library.id
 
     resp = client.post(
         "/api/v1/audit/runs",
         json={
             "project_id": project_id,
-            "tender_doc_id": tender_id,
+            "main_document_id": document_id,
             "checkpoint_library_id": library_id,
         },
     )
