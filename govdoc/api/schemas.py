@@ -51,7 +51,7 @@ class CreateAuditRunRequest(GovDocModel):
         validation_alias=AliasChoices("main_document_id", "tender_doc_id")
     )
     created_by: str = "system"
-supplementary_document_ids: list[str] = Field(
+    supplementary_document_ids: list[str] = Field(
         default_factory=list,
         validation_alias=AliasChoices("supplementary_document_ids", "supplementary_doc_ids"),
     )

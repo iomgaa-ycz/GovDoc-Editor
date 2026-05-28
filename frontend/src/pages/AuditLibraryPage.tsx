@@ -16,14 +16,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import * as api from "@/api/v3";
 import { parseCheckpointPayload } from "@/adapters/backendToUi";
-import { FileDropzone } from "@/components/FileDropzone";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { StatusBadge } from "@/components/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
@@ -403,7 +401,7 @@ export function AuditLibraryPage() {
                       <button className="text-sm text-text-muted hover:text-text-primary" onClick={() => setUploadFile(null)}>移除</button>
                     </div>
                   ) : (
-                    <FileDropzone title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(files) => setUploadFile(files[0] ?? null)} />
+                    <FileSelectBox title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(file) => setUploadFile(file)} />
                   )}
                 </div>
                 {extractStatus === "failed" && (
@@ -454,7 +452,7 @@ export function AuditLibraryPage() {
                     <button className="text-sm text-text-muted hover:text-text-primary" onClick={() => { setImportFile(null); setImportPreview(null); }}>移除</button>
                   </div>
                 ) : (
-                  <FileDropzone title="选择审查点表格" subtitle="支持 .xls, .xlsx, .csv" accept=".xls,.xlsx,.csv" onSelect={(files) => setImportFile(files[0] ?? null)} />
+                  <FileSelectBox title="选择审查点表格" subtitle="支持 .xls, .xlsx, .csv" accept=".xls,.xlsx,.csv" onSelect={(file) => setImportFile(file)} />
                 )}
               </div>
               <div className="space-y-2">
