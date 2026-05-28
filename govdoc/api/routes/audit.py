@@ -6,7 +6,7 @@ import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from govdoc.api.deps import get_db_session
 from govdoc.api.middleware import log_activity
@@ -40,9 +40,10 @@ def _load_supplementary_doc_ids(raw: str | None) -> list[str]:
 
 
 def _resolve_checkpoint_ids_from_library(
-    session,
+    session: "Session",
     library_id: str,
 ) -> tuple[CheckpointLibrary, list[str], int]:
+    """从审核点库解析出有效审核点 ID 列表，跳过已删除的审核点。"""
     library = session.get(CheckpointLibrary, library_id)
     if library is None:
         raise HTTPException(status_code=400, detail=f"审核点库不存在: {library_id}")
@@ -50,14 +51,18 @@ def _resolve_checkpoint_ids_from_library(
     items = session.exec(
         select(CheckpointLibraryItem).where(CheckpointLibraryItem.library_id == library_id)
     ).all()
-    checkpoint_ids: list[str] = []
-    skipped_deleted_count = 0
-    for item in items:
-        checkpoint = session.get(CheckpointFinal, item.checkpoint_final_id)
-        if checkpoint is None:
-            skipped_deleted_count += 1
-            continue
-        checkpoint_ids.append(item.checkpoint_final_id)
+    all_cp_ids = [item.checkpoint_final_id for item in items]
+    if not all_cp_ids:
+        raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")
+
+    existing_ids = set(
+        session.exec(
+            select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))
+        ).all()
+    )
+
+    checkpoint_ids = [cp_id for cp_id in all_cp_ids if cp_id in existing_ids]
+    skipped_deleted_count = len(all_cp_ids) - len(checkpoint_ids)
 
     if not checkpoint_ids:
         raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")

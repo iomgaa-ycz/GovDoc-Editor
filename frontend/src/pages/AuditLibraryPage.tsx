@@ -175,7 +175,7 @@ export function AuditLibraryPage() {
 
   useEffect(() => {
     setSelectedIds([]);
-    void loadSelectedLibrary();
+    void loadSelectedLibrary(selectedLibraryId);
   }, [selectedLibraryId]);
 
   const rows = useMemo<VisibleRow[]>(() => {
@@ -206,12 +206,12 @@ export function AuditLibraryPage() {
   const filtered = rows.filter((row) => {
     if (categoryFilter !== "all" && row.payload?.category !== categoryFilter) return false;
     if (!search) return true;
-    const needle = search.trim();
+    const needle = search.trim().toLowerCase();
     if (!needle) return true;
     return (
-      row.payload?.title.includes(needle) ||
-      row.payload?.description.includes(needle) ||
-      row.checkpointFinalId.includes(needle)
+      row.payload?.title.toLowerCase().includes(needle) ||
+      row.payload?.description.toLowerCase().includes(needle) ||
+      row.checkpointFinalId.toLowerCase().includes(needle)
     );
   });
   const selectableIds = filtered.filter((row) => !row.deleted).map((row) => row.checkpointFinalId);
@@ -243,6 +243,8 @@ export function AuditLibraryPage() {
     setImportResult(null);
     try {
       setImportPreview(await api.previewCheckpointImport(importFile, importLibraryIds));
+    } catch {
+      setImportPreview(null);
     } finally {
       setImportPreviewing(false);
     }
@@ -257,6 +259,8 @@ export function AuditLibraryPage() {
       setImportPreview(null);
       setImportFile(null);
       await loadSelectedLibrary();
+    } catch {
+      setImportResult(null);
     } finally {
       setImporting(false);
     }
@@ -316,18 +320,22 @@ export function AuditLibraryPage() {
   async function confirmAddSelectedToLibraries() {
     let libraryIds = [...targetLibraryIds];
     const inlineName = inlineNewLibraryName.trim();
-    if (inlineName) {
-      const library = await createCheckpointLibrary(inlineName);
-      libraryIds = [...libraryIds, library.id];
-      setInlineNewLibraryName("");
+    try {
+      if (inlineName) {
+        const library = await createCheckpointLibrary(inlineName);
+        libraryIds = [...libraryIds, library.id];
+        setInlineNewLibraryName("");
+      }
+      if (libraryIds.length === 0 || selectedIds.length === 0) return;
+      await addCheckpointsToLibraries(libraryIds, selectedIds);
+      setAddDialogOpen(false);
+      setTargetLibraryIds([]);
+      setSelectedIds([]);
+      await refreshAll();
+      await loadSelectedLibrary();
+    } catch {
+      // API 失败时保留弹窗状态，用户可重试
     }
-    if (libraryIds.length === 0 || selectedIds.length === 0) return;
-    await addCheckpointsToLibraries(libraryIds, selectedIds);
-    setAddDialogOpen(false);
-    setTargetLibraryIds([]);
-    setSelectedIds([]);
-    await refreshAll();
-    await loadSelectedLibrary();
   }
 
   async function removeSelectedFromCurrentLibrary() {

@@ -128,10 +128,10 @@ export interface WorkbenchContextValue {
 // 导出以便测试用 MockWorkbenchProvider 直接注入；生产代码仍应通过 useWorkbench() 消费。
 export const WorkbenchContext = createContext<WorkbenchContextValue | null>(null);
 
-export function useWorkbench(): WorkbenchContextValue & Record<string, any> {
+export function useWorkbench(): WorkbenchContextValue {
   const ctx = useContext(WorkbenchContext);
   if (!ctx) throw new Error("useWorkbench must be used within WorkbenchProvider");
-  return ctx as WorkbenchContextValue & Record<string, any>;
+  return ctx;
 }
 
 // ── Provider ──
@@ -659,9 +659,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   // 组件卸载时清理所有轮询定时器
   useEffect(() => {
     return () => {
-      if (finalizePollRef.current) {
-        clearInterval(finalizePollRef.current);
-      }
+      if (finalizePollRef.current) clearInterval(finalizePollRef.current);
+      if (progressRef.current) clearInterval(progressRef.current);
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
 

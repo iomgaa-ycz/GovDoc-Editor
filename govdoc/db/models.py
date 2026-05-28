@@ -39,6 +39,8 @@ class CheckpointFinal(SQLModel, table=True):
 
 
 class CheckpointLibrary(SQLModel, table=True):
+    """审核点库——将审核点组织到可复用的集合中。"""
+
     id: str = Field(default_factory=uid, primary_key=True)
     name: str
     description: str | None = None
@@ -47,6 +49,8 @@ class CheckpointLibrary(SQLModel, table=True):
 
 
 class CheckpointLibraryItem(SQLModel, table=True):
+    """审核点库与审核点的多对多关联。"""
+
     __table_args__ = (
         UniqueConstraint(
             "library_id",
@@ -57,6 +61,7 @@ class CheckpointLibraryItem(SQLModel, table=True):
 
     id: str = Field(default_factory=uid, primary_key=True)
     library_id: str = Field(foreign_key="checkpointlibrary.id")
+    # 不加 foreign_key：审核点被删除后关联记录保留，用于展示"已删除"状态
     checkpoint_final_id: str
     added_by: str = "system"
     added_at: datetime = Field(default_factory=datetime.utcnow)
