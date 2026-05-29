@@ -133,6 +133,10 @@ async page => {
   await backBtn.click();
   await page.waitForTimeout(2000);
 
+  // 提取完成后会自动定位到「未分类」，显式切回「全部审核点」再核对总数增长。
+  await page.getByText('全部审核点').first().click();
+  await page.waitForTimeout(1000);
+
   var finalRows = await page.locator('table tbody tr').count();
   if (finalRows <= initialRows) {
     throw new Error('返回列表后行数未增加（初始: ' + initialRows + ', 当前: ' + finalRows + '）');
