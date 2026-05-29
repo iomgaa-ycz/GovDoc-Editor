@@ -12,6 +12,7 @@ from govdoc.api.routes.checkpoints import (
     _serialize_final,
     deduplicate_existing_checkpoints,
 )
+from govdoc.api.routes.audit import _filter_orphan_point_runs
 from govdoc.schemas import GovCheckpoint
 from govdoc.db.models import (
     AuditPointRun,
@@ -151,3 +152,15 @@ def test_dedup_migrates_archived_to_active() -> None:
         # point_run 已迁移到 active 记录
         prs = session.exec(select(AuditPointRun)).all()
         assert all(pr.checkpoint_final_id == active.id for pr in prs)
+
+
+def test_filter_orphan_point_runs() -> None:
+    """checkpoint 不存在的 point_run 被过滤，存在的保留。"""
+    existing_ids = {"cp-alive"}
+    point_runs = [
+        AuditPointRun(audit_run_id="r", checkpoint_final_id="cp-alive"),
+        AuditPointRun(audit_run_id="r", checkpoint_final_id="cp-gone"),
+    ]
+    kept = _filter_orphan_point_runs(point_runs, existing_ids)
+    assert len(kept) == 1
+    assert kept[0].checkpoint_final_id == "cp-alive"
