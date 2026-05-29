@@ -204,6 +204,11 @@
       "id": "design:audit-library-upload-fix",
       "label": "审核点库上传交互修复（拖拽 + .doc + 标题兜底）",
       "type": "design"
+    },
+    {
+      "id": "plan:audit-library-upload-fix-plan",
+      "label": "审核点库上传交互修复 实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -297,6 +302,13 @@
       "relation": "implements",
       "evidence": "实现该 design 的 TDD 计划",
       "added": "2026-05-29T05:10:21.701609+00:00"
+    },
+    {
+      "source": "plan:audit-library-upload-fix-plan",
+      "target": "design:audit-library-upload-fix",
+      "relation": "implements",
+      "evidence": "实现拖拽/.doc/标题兜底/拖错提示",
+      "added": "2026-05-29T06:26:21.384946+00:00"
     }
   ]
 }

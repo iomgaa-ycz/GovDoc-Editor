@@ -101,3 +101,6 @@
 - [2026-05-29 05:10 UTC] 重建索引: 119 篇页面
 - [2026-05-29 06:17 UTC] 新增 design: 审核点库上传交互修复（拖拽 + .doc + 标题兜底） (design:audit-library-upload-fix)
 - [2026-05-29 06:19 UTC] 重建索引: 120 篇页面
+- [2026-05-29 06:23 UTC] 新增 plan: 审核点库上传交互修复 实现计划 (plan:audit-library-upload-fix-plan)
+- [2026-05-29 06:26 UTC] 新增边: plan:audit-library-upload-fix-plan --implements--> design:audit-library-upload-fix
+- [2026-05-29 06:26 UTC] 重建索引: 121 篇页面
