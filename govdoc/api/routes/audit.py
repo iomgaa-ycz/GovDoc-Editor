@@ -71,6 +71,37 @@ def _resolve_checkpoint_ids_from_library(
     return library, checkpoint_ids, skipped_deleted_count
 
 
+def _resolve_supplementary_doc_ids(
+    session: "Session",
+    main_document_id: str,
+    supplementary_document_ids: list[str],
+) -> list[str]:
+    """校验附件文档并返回去重后的附件 ID 列表。
+
+    与主文书 ID 冲突或附件 ID 重复时报 400；附件文档不存在时报 400。
+    """
+    seen = {main_document_id}
+    resolved: list[str] = []
+    for doc_id in supplementary_document_ids:
+        if doc_id in seen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
+            )
+        if session.get(Document, doc_id) is None:
+            raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
+        seen.add(doc_id)
+        resolved.append(doc_id)
+    return resolved
+
+
+def _validate_checkpoints_exist(session: "Session", checkpoint_ids: list[str]) -> None:
+    """校验所有审核点 ID 均存在，任一不存在则报 400。"""
+    for cp_id in checkpoint_ids:
+        if session.get(CheckpointFinal, cp_id) is None:
+            raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
+
+
 @router.post("/runs", status_code=202)
 async def create_audit_run(
     payload: CreateAuditRunRequest,
@@ -81,19 +112,11 @@ async def create_audit_run(
         if main_doc is None:
             raise HTTPException(status_code=400, detail="主文书不存在")
 
-        seen = {payload.main_document_id}
-        supplementary_doc_ids: list[str] = []
-        for doc_id in payload.supplementary_document_ids:
-            if doc_id in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
-                )
-            doc = session.get(Document, doc_id)
-            if doc is None:
-                raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
-            seen.add(doc_id)
-            supplementary_doc_ids.append(doc_id)
+        supplementary_doc_ids = _resolve_supplementary_doc_ids(
+            session,
+            payload.main_document_id,
+            payload.supplementary_document_ids,
+        )
 
         checkpoint_ids = list(payload.checkpoint_ids)
         source_library: CheckpointLibrary | None = None
@@ -110,10 +133,7 @@ async def create_audit_run(
         elif not checkpoint_ids:
             raise HTTPException(status_code=400, detail="至少需要选择一个审核点或审核点库")
 
-        for cp_id in checkpoint_ids:
-            cp = session.get(CheckpointFinal, cp_id)
-            if cp is None:
-                raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
+        _validate_checkpoints_exist(session, checkpoint_ids)
 
         audit_run = AuditRun(
             project_id=payload.project_id,

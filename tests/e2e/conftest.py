@@ -41,6 +41,11 @@ def api(backend_url: str) -> httpx.Client:
         timeout=httpx.Timeout(30.0, read=120.0),
         transport=transport,
     )
+    try:
+        client.get("/healthz", timeout=5.0)
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        client.close()
+        pytest.skip(f"E2E 后端不可达: {backend_url}")
     yield client
     client.close()
 
