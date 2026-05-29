@@ -93,3 +93,6 @@
 - [2026-05-29 03:20 UTC] 新增 plan: 审核点删除归档实施计划 (plan:checkpoint-archive-on-delete)
 - [2026-05-29 03:22 UTC] 新增边: plan:checkpoint-archive-on-delete --implements--> design:checkpoint-archive-on-delete
 - [2026-05-29 04:18 UTC] 重建索引: 117 篇页面
+- [2026-05-29 05:03 UTC] 新增 design: 虚拟「未分类」库 + 提取后自动定位 (design:uncategorized-virtual-library)
+- [2026-05-29 05:03 UTC] 重建索引: 119 篇页面
+- [2026-05-29 05:04 UTC] 重建索引: 118 篇页面

@@ -189,6 +189,11 @@
       "id": "plan:checkpoint-archive-on-delete",
       "label": "审核点删除归档实施计划",
       "type": "plan"
+    },
+    {
+      "id": "design:uncategorized-virtual-library",
+      "label": "虚拟「未分类」库 + 提取后自动定位",
+      "type": "design"
     }
   ],
   "links": [

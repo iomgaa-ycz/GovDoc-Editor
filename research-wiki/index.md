@@ -1,8 +1,8 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-29 04:18 UTC
+> 自动生成，更新时间：2026-05-29 05:04 UTC
 
-## design (22)
+## design (23)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
@@ -25,6 +25,7 @@
 - [文档对比性能优化设计（去 Tier3 + SimHash + 异步化）](designs/compare-perf-optimization.md) `design:compare-perf-optimization`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
+- [虚拟「未分类」库 + 提取后自动定位](designs/uncategorized-virtual-library.md) `design:uncategorized-virtual-library`
 
 ## finding (3)
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
