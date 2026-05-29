@@ -1,8 +1,8 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-29 05:10 UTC
+> 自动生成，更新时间：2026-05-29 06:19 UTC
 
-## design (23)
+## design (24)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
@@ -16,6 +16,7 @@
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
 - [审核点删除归档与数据一致性设计](designs/checkpoint-archive-on-delete.md) `design:checkpoint-archive-on-delete`
+- [审核点库上传交互修复（拖拽 + .doc + 标题兜底）](designs/audit-library-upload-fix.md) `design:audit-library-upload-fix`
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
 - [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
 - [对比模块 MinerU OCR 后端集成设计](designs/compare-mineru-ocr.md) `design:compare-mineru-ocr`

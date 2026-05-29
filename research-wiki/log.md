@@ -99,3 +99,5 @@
 - [2026-05-29 05:10 UTC] 新增 plan: 虚拟「未分类」库 + 提取后自动定位 实现计划 (plan:uncategorized-virtual-library-plan)
 - [2026-05-29 05:10 UTC] 新增边: plan:uncategorized-virtual-library-plan --implements--> design:uncategorized-virtual-library
 - [2026-05-29 05:10 UTC] 重建索引: 119 篇页面
+- [2026-05-29 06:17 UTC] 新增 design: 审核点库上传交互修复（拖拽 + .doc + 标题兜底） (design:audit-library-upload-fix)
+- [2026-05-29 06:19 UTC] 重建索引: 120 篇页面

@@ -199,6 +199,11 @@
       "id": "plan:uncategorized-virtual-library-plan",
       "label": "虚拟「未分类」库 + 提取后自动定位 实现计划",
       "type": "plan"
+    },
+    {
+      "id": "design:audit-library-upload-fix",
+      "label": "审核点库上传交互修复（拖拽 + .doc + 标题兜底）",
+      "type": "design"
     }
   ],
   "links": [
