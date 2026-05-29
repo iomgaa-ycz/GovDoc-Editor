@@ -88,3 +88,8 @@
 - [2026-05-28 09:02 UTC] 重建索引: 111 篇页面
 - [2026-05-29 02:18 UTC] 新增 plan: 审核点库页面 E2E 测试 (plan:audit-library-e2e-tests)
 - [2026-05-29 02:18 UTC] 重建索引: 113 篇页面
+- [2026-05-29 03:18 UTC] 新增 design: 审核点删除归档与数据一致性设计 (design:checkpoint-archive-on-delete)
+- [2026-05-29 03:19 UTC] 重建索引: 115 篇页面
+- [2026-05-29 03:20 UTC] 新增 plan: 审核点删除归档实施计划 (plan:checkpoint-archive-on-delete)
+- [2026-05-29 03:22 UTC] 新增边: plan:checkpoint-archive-on-delete --implements--> design:checkpoint-archive-on-delete
+- [2026-05-29 04:18 UTC] 重建索引: 117 篇页面

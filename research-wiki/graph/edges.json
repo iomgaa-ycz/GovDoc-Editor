@@ -184,6 +184,11 @@
       "id": "design:checkpoint-archive-on-delete",
       "label": "审核点删除归档与数据一致性设计",
       "type": "design"
+    },
+    {
+      "id": "plan:checkpoint-archive-on-delete",
+      "label": "审核点删除归档实施计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -263,6 +268,13 @@
       "relation": "implements",
       "evidence": "实施计划基于设计文档 2026-05-28-scrivai-0.2.3-converter-upgrade-design.md",
       "added": "2026-05-28T09:02:27.765031+00:00"
+    },
+    {
+      "source": "plan:checkpoint-archive-on-delete",
+      "target": "design:checkpoint-archive-on-delete",
+      "relation": "implements",
+      "evidence": "实施审核点删除归档与数据一致性设计",
+      "added": "2026-05-29T03:22:26.415725+00:00"
     }
   ]
 }

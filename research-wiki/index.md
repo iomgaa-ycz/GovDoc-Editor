@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-29 03:19 UTC
+> 自动生成，更新时间：2026-05-29 04:18 UTC
 
 ## design (22)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -31,7 +31,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (48)
+## plan (50)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -69,6 +69,8 @@
 - [前端重设计后端接口补全](plans/frontend-redesign-backend-gaps.md) `plan:frontend-redesign-backend-gaps`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
+- [审核点删除归档实施计划](plans/2026-05-29-checkpoint-archive-on-delete.md) `plan:checkpoint-archive-on-delete`
+- [审核点删除归档实施计划](plans/checkpoint-archive-on-delete.md) `plan:checkpoint-archive-on-delete`
 - [审核点库页面 E2E 测试](plans/audit-library-e2e-tests.md) `plan:audit-library-e2e-tests`
 - [审核点按标题去重实施计划](plans/2026-05-24-checkpoint-title-dedup-plan.md) `plan:2026-05-24-checkpoint-title-dedup-plan`
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
