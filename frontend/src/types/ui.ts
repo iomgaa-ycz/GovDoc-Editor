@@ -57,6 +57,8 @@ export interface CheckpointItem {
   status: string;
   payload_json: string; // JSON-encoded GovCheckpointPayload
   approved_by: string | null;
+  archived?: boolean;
+  library_count?: number; // 归属真实库数量；缺失时按 0（未分类）处理
 }
 
 export interface CheckpointLibrary {

@@ -1,8 +1,8 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-28 09:02 UTC
+> 自动生成，更新时间：2026-05-29 06:26 UTC
 
-## design (21)
+## design (24)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
@@ -15,6 +15,8 @@
 - [Scrivai 0.2.3 MarkdownConverter 升级设计](designs/scrivai-0.2.3-converter-upgrade.md) `design:scrivai-0.2.3-converter-upgrade`
 - [Wiki-Site 渲染站点搭建](designs/wiki-site-setup.md) `design:wiki-site-setup`
 - [审查点表格导入设计](designs/checkpoint-import-design.md) `design:checkpoint-import-design`
+- [审核点删除归档与数据一致性设计](designs/checkpoint-archive-on-delete.md) `design:checkpoint-archive-on-delete`
+- [审核点库上传交互修复（拖拽 + .doc + 标题兜底）](designs/audit-library-upload-fix.md) `design:audit-library-upload-fix`
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
 - [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
 - [对比模块 MinerU OCR 后端集成设计](designs/compare-mineru-ocr.md) `design:compare-mineru-ocr`
@@ -24,13 +26,14 @@
 - [文档对比性能优化设计（去 Tier3 + SimHash + 异步化）](designs/compare-perf-optimization.md) `design:compare-perf-optimization`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
+- [虚拟「未分类」库 + 提取后自动定位](designs/uncategorized-virtual-library.md) `design:uncategorized-virtual-library`
 
 ## finding (3)
 - [Graphify 缺失边分析](findings/graphify-missing-edges.md) `finding:graphify-missing-edges`
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (45)
+## plan (52)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -48,6 +51,8 @@
 - [2026-05-23-pr27-merge-fixups](plans/2026-05-23-pr27-merge-fixups.md) `plan:2026-05-23-pr27-merge-fixups`
 - [2026-05-25-compare-mineru-ocr](plans/2026-05-25-compare-mineru-ocr.md) `plan:2026-05-25-compare-mineru-ocr`
 - [2026-05-28-scrivai-0.2.3-converter-upgrade](plans/2026-05-28-scrivai-0.2.3-converter-upgrade.md) `plan:2026-05-28-scrivai-0.2.3-converter-upgrade`
+- [2026-05-29-audit-library-e2e-tests](plans/2026-05-29-audit-library-e2e-tests.md) `plan:2026-05-29-audit-library-e2e-tests`
+- [2026-05-29-fix-test-failures](plans/2026-05-29-fix-test-failures.md) `plan:2026-05-29-fix-test-failures`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
@@ -66,6 +71,10 @@
 - [前端重设计后端接口补全](plans/frontend-redesign-backend-gaps.md) `plan:frontend-redesign-backend-gaps`
 - [多文件审核功能实施计划](plans/multi-file-audit.md) `plan:multi-file-audit`
 - [审查点表格导入实施计划](plans/checkpoint-import-plan.md) `plan:checkpoint-import-plan`
+- [审核点删除归档实施计划](plans/2026-05-29-checkpoint-archive-on-delete.md) `plan:checkpoint-archive-on-delete`
+- [审核点删除归档实施计划](plans/checkpoint-archive-on-delete.md) `plan:checkpoint-archive-on-delete`
+- [审核点库上传交互修复 实现计划](plans/audit-library-upload-fix-plan.md) `plan:audit-library-upload-fix-plan`
+- [审核点库页面 E2E 测试](plans/audit-library-e2e-tests.md) `plan:audit-library-e2e-tests`
 - [审核点按标题去重实施计划](plans/2026-05-24-checkpoint-title-dedup-plan.md) `plan:2026-05-24-checkpoint-title-dedup-plan`
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
@@ -76,6 +85,7 @@
 - [文档对比性能优化实施计划](plans/2026-05-25-compare-perf-optimization.md) `plan:2026-05-25-compare-perf-optimization`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
+- [虚拟「未分类」库 + 提取后自动定位 实现计划](plans/uncategorized-virtual-library-plan.md) `plan:uncategorized-virtual-library-plan`
 
 ## schema (8)
 - [表结构: agent_trajectories](schemas/harness-agent-trajectories.md) `schema:harness-agent-trajectories`

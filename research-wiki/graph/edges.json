@@ -174,6 +174,41 @@
       "id": "plan:scrivai-0.2.3-converter-upgrade",
       "label": "Scrivai 0.2.3 MarkdownConverter 升级实施计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:audit-library-e2e-tests",
+      "label": "审核点库页面 E2E 测试",
+      "type": "plan"
+    },
+    {
+      "id": "design:checkpoint-archive-on-delete",
+      "label": "审核点删除归档与数据一致性设计",
+      "type": "design"
+    },
+    {
+      "id": "plan:checkpoint-archive-on-delete",
+      "label": "审核点删除归档实施计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:uncategorized-virtual-library",
+      "label": "虚拟「未分类」库 + 提取后自动定位",
+      "type": "design"
+    },
+    {
+      "id": "plan:uncategorized-virtual-library-plan",
+      "label": "虚拟「未分类」库 + 提取后自动定位 实现计划",
+      "type": "plan"
+    },
+    {
+      "id": "design:audit-library-upload-fix",
+      "label": "审核点库上传交互修复（拖拽 + .doc + 标题兜底）",
+      "type": "design"
+    },
+    {
+      "id": "plan:audit-library-upload-fix-plan",
+      "label": "审核点库上传交互修复 实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -253,6 +288,27 @@
       "relation": "implements",
       "evidence": "实施计划基于设计文档 2026-05-28-scrivai-0.2.3-converter-upgrade-design.md",
       "added": "2026-05-28T09:02:27.765031+00:00"
+    },
+    {
+      "source": "plan:checkpoint-archive-on-delete",
+      "target": "design:checkpoint-archive-on-delete",
+      "relation": "implements",
+      "evidence": "实施审核点删除归档与数据一致性设计",
+      "added": "2026-05-29T03:22:26.415725+00:00"
+    },
+    {
+      "source": "plan:uncategorized-virtual-library-plan",
+      "target": "design:uncategorized-virtual-library",
+      "relation": "implements",
+      "evidence": "实现该 design 的 TDD 计划",
+      "added": "2026-05-29T05:10:21.701609+00:00"
+    },
+    {
+      "source": "plan:audit-library-upload-fix-plan",
+      "target": "design:audit-library-upload-fix",
+      "relation": "implements",
+      "evidence": "实现拖拽/.doc/标题兜底/拖错提示",
+      "added": "2026-05-29T06:26:21.384946+00:00"
     }
   ]
 }

@@ -95,8 +95,11 @@ export function getExtractRunStatus(
 
 /* ── Checkpoints ── */
 
-export function listCheckpoints(): Promise<CheckpointItem[]> {
-  return request("/api/v1/checkpoints");
+export function listCheckpoints(
+  includeArchived = false,
+): Promise<CheckpointItem[]> {
+  const params = includeArchived ? "?include_archived=true" : "";
+  return request(`/api/v1/checkpoints${params}`);
 }
 
 export function updateCheckpoint(
@@ -116,7 +119,9 @@ export function getCheckpointLibraries(
   return request(`/api/v1/checkpoints/${id}/libraries`);
 }
 
-export function deleteCheckpoint(id: string): Promise<void> {
+export function deleteCheckpoint(
+  id: string,
+): Promise<{ action: "archived"; referenced_by: number } | undefined> {
   return request(`/api/v1/checkpoints/${id}`, { method: "DELETE" });
 }
 

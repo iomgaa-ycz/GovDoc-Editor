@@ -10,7 +10,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     css: false,
-    include: ["tests/**/*.test.{ts,tsx}"],
+    include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
   },
   resolve: {
     alias: {
