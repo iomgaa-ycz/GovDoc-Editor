@@ -37,11 +37,31 @@ def _serialize_final(final: CheckpointFinal) -> dict[str, str | bool | None]:
     }
 
 
+def _filter_listed_finals(
+    finals: list[CheckpointFinal],
+    *,
+    include_archived: bool,
+) -> list[CheckpointFinal]:
+    """按 include_archived 过滤审核点列表。
+
+    Args:
+        finals: 全部 CheckpointFinal 记录。
+        include_archived: 为 False 时仅保留 status == "active" 的记录。
+
+    Returns:
+        过滤后的列表。
+    """
+    if include_archived:
+        return list(finals)
+    return [final for final in finals if final.status == "active"]
+
+
 @router.get("")
-async def list_checkpoints():
+async def list_checkpoints(include_archived: bool = False):
     with get_db_session() as session:
         finals = session.exec(select(CheckpointFinal)).all()
-        payload = [_serialize_final(final) for final in finals]
+        visible = _filter_listed_finals(list(finals), include_archived=include_archived)
+        payload = [_serialize_final(final) for final in visible]
         payload.sort(key=lambda item: item["id"] or "")
         return payload
 
