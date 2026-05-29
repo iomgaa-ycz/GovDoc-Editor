@@ -57,6 +57,7 @@ export interface CheckpointItem {
   status: string;
   payload_json: string; // JSON-encoded GovCheckpointPayload
   approved_by: string | null;
+  archived?: boolean;
 }
 
 export interface CheckpointLibrary {

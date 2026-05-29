@@ -119,7 +119,9 @@ export interface WorkbenchContextValue {
 
   // Checkpoint CRUD
   updateCheckpoint: (id: string, payload: GovCheckpointPayload) => Promise<void>;
-  deleteCheckpoint: (id: string) => Promise<void>;
+  deleteCheckpoint: (
+    id: string,
+  ) => Promise<{ action: "archived"; referenced_by: number } | undefined>;
 
   // Refresh
   refreshAll: () => Promise<void>;
@@ -548,8 +550,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   }
 
   async function handleDeleteCheckpoint(id: string) {
-    await api.deleteCheckpoint(id);
+    const result = await api.deleteCheckpoint(id);
     await refreshAll();
+    return result;
   }
 
   async function handleImportCheckpointFile(file: File, libraryIds: string[] = []) {

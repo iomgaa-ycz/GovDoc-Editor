@@ -69,6 +69,7 @@ type PointRunView = {
   finding: GovFinding | null;
   title: string;
   verdict: string | null;
+  archived: boolean;
 };
 
 const TERMINAL_STATUSES = new Set([
@@ -175,13 +176,20 @@ export function AIReviewDetailPage() {
   const progressPercent = percent(processedCount, totalCount);
 
   const checkpointById = useMemo(
-    () => new Map(checkpoints.map((checkpoint) => [checkpoint.id, checkpoint.parsed])),
+    () =>
+      new Map(
+        checkpoints.map((checkpoint) => [
+          checkpoint.id,
+          { parsed: checkpoint.parsed, archived: checkpoint.archived === true },
+        ]),
+      ),
     [checkpoints],
   );
 
   const pointRunViews = useMemo<PointRunView[]>(() => {
     return (progress?.point_runs ?? []).map((pr) => {
-      const checkpoint = checkpointById.get(pr.checkpoint_final_id) ?? null;
+      const entry = checkpointById.get(pr.checkpoint_final_id) ?? null;
+      const checkpoint = entry?.parsed ?? null;
       const finding = parseFindingJson(pr.finding_json);
       const verdict = finding?.verdict?.verdict ?? null;
       return {
@@ -189,6 +197,7 @@ export function AIReviewDetailPage() {
         checkpoint,
         finding,
         verdict,
+        archived: entry?.archived ?? false,
         title: checkpoint?.title ?? `审核点 ${pr.checkpoint_final_id.slice(0, 8)}`,
       };
     });
@@ -211,7 +220,7 @@ export function AIReviewDetailPage() {
   useEffect(() => {
     if (!auditRunId) return;
     let active = true;
-    Promise.all([listAuditRuns(), listCheckpoints()])
+    Promise.all([listAuditRuns(), listCheckpoints(true)])
       .then(([runs, checkpointItems]) => {
         if (!active) return;
         const found = runs.find((item) => item.id === auditRunId) ?? null;
@@ -494,6 +503,11 @@ export function AIReviewDetailPage() {
                         <PointStatusIcon status={view.pr.status} />
                         <p className="line-clamp-2 text-sm font-medium text-text-primary">
                           {view.title}
+                          {view.archived && (
+                            <Badge variant="muted" className="ml-2 align-middle text-xs">
+                              已归档
+                            </Badge>
+                          )}
                         </p>
                       </div>
                       <StatusBadge status={view.verdict ?? view.pr.status} />
@@ -631,6 +645,11 @@ export function AIReviewDetailPage() {
                       <span className="min-w-0 flex-1">
                         <span className="block line-clamp-2 text-sm font-medium text-text-primary">
                           {view.title}
+                          {view.archived && (
+                            <Badge variant="muted" className="ml-2 align-middle text-xs">
+                              已归档
+                            </Badge>
+                          )}
                         </span>
                         <span className="mt-1 flex items-center gap-2">
                           <StatusBadge status={view.verdict ?? view.pr.status} />

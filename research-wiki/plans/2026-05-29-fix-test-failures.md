@@ -138,3 +138,103 @@ source activate govdoc-auditor-v3 && export no_proxy="110.42.53.85,100.81.95.44,
 ```
 
 预期：0 failed，unit 全 passed，e2e 全 skipped（后端不可达时）。
+
+---
+
+### Task 4: 降低 create_audit_run 圈复杂度（解锁 pre-commit 门禁）
+
+**Files:**
+- Modify: `govdoc/api/routes/audit.py`
+- Test: `tests/unit/test_audit_library_snapshot.py`（已有覆盖，确保重构不改行为）
+
+**问题：** pre-commit-guard.sh 的 radon 门禁阻塞——`create_audit_run` 圈复杂度 C(15)（预存问题），因本次提交触及 audit.py 而必须达标。门禁阈值：≥C（≥11）阻塞，需降到 B 级（≤10）。
+
+**方案：** 提取两个纯校验循环为独立 helper，create_audit_run 复杂度 15 → 约 10（B 级）。仅提取，不改行为。
+
+- [ ] **Step 1: 确认当前复杂度**
+
+```bash
+/home/iomgaa/miniconda3/envs/govdoc-auditor-v3/bin/radon cc govdoc/api/routes/audit.py -s | grep create_audit_run
+```
+
+预期：`F 75:0 create_audit_run - C (15)`。
+
+- [ ] **Step 2: 新增两个 helper 函数**
+
+在 `_resolve_checkpoint_ids_from_library` 函数定义之后、`@router.post("/runs")` 之前，新增：
+
+```python
+def _resolve_supplementary_doc_ids(
+    session: "Session",
+    main_document_id: str,
+    supplementary_document_ids: list[str],
+) -> list[str]:
+    """校验附件文档并返回去重后的附件 ID 列表。
+
+    与主文书 ID 冲突或附件 ID 重复时报 400；附件文档不存在时报 400。
+    """
+    seen = {main_document_id}
+    resolved: list[str] = []
+    for doc_id in supplementary_document_ids:
+        if doc_id in seen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
+            )
+        if session.get(Document, doc_id) is None:
+            raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
+        seen.add(doc_id)
+        resolved.append(doc_id)
+    return resolved
+
+
+def _validate_checkpoints_exist(session: "Session", checkpoint_ids: list[str]) -> None:
+    """校验所有审核点 ID 均存在，任一不存在则报 400。"""
+    for cp_id in checkpoint_ids:
+        if session.get(CheckpointFinal, cp_id) is None:
+            raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
+```
+
+- [ ] **Step 3: 在 create_audit_run 中替换为 helper 调用**
+
+将原附件校验块（`seen = {...}` 到 `supplementary_doc_ids.append(doc_id)` 的整段循环）替换为：
+
+```python
+        supplementary_doc_ids = _resolve_supplementary_doc_ids(
+            session,
+            payload.main_document_id,
+            payload.supplementary_document_ids,
+        )
+```
+
+将原审核点校验块（`for cp_id in checkpoint_ids:` 到 `raise HTTPException(... CheckpointFinal 不存在 ...)` 的整段循环）替换为：
+
+```python
+        _validate_checkpoints_exist(session, checkpoint_ids)
+```
+
+`main_doc` 主文书校验（单个 if）保留在 create_audit_run 内不动。
+
+- [ ] **Step 4: 验证复杂度达标**
+
+```bash
+/home/iomgaa/miniconda3/envs/govdoc-auditor-v3/bin/radon cc govdoc/api/routes/audit.py -s | grep -E "create_audit_run|_resolve_supplementary|_validate_checkpoints"
+```
+
+预期：`create_audit_run - B (10)` 或更低，两个新 helper 均为 A/B 级。
+
+- [ ] **Step 5: 运行单测确认行为不变**
+
+```bash
+source activate govdoc-auditor-v3 && python -m pytest tests/unit/test_audit_library_snapshot.py -v
+```
+
+预期：2 passed。
+
+- [ ] **Step 6: 模拟 pre-commit 门禁全量验证**
+
+```bash
+source activate govdoc-auditor-v3 && python -m pytest tests/unit/ tests/contract/ -q
+```
+
+预期：全 passed，0 failed。

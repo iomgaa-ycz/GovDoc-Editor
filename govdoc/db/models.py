@@ -36,6 +36,8 @@ class CheckpointFinal(SQLModel, table=True):
     payload_json: str
     approved_by: str
     approved_at: datetime = Field(default_factory=datetime.utcnow)
+    # active = 正常可用；archived = 被审查任务引用但用户已"删除"
+    status: str = "active"
 
 
 class CheckpointLibrary(SQLModel, table=True):

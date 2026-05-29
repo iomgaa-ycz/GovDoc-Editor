@@ -297,8 +297,13 @@ export function AuditLibraryPage() {
 
   async function confirmDelete() {
     if (!deletingId) return;
-    await deleteCheckpoint(deletingId);
+    const result = await deleteCheckpoint(deletingId);
     setDeletingId(null);
+    if (result?.action === "archived") {
+      window.alert(
+        `该审核点被 ${result.referenced_by} 个历史审查任务引用，已自动归档（不再出现在审核点库中，历史审查结果仍可查看）。`,
+      );
+    }
     await loadSelectedLibrary();
   }
 
