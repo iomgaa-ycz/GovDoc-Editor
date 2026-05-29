@@ -3,7 +3,7 @@ import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** 解析 accept 字符串为小写扩展名数组（".md,.pdf" -> [".md", ".pdf"]）。 */
-export function parseAccept(accept: string): string[] {
+function parseAccept(accept: string): string[] {
   return accept
     .split(",")
     .map((s) => s.trim().toLowerCase())

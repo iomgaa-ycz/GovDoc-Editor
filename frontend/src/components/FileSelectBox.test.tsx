@@ -25,6 +25,17 @@ describe("FileSelectBox", () => {
     expect(screen.getByText(/仅支持/)).toBeInTheDocument();
   });
 
+  it("拖错后再拖入有效文件会清除错误提示", () => {
+    const onSelect = vi.fn();
+    render(<FileSelectBox title="选择文件" subtitle="s" accept=".md,.doc" onSelect={onSelect} />);
+    const zone = screen.getByText("选择文件").closest("label")!;
+    fireEvent.drop(zone, { dataTransfer: { files: [makeFile("a.txt")] } });
+    expect(screen.getByText(/仅支持/)).toBeInTheDocument();
+    fireEvent.drop(zone, { dataTransfer: { files: [makeFile("a.doc")] } });
+    expect(screen.queryByText(/仅支持/)).not.toBeInTheDocument();
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: "a.doc" }));
+  });
+
   it("点击选择路径调用 onSelect", () => {
     const onSelect = vi.fn();
     const { container } = render(
