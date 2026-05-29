@@ -12,3 +12,9 @@ export function isUncategorized(item: CheckpointItem): boolean {
 export function countUncategorized(checkpoints: CheckpointItem[]): number {
   return checkpoints.filter(isUncategorized).length;
 }
+
+/** 去掉文件名的最后一个扩展名；无扩展名或前导点（如 .env）时原样返回。 */
+export function stripExt(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(0, dot) : name;
+}
