@@ -194,6 +194,11 @@
       "id": "design:uncategorized-virtual-library",
       "label": "虚拟「未分类」库 + 提取后自动定位",
       "type": "design"
+    },
+    {
+      "id": "plan:uncategorized-virtual-library-plan",
+      "label": "虚拟「未分类」库 + 提取后自动定位 实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -280,6 +285,13 @@
       "relation": "implements",
       "evidence": "实施审核点删除归档与数据一致性设计",
       "added": "2026-05-29T03:22:26.415725+00:00"
+    },
+    {
+      "source": "plan:uncategorized-virtual-library-plan",
+      "target": "design:uncategorized-virtual-library",
+      "relation": "implements",
+      "evidence": "实现该 design 的 TDD 计划",
+      "added": "2026-05-29T05:10:21.701609+00:00"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-29 05:04 UTC
+> 自动生成，更新时间：2026-05-29 05:10 UTC
 
 ## design (23)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -32,7 +32,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (50)
+## plan (51)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -83,6 +83,7 @@
 - [文档对比性能优化实施计划](plans/2026-05-25-compare-perf-optimization.md) `plan:2026-05-25-compare-perf-optimization`
 - [端到端 Harness 评估基础设施实施计划](plans/harness-e2e-plan.md) `plan:harness-e2e-plan`
 - [统一文档转 Markdown 路径实施计划](plans/2026-05-14-unified-doc-conversion.md) `plan:unified-doc-conversion`
+- [虚拟「未分类」库 + 提取后自动定位 实现计划](plans/uncategorized-virtual-library-plan.md) `plan:uncategorized-virtual-library-plan`
 
 ## schema (8)
 - [表结构: agent_trajectories](schemas/harness-agent-trajectories.md) `schema:harness-agent-trajectories`
