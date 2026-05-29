@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as api from "@/api/v3";
 import { parseCheckpointPayload } from "@/adapters/backendToUi";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FileSelectBox } from "@/components/FileSelectBox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +35,7 @@ import type {
   CheckpointLibraryDetail,
   GovCheckpointPayload,
 } from "@/types/ui";
-import { UNCATEGORIZED_ID, countUncategorized, isUncategorized } from "./audit-library-utils";
+import { UNCATEGORIZED_ID, countUncategorized, isUncategorized, stripExt } from "./audit-library-utils";
 
 const SEVERITY_VARIANT: Record<string, "err" | "warn" | "default"> = {
   critical: "err",
@@ -72,31 +73,6 @@ function parseRows(checkpoints: CheckpointItem[]): ParsedCheckpoint[] {
     .filter((item): item is ParsedCheckpoint => item.payload != null);
 }
 
-function FileSelectBox({
-  title,
-  subtitle,
-  accept,
-  onSelect,
-}: {
-  title: string;
-  subtitle: string;
-  accept: string;
-  onSelect: (file: File | null) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer flex-col items-center justify-center rounded-card border border-dashed bg-surface px-4 py-8 text-center transition-colors hover:border-accent hover:bg-accent-light">
-      <Upload className="mb-2 h-5 w-5 text-text-muted" />
-      <span className="text-sm font-medium text-text-primary">{title}</span>
-      <span className="mt-1 text-xs text-text-muted">{subtitle}</span>
-      <input
-        type="file"
-        accept={accept}
-        className="sr-only"
-        onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
-      />
-    </label>
-  );
-}
 
 export function AuditLibraryPage() {
   const {
@@ -436,7 +412,15 @@ export function AuditLibraryPage() {
                       <button className="text-sm text-text-muted hover:text-text-primary" onClick={() => setUploadFile(null)}>移除</button>
                     </div>
                   ) : (
-                    <FileSelectBox title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(file) => setUploadFile(file)} />
+                    <FileSelectBox
+                      title="选择或拖入法规文件"
+                      subtitle="支持 .md, .pdf, .doc, .docx"
+                      accept=".md,.pdf,.doc,.docx"
+                      onSelect={(file) => {
+                        setUploadFile(file);
+                        if (file && !uploadTitle.trim()) setUploadTitle(stripExt(file.name));
+                      }}
+                    />
                   )}
                 </div>
                 {extractStatus === "failed" && (
