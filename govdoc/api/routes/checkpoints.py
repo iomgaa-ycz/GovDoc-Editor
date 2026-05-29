@@ -26,13 +26,14 @@ from govdoc.schemas import GovCheckpoint
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
 
 
-def _serialize_final(final: CheckpointFinal) -> dict[str, str | None]:
+def _serialize_final(final: CheckpointFinal) -> dict[str, str | bool | None]:
     return {
         "id": final.id,
         "kind": "final",
         "status": "final",
         "payload_json": final.payload_json,
         "approved_by": final.approved_by,
+        "archived": final.status == "archived",
     }
 
 
