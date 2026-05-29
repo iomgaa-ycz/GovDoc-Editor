@@ -214,7 +214,11 @@ def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
     for grouped_finals in groups.values():
         if len(grouped_finals) < 2:
             continue
-        keep = max(grouped_finals, key=lambda item: (item.approved_at, item.id))
+        # 优先保留 active 记录；同 status 内再按 (approved_at, id) 取最新
+        keep = max(
+            grouped_finals,
+            key=lambda item: (item.status == "active", item.approved_at, item.id),
+        )
         for final in grouped_finals:
             if final.id == keep.id:
                 continue

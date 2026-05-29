@@ -10,7 +10,9 @@ from govdoc.api.routes.checkpoints import (
     _archive_or_delete_checkpoint,
     _filter_listed_finals,
     _serialize_final,
+    deduplicate_existing_checkpoints,
 )
+from govdoc.schemas import GovCheckpoint
 from govdoc.db.models import (
     AuditPointRun,
     AuditRun,
@@ -90,3 +92,62 @@ def test_hard_delete_when_not_referenced() -> None:
 
         assert result == {"action": "deleted"}
         assert session.get(CheckpointFinal, fid) is None
+
+
+def _cp_payload(title: str) -> str:
+    return GovCheckpoint(
+        id="x",
+        category="意向性招标",
+        title=title,
+        description="d",
+        severity="major",
+        retrieval_hint="h",
+    ).model_dump_json()
+
+
+def test_dedup_migrates_archived_to_active() -> None:
+    """同名 archived 旧记录的历史引用迁移到新导入的 active 记录后删除。"""
+    engine = _make_engine()
+    with Session(engine) as session:
+        # 旧的归档记录
+        archived = CheckpointFinal(
+            payload_json=_cp_payload("逾期退还保证金"),
+            approved_by="t",
+            status="archived",
+        )
+        # 新导入的 active 记录（同 title）
+        active = CheckpointFinal(
+            payload_json=_cp_payload("逾期退还保证金"),
+            approved_by="t",
+            status="active",
+        )
+        session.add(archived)
+        session.add(active)
+        session.commit()
+        session.refresh(archived)
+        session.refresh(active)
+
+        # 历史审查任务引用了 archived 记录
+        session.add(
+            AuditRun(
+                id="run1",
+                project_id="p1",
+                main_document_id="d1",
+                checkpoint_final_ids=json.dumps([archived.id]),
+            )
+        )
+        session.add(
+            AuditPointRun(audit_run_id="run1", checkpoint_final_id=archived.id)
+        )
+        session.commit()
+
+        stats = deduplicate_existing_checkpoints(session)
+        session.commit()
+
+        assert stats.removed_existing_count == 1
+        assert session.get(CheckpointFinal, archived.id) is None
+        kept = session.get(CheckpointFinal, active.id)
+        assert kept is not None and kept.status == "active"
+        # point_run 已迁移到 active 记录
+        prs = session.exec(select(AuditPointRun)).all()
+        assert all(pr.checkpoint_final_id == active.id for pr in prs)
