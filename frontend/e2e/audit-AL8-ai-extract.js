@@ -140,5 +140,16 @@ async page => {
   await page.screenshot({ path: SS + '-08-back-to-list.png', fullPage: true });
   console.log('PASS: 返回列表成功，行数从 ' + initialRows + ' 增加到 ' + finalRows);
 
+  // ── Step 9: 校验侧栏「未分类」入口出现且数量 > 0 ──
+  console.log('Step 9: 校验「未分类」虚拟库');
+  const uncategorized = page.getByText('未分类').first();
+  if (!(await uncategorized.isVisible())) throw new Error('侧栏「未分类」入口不可见');
+  await uncategorized.click();
+  await page.waitForTimeout(1000);
+  var uncatRows = await page.locator('table tbody tr').count();
+  if (uncatRows <= 0) throw new Error('「未分类」视图为空，提取点未归入未分类');
+  await page.screenshot({ path: SS + '-09-uncategorized.png', fullPage: true });
+  console.log('PASS: 「未分类」可见且含 ' + uncatRows + ' 条提取点');
+
   console.log('== audit-AL8-ai-extract 全部通过 (' + totalSecs + 's) ==');
 }
