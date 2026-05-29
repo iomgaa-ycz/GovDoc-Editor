@@ -41,8 +41,9 @@ done
 FILES_TESTS=("files-F1-skeleton" "files-F2-upload" "files-F3-search-filter" "files-F4-tags" "files-F5-delete" "files-F6-reconvert" "files-F7-empty-state")
 COMPARE_TESTS=("compare-C1-skeleton" "compare-C2-file-picker" "compare-C3-selection-manage" "compare-C4-submit-progress" "compare-C5-history" "compare-C6-result-view" "compare-C7-result-interact" "compare-C8-empty-error")
 AUDIT_TESTS=("audit-AL1-skeleton" "audit-AL2-import" "audit-AL3-search-filter" "audit-AL4-library-crud" "audit-AL5-checkpoint-edit-delete" "audit-AL6-library-membership" "audit-AL7-empty-state" "audit-AL8-ai-extract" "audit-AL9-checkpoint-archive" "audit-AL10-upload-dragdrop")
+DASHBOARD_TESTS=("dashboard-D1-skeleton" "dashboard-D2-stats" "dashboard-D3-navigation")
 
-ALL_TESTS=("${FILES_TESTS[@]}" "${COMPARE_TESTS[@]}" "${AUDIT_TESTS[@]}")
+ALL_TESTS=("${FILES_TESTS[@]}" "${COMPARE_TESTS[@]}" "${AUDIT_TESTS[@]}" "${DASHBOARD_TESTS[@]}")
 
 if [ -n "$ONLY" ]; then
     TESTS=("$ONLY")
@@ -51,7 +52,8 @@ elif [ -n "$PAGE" ]; then
         files) TESTS=("${FILES_TESTS[@]}") ;;
         compare) TESTS=("${COMPARE_TESTS[@]}") ;;
         audit) TESTS=("${AUDIT_TESTS[@]}") ;;
-        *) echo "未知页面: $PAGE（可选: files, compare, audit）"; exit 1 ;;
+        dashboard) TESTS=("${DASHBOARD_TESTS[@]}") ;;
+        *) echo "未知页面: $PAGE（可选: files, compare, audit, dashboard）"; exit 1 ;;
     esac
 else
     TESTS=("${ALL_TESTS[@]}")
