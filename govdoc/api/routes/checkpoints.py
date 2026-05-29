@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from govdoc.api.deps import get_db_session
@@ -26,7 +27,9 @@ from govdoc.schemas import GovCheckpoint
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
 
 
-def _serialize_final(final: CheckpointFinal) -> dict[str, str | bool | None]:
+def _serialize_final(
+    final: CheckpointFinal, *, library_count: int = 0
+) -> dict[str, str | bool | int | None]:
     return {
         "id": final.id,
         "kind": "final",
@@ -34,6 +37,7 @@ def _serialize_final(final: CheckpointFinal) -> dict[str, str | bool | None]:
         "payload_json": final.payload_json,
         "approved_by": final.approved_by,
         "archived": final.status == "archived",
+        "library_count": library_count,
     }
 
 
@@ -61,7 +65,16 @@ async def list_checkpoints(include_archived: bool = False):
     with get_db_session() as session:
         finals = session.exec(select(CheckpointFinal)).all()
         visible = _filter_listed_finals(list(finals), include_archived=include_archived)
-        payload = [_serialize_final(final) for final in visible]
+        counts = dict(
+            session.exec(
+                select(CheckpointLibraryItem.checkpoint_final_id, func.count()).group_by(
+                    CheckpointLibraryItem.checkpoint_final_id
+                )
+            ).all()
+        )
+        payload = [
+            _serialize_final(final, library_count=counts.get(final.id, 0)) for final in visible
+        ]
         payload.sort(key=lambda item: item["id"] or "")
         return payload
 
@@ -166,9 +179,7 @@ def _rewire_checkpoint_references(
             rewired_audit_runs += 1
 
     library_items = session.exec(
-        select(CheckpointLibraryItem).where(
-            CheckpointLibraryItem.checkpoint_final_id.in_(old_ids)
-        )
+        select(CheckpointLibraryItem).where(CheckpointLibraryItem.checkpoint_final_id.in_(old_ids))
     ).all()
     rewired_library_items = 0
     for item in library_items:
@@ -225,8 +236,8 @@ def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
             replacement_map[final.id] = keep.id
             delete_targets.append(final)
 
-    rewired_point_runs, rewired_audit_runs, rewired_library_items = (
-        _rewire_checkpoint_references(session, replacement_map)
+    rewired_point_runs, rewired_audit_runs, rewired_library_items = _rewire_checkpoint_references(
+        session, replacement_map
     )
     for final in delete_targets:
         session.delete(final)
@@ -326,9 +337,7 @@ def _add_library_items_in_session(
             CheckpointLibraryItem.checkpoint_final_id.in_(checkpoint_ids),
         )
     ).all()
-    existing_pairs = {
-        (item.library_id, item.checkpoint_final_id) for item in existing_items
-    }
+    existing_pairs = {(item.library_id, item.checkpoint_final_id) for item in existing_items}
     linked_count = 0
     for library_id in library_ids:
         for checkpoint_id in checkpoint_ids:
@@ -529,9 +538,7 @@ def _archive_or_delete_checkpoint(
     """
     ref_count = len(
         session.exec(
-            select(AuditPointRun).where(
-                AuditPointRun.checkpoint_final_id == final.id
-            )
+            select(AuditPointRun).where(AuditPointRun.checkpoint_final_id == final.id)
         ).all()
     )
     # 两种情况都解除库关联——审核点从所有库中消失
