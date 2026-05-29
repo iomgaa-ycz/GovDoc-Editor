@@ -49,7 +49,9 @@ def _resolve_checkpoint_ids_from_library(
         raise HTTPException(status_code=400, detail=f"审核点库不存在: {library_id}")
 
     items = session.exec(
-        select(CheckpointLibraryItem).where(CheckpointLibraryItem.library_id == library_id)
+        select(CheckpointLibraryItem)
+        .where(CheckpointLibraryItem.library_id == library_id)
+        .order_by(CheckpointLibraryItem.added_at)
     ).all()
     all_cp_ids = [item.checkpoint_final_id for item in items]
     if not all_cp_ids:
@@ -69,6 +71,37 @@ def _resolve_checkpoint_ids_from_library(
     return library, checkpoint_ids, skipped_deleted_count
 
 
+def _resolve_supplementary_doc_ids(
+    session: "Session",
+    main_document_id: str,
+    supplementary_document_ids: list[str],
+) -> list[str]:
+    """校验附件文档并返回去重后的附件 ID 列表。
+
+    与主文书 ID 冲突或附件 ID 重复时报 400；附件文档不存在时报 400。
+    """
+    seen = {main_document_id}
+    resolved: list[str] = []
+    for doc_id in supplementary_document_ids:
+        if doc_id in seen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
+            )
+        if session.get(Document, doc_id) is None:
+            raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
+        seen.add(doc_id)
+        resolved.append(doc_id)
+    return resolved
+
+
+def _validate_checkpoints_exist(session: "Session", checkpoint_ids: list[str]) -> None:
+    """校验所有审核点 ID 均存在，任一不存在则报 400。"""
+    for cp_id in checkpoint_ids:
+        if session.get(CheckpointFinal, cp_id) is None:
+            raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
+
+
 @router.post("/runs", status_code=202)
 async def create_audit_run(
     payload: CreateAuditRunRequest,
@@ -79,19 +112,11 @@ async def create_audit_run(
         if main_doc is None:
             raise HTTPException(status_code=400, detail="主文书不存在")
 
-        seen = {payload.main_document_id}
-        supplementary_doc_ids: list[str] = []
-        for doc_id in payload.supplementary_document_ids:
-            if doc_id in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"附件 ID 重复或与主文书冲突: {doc_id}",
-                )
-            doc = session.get(Document, doc_id)
-            if doc is None:
-                raise HTTPException(status_code=400, detail=f"附件不存在: {doc_id}")
-            seen.add(doc_id)
-            supplementary_doc_ids.append(doc_id)
+        supplementary_doc_ids = _resolve_supplementary_doc_ids(
+            session,
+            payload.main_document_id,
+            payload.supplementary_document_ids,
+        )
 
         checkpoint_ids = list(payload.checkpoint_ids)
         source_library: CheckpointLibrary | None = None
@@ -108,10 +133,7 @@ async def create_audit_run(
         elif not checkpoint_ids:
             raise HTTPException(status_code=400, detail="至少需要选择一个审核点或审核点库")
 
-        for cp_id in checkpoint_ids:
-            cp = session.get(CheckpointFinal, cp_id)
-            if cp is None:
-                raise HTTPException(status_code=400, detail=f"CheckpointFinal 不存在: {cp_id}")
+        _validate_checkpoints_exist(session, checkpoint_ids)
 
         audit_run = AuditRun(
             project_id=payload.project_id,
@@ -244,6 +266,26 @@ async def get_audit_run(audit_run_id: str):
         }
 
 
+def _filter_orphan_point_runs(
+    point_runs: list[AuditPointRun],
+    existing_checkpoint_ids: set[str],
+) -> list[AuditPointRun]:
+    """过滤掉 checkpoint 已被硬删除的孤儿 point_run。
+
+    archived 审核点的 CheckpointFinal 记录仍存在，不会被过滤。
+
+    Args:
+        point_runs: 某 audit_run 下的全部 AuditPointRun。
+        existing_checkpoint_ids: 当前 CheckpointFinal 表中存在的 id 集合。
+
+    Returns:
+        checkpoint 仍存在的 point_run 列表。
+    """
+    return [
+        pr for pr in point_runs if pr.checkpoint_final_id in existing_checkpoint_ids
+    ]
+
+
 @router.get("/runs/{audit_run_id}/progress")
 async def get_audit_run_progress(audit_run_id: str):
     with get_db_session() as session:
@@ -255,11 +297,20 @@ async def get_audit_run_progress(audit_run_id: str):
             select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_id)
         ).all()
 
+        cp_ids = {pr.checkpoint_final_id for pr in point_runs}
+        existing_ids = set(
+            session.exec(
+                select(CheckpointFinal.id).where(CheckpointFinal.id.in_(cp_ids))
+            ).all()
+        ) if cp_ids else set()
+        visible_runs = _filter_orphan_point_runs(list(point_runs), existing_ids)
+        orphan_count = len(point_runs) - len(visible_runs)
+
         return AuditRunProgressResponse(
             audit_run_id=run.id,
             status=run.status,
-            total_count=run.total_count,
-            processed_count=run.processed_count,
+            total_count=max(run.total_count - orphan_count, len(visible_runs)),
+            processed_count=max(run.processed_count - orphan_count, 0),
             point_runs=[
                 {
                     "id": pr.id,
@@ -271,7 +322,7 @@ async def get_audit_run_progress(audit_run_id: str):
                     "completed_at": str(pr.completed_at) if pr.completed_at else None,
                     "current_phase": pr.current_phase,
                 }
-                for pr in point_runs
+                for pr in visible_runs
             ],
         )
 

@@ -27,7 +27,7 @@ class AppConfig(BaseModel):
 
     storage_root: str = "./data/storage"
     database_url: str = "sqlite:///./data/app.sqlite"
-    ocr_backend: str = "glm"
+    converter: dict[str, Any] = Field(default_factory=dict)
 
 
 class ModelServiceConfig(BaseModel):
@@ -88,7 +88,6 @@ class CompareConfig(BaseModel):
     min_segment_length: int = 16
     pdf_timeout_s: int = 7200
     simhash_threshold: int = 10
-    ocr_backend: str = "glm"
     max_concurrent: int = 1
 
 

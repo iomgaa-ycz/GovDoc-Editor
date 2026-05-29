@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as api from "@/api/v3";
 import { parseCheckpointPayload } from "@/adapters/backendToUi";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FileSelectBox } from "@/components/FileSelectBox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ import type {
   CheckpointLibraryDetail,
   GovCheckpointPayload,
 } from "@/types/ui";
+import { UNCATEGORIZED_ID, countUncategorized, isUncategorized, stripExt } from "./audit-library-utils";
 
 const SEVERITY_VARIANT: Record<string, "err" | "warn" | "default"> = {
   critical: "err",
@@ -71,31 +73,6 @@ function parseRows(checkpoints: CheckpointItem[]): ParsedCheckpoint[] {
     .filter((item): item is ParsedCheckpoint => item.payload != null);
 }
 
-function FileSelectBox({
-  title,
-  subtitle,
-  accept,
-  onSelect,
-}: {
-  title: string;
-  subtitle: string;
-  accept: string;
-  onSelect: (file: File | null) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer flex-col items-center justify-center rounded-card border border-dashed bg-surface px-4 py-8 text-center transition-colors hover:border-accent hover:bg-accent-light">
-      <Upload className="mb-2 h-5 w-5 text-text-muted" />
-      <span className="text-sm font-medium text-text-primary">{title}</span>
-      <span className="mt-1 text-xs text-text-muted">{subtitle}</span>
-      <input
-        type="file"
-        accept={accept}
-        className="sr-only"
-        onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
-      />
-    </label>
-  );
-}
 
 export function AuditLibraryPage() {
   const {
@@ -158,10 +135,12 @@ export function AuditLibraryPage() {
   const [inlineNewLibraryName, setInlineNewLibraryName] = useState("");
 
   const parsed = useMemo(() => parseRows(checkpoints), [checkpoints]);
+  const uncategorizedCount = useMemo(() => countUncategorized(checkpoints), [checkpoints]);
   const activeLibrary = checkpointLibraries.find((item) => item.id === selectedLibraryId);
+  const isVirtualLibrary = selectedLibraryId === "all" || selectedLibraryId === UNCATEGORIZED_ID;
 
   async function loadSelectedLibrary(id = selectedLibraryId) {
-    if (id === "all") {
+    if (id === "all" || id === UNCATEGORIZED_ID) {
       setLibraryDetail(null);
       return;
     }
@@ -178,6 +157,14 @@ export function AuditLibraryPage() {
     void loadSelectedLibrary(selectedLibraryId);
   }, [selectedLibraryId]);
 
+  // 提取完成（draft_ready）后定位到「未分类」，用户点「返回列表」即见新提取的点。
+  // 仅在用户正停在提取页时触发，避免页面重挂载（extractStatus 不复位）时被反复弹回未分类。
+  useEffect(() => {
+    if (extractStatus === "draft_ready" && mode === "extract") {
+      setSelectedLibraryId(UNCATEGORIZED_ID);
+    }
+  }, [extractStatus, mode]);
+
   const rows = useMemo<VisibleRow[]>(() => {
     if (selectedLibraryId === "all") {
       return parsed.map(({ item, payload }) => ({
@@ -187,6 +174,17 @@ export function AuditLibraryPage() {
         payload,
         deleted: false,
       }));
+    }
+    if (selectedLibraryId === UNCATEGORIZED_ID) {
+      return parsed
+        .filter(({ item }) => isUncategorized(item))
+        .map(({ item, payload }) => ({
+          key: item.id,
+          checkpointFinalId: item.id,
+          item,
+          payload,
+          deleted: false,
+        }));
     }
     return (libraryDetail?.checkpoints ?? [])
       .filter((member) => !member.deleted && member.checkpoint != null)
@@ -297,8 +295,13 @@ export function AuditLibraryPage() {
 
   async function confirmDelete() {
     if (!deletingId) return;
-    await deleteCheckpoint(deletingId);
+    const result = await deleteCheckpoint(deletingId);
     setDeletingId(null);
+    if (result?.action === "archived") {
+      window.alert(
+        `该审核点被 ${result.referenced_by} 个历史审查任务引用，已自动归档（不再出现在审核点库中，历史审查结果仍可查看）。`,
+      );
+    }
     await loadSelectedLibrary();
   }
 
@@ -339,7 +342,7 @@ export function AuditLibraryPage() {
   }
 
   async function removeSelectedFromCurrentLibrary() {
-    if (selectedLibraryId === "all" || selectedIds.length === 0) return;
+    if (selectedLibraryId === "all" || selectedLibraryId === UNCATEGORIZED_ID || selectedIds.length === 0) return;
     await removeCheckpointsFromLibrary(selectedLibraryId, selectedIds);
     setSelectedIds([]);
     await refreshAll();
@@ -409,7 +412,15 @@ export function AuditLibraryPage() {
                       <button className="text-sm text-text-muted hover:text-text-primary" onClick={() => setUploadFile(null)}>移除</button>
                     </div>
                   ) : (
-                    <FileSelectBox title="选择或拖入法规文件" subtitle="支持 .md, .pdf, .docx" accept=".md,.pdf,.docx" onSelect={(file) => setUploadFile(file)} />
+                    <FileSelectBox
+                      title="选择或拖入法规文件"
+                      subtitle="支持 .md, .pdf, .doc, .docx"
+                      accept=".md,.pdf,.doc,.docx"
+                      onSelect={(file) => {
+                        setUploadFile(file);
+                        if (file && !uploadTitle.trim()) setUploadTitle(stripExt(file.name));
+                      }}
+                    />
                   )}
                 </div>
                 {extractStatus === "failed" && (
@@ -558,6 +569,16 @@ export function AuditLibraryPage() {
               <span className="flex items-center gap-2"><Folder className="h-4 w-4" /> 全部审核点</span>
               <span>{checkpoints.length}</span>
             </button>
+            <button
+              className={cn(
+                "flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-sm",
+                selectedLibraryId === UNCATEGORIZED_ID ? "bg-accent text-white" : "bg-surface hover:bg-gray-200",
+              )}
+              onClick={() => setSelectedLibraryId(UNCATEGORIZED_ID)}
+            >
+              <span className="flex items-center gap-2"><Folder className="h-4 w-4" /> 未分类</span>
+              <span>{uncategorizedCount}</span>
+            </button>
             <div className="space-y-1">
               {checkpointLibraries.map((library) => (
                 <div
@@ -598,12 +619,18 @@ export function AuditLibraryPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">
-                  {selectedLibraryId === "all" ? "全部审核点" : activeLibrary?.name ?? "审核点库"}
+                  {selectedLibraryId === "all"
+                    ? "全部审核点"
+                    : selectedLibraryId === UNCATEGORIZED_ID
+                      ? "未分类"
+                      : activeLibrary?.name ?? "审核点库"}
                 </h2>
                 <p className="text-sm text-text-muted">
                   {selectedLibraryId === "all"
                     ? `已收录 ${checkpoints.length} 个审查要点`
-                    : `已收录 ${activeLibrary?.checkpoint_count ?? 0} 个审查要点`}
+                    : selectedLibraryId === UNCATEGORIZED_ID
+                      ? `${uncategorizedCount} 个未归库审查要点`
+                      : `已收录 ${activeLibrary?.checkpoint_count ?? 0} 个审查要点`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -614,17 +641,17 @@ export function AuditLibraryPage() {
                 <Button variant="secondary" disabled={selectedIds.length === 0} onClick={() => setAddDialogOpen(true)}>
                   <Plus className="h-4 w-4" /> 加入库
                 </Button>
-                {selectedLibraryId !== "all" && (
+                {!isVirtualLibrary && (
                   <Button variant="secondary" disabled={selectedIds.length === 0} onClick={removeSelectedFromCurrentLibrary}>
                     移出当前库
                   </Button>
                 )}
-                {selectedLibraryId !== "all" && (
+                {!isVirtualLibrary && (
                   <Button variant="secondary" onClick={openEditLibrary}>
                     <Pencil className="h-4 w-4" /> 编辑库
                   </Button>
                 )}
-                {selectedLibraryId !== "all" && (
+                {!isVirtualLibrary && (
                   <Button variant="secondary" onClick={() => setDeletingLibraryId(selectedLibraryId)}>
                     <Trash2 className="h-4 w-4" /> 删除库
                   </Button>

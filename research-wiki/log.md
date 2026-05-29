@@ -81,3 +81,26 @@
 - [2026-05-27 03:26 UTC] 新增 plan: 文档对比分层加载与前端重构实施计划 (plan:compare-lazy-load)
 - [2026-05-27 03:30 UTC] 新增边: plan:compare-lazy-load --implements--> design:compare-lazy-load
 - [2026-05-27 03:30 UTC] 重建索引: 107 篇页面
+- [2026-05-28 08:59 UTC] 新增 design: Scrivai 0.2.3 MarkdownConverter 升级设计 (design:scrivai-0.2.3-converter-upgrade)
+- [2026-05-28 08:59 UTC] 重建索引: 109 篇页面
+- [2026-05-28 09:02 UTC] 新增 plan: Scrivai 0.2.3 MarkdownConverter 升级实施计划 (plan:scrivai-0.2.3-converter-upgrade)
+- [2026-05-28 09:02 UTC] 新增边: plan:scrivai-0.2.3-converter-upgrade --implements--> design:scrivai-0.2.3-converter-upgrade
+- [2026-05-28 09:02 UTC] 重建索引: 111 篇页面
+- [2026-05-29 02:18 UTC] 新增 plan: 审核点库页面 E2E 测试 (plan:audit-library-e2e-tests)
+- [2026-05-29 02:18 UTC] 重建索引: 113 篇页面
+- [2026-05-29 03:18 UTC] 新增 design: 审核点删除归档与数据一致性设计 (design:checkpoint-archive-on-delete)
+- [2026-05-29 03:19 UTC] 重建索引: 115 篇页面
+- [2026-05-29 03:20 UTC] 新增 plan: 审核点删除归档实施计划 (plan:checkpoint-archive-on-delete)
+- [2026-05-29 03:22 UTC] 新增边: plan:checkpoint-archive-on-delete --implements--> design:checkpoint-archive-on-delete
+- [2026-05-29 04:18 UTC] 重建索引: 117 篇页面
+- [2026-05-29 05:03 UTC] 新增 design: 虚拟「未分类」库 + 提取后自动定位 (design:uncategorized-virtual-library)
+- [2026-05-29 05:03 UTC] 重建索引: 119 篇页面
+- [2026-05-29 05:04 UTC] 重建索引: 118 篇页面
+- [2026-05-29 05:10 UTC] 新增 plan: 虚拟「未分类」库 + 提取后自动定位 实现计划 (plan:uncategorized-virtual-library-plan)
+- [2026-05-29 05:10 UTC] 新增边: plan:uncategorized-virtual-library-plan --implements--> design:uncategorized-virtual-library
+- [2026-05-29 05:10 UTC] 重建索引: 119 篇页面
+- [2026-05-29 06:17 UTC] 新增 design: 审核点库上传交互修复（拖拽 + .doc + 标题兜底） (design:audit-library-upload-fix)
+- [2026-05-29 06:19 UTC] 重建索引: 120 篇页面
+- [2026-05-29 06:23 UTC] 新增 plan: 审核点库上传交互修复 实现计划 (plan:audit-library-upload-fix-plan)
+- [2026-05-29 06:26 UTC] 新增边: plan:audit-library-upload-fix-plan --implements--> design:audit-library-upload-fix
+- [2026-05-29 06:26 UTC] 重建索引: 121 篇页面

@@ -77,6 +77,26 @@ check_master_merged_to_stable() {
     log "  ✓ master 已完全合并到 stable"
 }
 
+# ── testing 全清空函数 ──
+# testing 环境每次部署都从全新状态开始，清空所有运行期累积数据，避免历史数据干扰验证。
+# 清空：app.sqlite（业务库）/ qmd.sqlite（检索库）/ trajectories.sqlite（agent 轨迹）/
+#       storage/（上传文件）/ .govdoc/（workspace + archives）。
+# 保留：data/eval（评估基线 golden 数据集，属静态 fixture 非运行期数据）。
+# 清空后由 alembic 重建 app 库 schema，qmd/trajectories 在首次使用时自动创建。
+clean_testing_data() {
+    local dir="$1" tmux_name="$2"
+    log "  [clean] testing 全新部署：停止旧进程并清空运行数据..."
+    ssh "$BACKEND_HOST" "tmux kill-session -t ${tmux_name} 2>/dev/null || true" >> "$LOG_FILE" 2>&1
+    sleep 1
+    ssh "$BACKEND_HOST" "
+        cd ~/Project/${dir} && \
+        rm -f data/app.sqlite data/app.sqlite-wal data/app.sqlite-shm data/qmd.sqlite data/qmd.sqlite-wal data/qmd.sqlite-shm data/trajectories.sqlite data/trajectories.sqlite-wal data/trajectories.sqlite-shm && \
+        rm -rf data/storage data/.govdoc && \
+        mkdir -p data/storage data/.govdoc
+    " >> "$LOG_FILE" 2>&1
+    log "  ✓ 运行数据已清空（app/qmd/trajectories/storage/.govdoc，保留 data/eval 基线）"
+}
+
 # ── 后端部署函数 ──
 deploy_backend() {
     local env="$1"    # testing or stable
@@ -128,6 +148,11 @@ deploy_backend() {
     " >> "$LOG_FILE" 2>&1
     log "  ✓ 依赖已安装"
 
+    # 3.5 testing 专属：全新部署前清空所有运行数据（stable 不清，保留律师正式数据）
+    if [ "$env" = "testing" ]; then
+        clean_testing_data "$dir" "$tmux_name"
+    fi
+
     # 4. 数据库迁移
     log "  [4/6] alembic upgrade..."
     ssh "$BACKEND_HOST" "
@@ -163,8 +188,9 @@ deploy_backend() {
     ssh "$BACKEND_HOST" "
         tmux new-session -d -s ${tmux_name} \"
             eval \\\"\\\$(\\\$HOME/miniconda3/bin/conda shell.bash hook)\\\" && conda activate govdoc-auditor-v3 && \
-            export no_proxy=110.42.53.85,100.81.95.44,localhost,127.0.0.1 && export NO_PROXY=\\\$no_proxy && \
+            export no_proxy=110.42.53.85,100.81.95.44,100.83.164.94,localhost,127.0.0.1 && export NO_PROXY=\\\$no_proxy && \
             export CUDA_VISIBLE_DEVICES=0 && \
+            export HF_HUB_OFFLINE=1 && \
             cd ~/Project/${dir} && \
             uvicorn govdoc.api.main:app --host 0.0.0.0 --port ${port} 2>&1 | tee ${log_path}; \
             echo === ${tmux_name} STOPPED ===; sleep 86400

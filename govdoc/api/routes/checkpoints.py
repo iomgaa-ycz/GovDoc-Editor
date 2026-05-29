@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from govdoc.api.deps import get_db_session
@@ -26,21 +27,54 @@ from govdoc.schemas import GovCheckpoint
 router = APIRouter(prefix="/api/v1/checkpoints", tags=["checkpoints"])
 
 
-def _serialize_final(final: CheckpointFinal) -> dict[str, str | None]:
+def _serialize_final(
+    final: CheckpointFinal, *, library_count: int = 0
+) -> dict[str, str | bool | int | None]:
     return {
         "id": final.id,
         "kind": "final",
         "status": "final",
         "payload_json": final.payload_json,
         "approved_by": final.approved_by,
+        "archived": final.status == "archived",
+        "library_count": library_count,
     }
 
 
+def _filter_listed_finals(
+    finals: list[CheckpointFinal],
+    *,
+    include_archived: bool,
+) -> list[CheckpointFinal]:
+    """按 include_archived 过滤审核点列表。
+
+    Args:
+        finals: 全部 CheckpointFinal 记录。
+        include_archived: 为 False 时仅保留 status == "active" 的记录。
+
+    Returns:
+        过滤后的列表。
+    """
+    if include_archived:
+        return list(finals)
+    return [final for final in finals if final.status == "active"]
+
+
 @router.get("")
-async def list_checkpoints():
+async def list_checkpoints(include_archived: bool = False):
     with get_db_session() as session:
         finals = session.exec(select(CheckpointFinal)).all()
-        payload = [_serialize_final(final) for final in finals]
+        visible = _filter_listed_finals(list(finals), include_archived=include_archived)
+        counts = dict(
+            session.exec(
+                select(CheckpointLibraryItem.checkpoint_final_id, func.count()).group_by(
+                    CheckpointLibraryItem.checkpoint_final_id
+                )
+            ).all()
+        )
+        payload = [
+            _serialize_final(final, library_count=counts.get(final.id, 0)) for final in visible
+        ]
         payload.sort(key=lambda item: item["id"] or "")
         return payload
 
@@ -145,9 +179,7 @@ def _rewire_checkpoint_references(
             rewired_audit_runs += 1
 
     library_items = session.exec(
-        select(CheckpointLibraryItem).where(
-            CheckpointLibraryItem.checkpoint_final_id.in_(old_ids)
-        )
+        select(CheckpointLibraryItem).where(CheckpointLibraryItem.checkpoint_final_id.in_(old_ids))
     ).all()
     rewired_library_items = 0
     for item in library_items:
@@ -193,15 +225,19 @@ def deduplicate_existing_checkpoints(session: Session) -> DedupStats:
     for grouped_finals in groups.values():
         if len(grouped_finals) < 2:
             continue
-        keep = max(grouped_finals, key=lambda item: (item.approved_at, item.id))
+        # 优先保留 active 记录；同 status 内再按 (approved_at, id) 取最新
+        keep = max(
+            grouped_finals,
+            key=lambda item: (item.status == "active", item.approved_at, item.id),
+        )
         for final in grouped_finals:
             if final.id == keep.id:
                 continue
             replacement_map[final.id] = keep.id
             delete_targets.append(final)
 
-    rewired_point_runs, rewired_audit_runs, rewired_library_items = (
-        _rewire_checkpoint_references(session, replacement_map)
+    rewired_point_runs, rewired_audit_runs, rewired_library_items = _rewire_checkpoint_references(
+        session, replacement_map
     )
     for final in delete_targets:
         session.delete(final)
@@ -301,9 +337,7 @@ def _add_library_items_in_session(
             CheckpointLibraryItem.checkpoint_final_id.in_(checkpoint_ids),
         )
     ).all()
-    existing_pairs = {
-        (item.library_id, item.checkpoint_final_id) for item in existing_items
-    }
+    existing_pairs = {(item.library_id, item.checkpoint_final_id) for item in existing_items}
     linked_count = 0
     for library_id in library_ids:
         for checkpoint_id in checkpoint_ids:
@@ -484,29 +518,72 @@ async def get_checkpoint_libraries(checkpoint_id: str):
         return [{"id": lib.id, "name": lib.name} for lib in libraries]
 
 
-@router.delete("/{checkpoint_id}", status_code=204)
-async def delete_checkpoint(checkpoint_id: str) -> Response:
+def _archive_or_delete_checkpoint(
+    session: Session,
+    final: CheckpointFinal,
+) -> dict[str, str | int]:
+    """按是否被 AuditPointRun 引用，对审核点执行归档或硬删除。
+
+    被引用：标记 status="archived"，解除全部库关联，记录保留供历史审查结果展示。
+    无引用：删除库关联后硬删除记录。
+    调用方负责 commit。
+
+    Args:
+        session: 当前数据库 session。
+        final: 待处理的 CheckpointFinal。
+
+    Returns:
+        归档时 {"action": "archived", "referenced_by": N}；
+        删除时 {"action": "deleted"}。
+    """
+    ref_count = len(
+        session.exec(
+            select(AuditPointRun).where(AuditPointRun.checkpoint_final_id == final.id)
+        ).all()
+    )
+    # 两种情况都解除库关联——审核点从所有库中消失
+    items = session.exec(
+        select(CheckpointLibraryItem).where(
+            CheckpointLibraryItem.checkpoint_final_id == final.id,
+        )
+    ).all()
+    for item in items:
+        session.delete(item)
+
+    if ref_count > 0:
+        final.status = "archived"
+        session.add(final)
+        log_activity(
+            session,
+            actor="system",
+            action="archive_checkpoint",
+            target_type="CheckpointFinal",
+            target_id=final.id,
+            before={"payload_json": final.payload_json},
+            after={"status": "archived", "referenced_by": ref_count},
+        )
+        return {"action": "archived", "referenced_by": ref_count}
+
+    log_activity(
+        session,
+        actor="system",
+        action="delete_checkpoint",
+        target_type="CheckpointFinal",
+        target_id=final.id,
+        before={"payload_json": final.payload_json},
+    )
+    session.delete(final)
+    return {"action": "deleted"}
+
+
+@router.delete("/{checkpoint_id}")
+async def delete_checkpoint(checkpoint_id: str):
     with get_db_session() as session:
         final = session.get(CheckpointFinal, checkpoint_id)
-        if final is not None:
-            # 级联删除库内关联
-            items = session.exec(
-                select(CheckpointLibraryItem).where(
-                    CheckpointLibraryItem.checkpoint_final_id == checkpoint_id,
-                )
-            ).all()
-            for item in items:
-                session.delete(item)
-            log_activity(
-                session,
-                actor="system",
-                action="delete_checkpoint",
-                target_type="CheckpointFinal",
-                target_id=checkpoint_id,
-                before={"payload_json": final.payload_json},
-            )
-            session.delete(final)
-            session.commit()
+        if final is None:
+            raise HTTPException(status_code=404, detail="Checkpoint 不存在")
+        result = _archive_or_delete_checkpoint(session, final)
+        session.commit()
+        if result["action"] == "deleted":
             return Response(status_code=204)
-
-        raise HTTPException(status_code=404, detail="Checkpoint 不存在")
+        return result

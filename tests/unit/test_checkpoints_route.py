@@ -201,6 +201,31 @@ class TestListCheckpoints:
         ids = [item["id"] for item in resp.json()]
         assert ids == sorted(ids)
 
+    def test_library_count_reflects_membership(self, client, engine):
+        """归属 1 个库的点 library_count=1；孤儿点为 0。"""
+        with Session(engine) as session:
+            linked = CheckpointFinal(payload_json='{"title": "已归库"}', approved_by="t")
+            orphan = CheckpointFinal(payload_json='{"title": "孤儿"}', approved_by="t")
+            session.add(linked)
+            session.add(orphan)
+            session.flush()
+            lib = CheckpointLibrary(name="医疗", created_by="t")
+            session.add(lib)
+            session.flush()
+            session.add(
+                CheckpointLibraryItem(
+                    library_id=lib.id, checkpoint_final_id=linked.id, added_by="t"
+                )
+            )
+            session.commit()
+            linked_id, orphan_id = linked.id, orphan.id
+
+        resp = client.get("/api/v1/checkpoints")
+        assert resp.status_code == 200
+        counts = {row["id"]: row["library_count"] for row in resp.json()}
+        assert counts[linked_id] == 1
+        assert counts[orphan_id] == 0
+
 
 # ────────────────────────────────────────────────
 # POST /api/v1/checkpoints/import

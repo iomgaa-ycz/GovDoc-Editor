@@ -1,9 +1,9 @@
-"""DocumentStore 单元测试：验证 scrivai.to_markdown 统一转换路径。"""
+"""DocumentStore 单元测试：验证 MarkdownConverter 集成路径。"""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,14 +12,11 @@ from govdoc.storage.files import DocumentStore
 
 @pytest.fixture()
 def store(tmp_path: Path) -> DocumentStore:
-    """创建使用临时目录的 DocumentStore。"""
-    return DocumentStore(tmp_path)
-
-
-@pytest.fixture()
-def store_with_monkey(tmp_path: Path) -> DocumentStore:
-    """创建使用 monkey 后端的 DocumentStore。"""
-    return DocumentStore(tmp_path, ocr_backend="monkey")
+    """创建使用临时目录的 DocumentStore（mock MarkdownConverter）。"""
+    with patch("govdoc.storage.files.MarkdownConverter") as MockConverter:
+        MockConverter.return_value = MagicMock()
+        s = DocumentStore(tmp_path)
+        yield s
 
 
 class TestGetOrConvert:
@@ -34,37 +31,26 @@ class TestGetOrConvert:
         assert result == md_file
 
     @pytest.mark.parametrize("suffix", [".docx", ".doc", ".pdf"])
-    @patch("govdoc.storage.files._scrivai_to_markdown", return_value="# Converted content")
-    def test_supported_formats_call_to_markdown(
-        self, mock_to_md, suffix: str, store: DocumentStore, tmp_path: Path
+    def test_supported_formats_call_converter(
+        self, suffix: str, store: DocumentStore, tmp_path: Path
     ) -> None:
-        """docx/doc/pdf 三种格式均调用 scrivai.to_markdown。"""
+        """docx/doc/pdf 三种格式均调用 MarkdownConverter.convert。"""
+        store._converter.convert.return_value = "# Converted content"
+
         raw_file = tmp_path / "raw" / f"test{suffix}"
         raw_file.parent.mkdir(parents=True, exist_ok=True)
         raw_file.write_bytes(b"fake content")
 
         result = store.get_or_convert(raw_file)
 
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="glm", max_workers=1, timeout=7200)
+        store._converter.convert.assert_called_once_with(raw_file)
         assert result.exists()
         assert result.read_text(encoding="utf-8") == "# Converted content"
 
-    @patch("govdoc.storage.files._scrivai_to_markdown", return_value="# OCR result")
-    def test_ocr_backend_passed_through(
-        self, mock_to_md, store_with_monkey: DocumentStore, tmp_path: Path
-    ) -> None:
-        """自定义 ocr_backend 正确传递给 to_markdown。"""
-        raw_file = tmp_path / "raw" / "test.pdf"
-        raw_file.parent.mkdir(parents=True, exist_ok=True)
-        raw_file.write_bytes(b"fake pdf")
+    def test_empty_result_raises(self, store: DocumentStore, tmp_path: Path) -> None:
+        """MarkdownConverter.convert 返回空字符串时抛 RuntimeError。"""
+        store._converter.convert.return_value = ""
 
-        store_with_monkey.get_or_convert(raw_file)
-
-        mock_to_md.assert_called_once_with(raw_file, ocr_backend="monkey", max_workers=1, timeout=7200)
-
-    @patch("govdoc.storage.files._scrivai_to_markdown", return_value="")
-    def test_empty_result_raises(self, mock_to_md, store: DocumentStore, tmp_path: Path) -> None:
-        """to_markdown 返回空字符串时抛 RuntimeError。"""
         raw_file = tmp_path / "raw" / "test.docx"
         raw_file.parent.mkdir(parents=True, exist_ok=True)
         raw_file.write_bytes(b"fake docx")
@@ -72,16 +58,15 @@ class TestGetOrConvert:
         with pytest.raises(RuntimeError, match="返回空内容"):
             store.get_or_convert(raw_file)
 
-    @patch("govdoc.storage.files._scrivai_to_markdown", side_effect=IOError("OCR unreachable"))
-    def test_conversion_error_propagates(
-        self, mock_to_md, store: DocumentStore, tmp_path: Path
-    ) -> None:
-        """scrivai 抛出的 IOError 原样上抛，不被吞掉。"""
+    def test_conversion_error_propagates(self, store: DocumentStore, tmp_path: Path) -> None:
+        """MarkdownConverter 抛出的 OSError 原样上抛，不被吞掉。"""
+        store._converter.convert.side_effect = OSError("OCR unreachable")
+
         raw_file = tmp_path / "raw" / "test.pdf"
         raw_file.parent.mkdir(parents=True, exist_ok=True)
         raw_file.write_bytes(b"fake pdf")
 
-        with pytest.raises(IOError, match="OCR unreachable"):
+        with pytest.raises(OSError, match="OCR unreachable"):
             store.get_or_convert(raw_file)
 
     def test_unsupported_format_fallback_text(self, store: DocumentStore, tmp_path: Path) -> None:
@@ -106,9 +91,10 @@ class TestGetOrConvert:
 class TestSha256Cache:
     """SHA256 缓存机制测试。"""
 
-    @patch("govdoc.storage.files._scrivai_to_markdown", return_value="# Cached")
-    def test_second_call_uses_cache(self, mock_to_md, store: DocumentStore, tmp_path: Path) -> None:
-        """相同内容的文件第二次调用不再触发 to_markdown。"""
+    def test_second_call_uses_cache(self, store: DocumentStore, tmp_path: Path) -> None:
+        """相同内容的文件第二次调用不再触发 converter.convert。"""
+        store._converter.convert.return_value = "# Cached"
+
         raw_file = tmp_path / "raw" / "test.docx"
         raw_file.parent.mkdir(parents=True, exist_ok=True)
         raw_file.write_bytes(b"same content")
@@ -116,32 +102,37 @@ class TestSha256Cache:
         store.get_or_convert(raw_file)
         store.get_or_convert(raw_file)
 
-        assert mock_to_md.call_count == 1
+        assert store._converter.convert.call_count == 1
 
 
-class TestDualStoreIsolation:
-    """验证两个不同 ocr_backend 的 DocumentStore 缓存互不干扰。"""
+class TestConverterIntegration:
+    """验证 MarkdownConverter 构造与生命周期。"""
 
-    @patch("govdoc.storage.files._scrivai_to_markdown")
-    def test_same_file_different_backends_cached_independently(
-        self, mock_to_md, tmp_path: Path
+    @patch("govdoc.storage.files.MarkdownConverter")
+    def test_converter_receives_config_kwargs(
+        self, MockConverter: MagicMock, tmp_path: Path
     ) -> None:
-        """相同文件内容在两个 store 各自独立缓存，互不复用。"""
-        root_a = tmp_path / "store_a"
-        root_b = tmp_path / "store_b"
-        store_a = DocumentStore(root_a, ocr_backend="glm")
-        store_b = DocumentStore(root_b, ocr_backend="mineru")
+        """converter_kwargs 正确透传给 MarkdownConverter 构造函数。"""
+        kwargs = {
+            "mode": "api",
+            "dispatch": "fallback",
+            "monkey_endpoints": ["http://localhost:7866"],
+        }
+        DocumentStore(tmp_path, converter_kwargs=kwargs)
 
-        raw_file = tmp_path / "test.pdf"
-        raw_file.write_bytes(b"identical pdf content")
+        MockConverter.assert_called_once_with(**kwargs)
 
-        mock_to_md.return_value = "# GLM result"
-        result_a = store_a.get_or_convert(raw_file)
+    @patch("govdoc.storage.files.MarkdownConverter")
+    def test_default_converter_no_kwargs(self, MockConverter: MagicMock, tmp_path: Path) -> None:
+        """不传 converter_kwargs 时 MarkdownConverter 以空参构造。"""
+        DocumentStore(tmp_path)
 
-        mock_to_md.return_value = "# MinerU result"
-        result_b = store_b.get_or_convert(raw_file)
+        MockConverter.assert_called_once_with()
 
-        assert mock_to_md.call_count == 2
-        assert result_a.read_text(encoding="utf-8") == "# GLM result"
-        assert result_b.read_text(encoding="utf-8") == "# MinerU result"
-        assert result_a.parent != result_b.parent
+    @patch("govdoc.storage.files.MarkdownConverter")
+    def test_close_delegates_to_converter(self, MockConverter: MagicMock, tmp_path: Path) -> None:
+        """close() 委托给 MarkdownConverter.close()。"""
+        store = DocumentStore(tmp_path)
+        store.close()
+
+        MockConverter.return_value.close.assert_called_once()
