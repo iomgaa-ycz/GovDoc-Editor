@@ -74,6 +74,26 @@ async page => {
     console.log('PASS: "查看进度"按钮可见');
   }
 
+  // Step 5b: 点击 "重试" 按钮 → 验证跳转（仅在有失败记录时）
+  if (failedCount > 0 && await retryBtn.isVisible().catch(() => false)) {
+    console.log('Step 5b: 点击"重试"按钮');
+    await retryBtn.click();
+    // 重试应跳转到详情页（进度页）
+    await page.waitForURL(/\/compare\/[a-zA-Z0-9-]+/, { timeout: 15000 }).catch(() => {});
+    if (page.url().match(/\/compare\/[a-zA-Z0-9-]+/)) {
+      console.log('PASS: "重试"按钮跳转到详情页 ' + page.url());
+      await page.screenshot({ path: SS + '-03-retry-detail.png', fullPage: true });
+      // 返回 Hub 页
+      await page.goto(BASE + '/compare');
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
+    } else {
+      console.log('WARN: "重试"按钮点击后未跳转到详情页 — ' + page.url());
+    }
+  } else {
+    console.log('INFO: 无失败记录，跳过"重试"按钮功能测试');
+  }
+
   // Step 6: 点击 "查看结果" → 跳转到 detail 页
   if (await viewResultBtn.isVisible().catch(() => false)) {
     console.log('Step 6: 点击"查看结果"');

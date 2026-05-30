@@ -1,7 +1,7 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL8';
-  const FILE_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
+  const FILE_PATH = '../real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
   const TITLE = '政府采购四类违规行为专项整治工作指引';
   const MAX_WAIT_MS = 30 * 60 * 1000; // 30 minutes
 

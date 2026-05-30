@@ -2,7 +2,7 @@ async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL10';
   // 真实 .doc（旧版 Word，7.8MB）——验证「.doc 选不了」是否真正修复。与 AL8/F2 同源文件。
-  const DOC_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
+  const DOC_PATH = '../real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
   const DOC_BASENAME = DOC_PATH.split('/').pop();                 // ...指引.doc
   const DOC_TITLE = DOC_BASENAME.replace(/\.[^.]+$/, '');          // 去 .doc 后的标题兜底期望值
 

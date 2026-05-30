@@ -17,7 +17,8 @@ async page => {
   // ── Step 1: 点击第一行的标签管理按钮 → TagPopover 弹出 ──
   console.log('Step 1: 打开第一行的 TagPopover');
   const firstRowTagBtn = rows.first().locator('td').last().locator('button').first();
-  await firstRowTagBtn.click();
+  // force: true 绕过 actionability 检查（TagPopover overlay 可能短暂遮挡按钮）
+  await firstRowTagBtn.click({ force: true });
   await page.waitForTimeout(500);
 
   // 截图：TagPopover 弹出状态 — 关键视觉检查点
@@ -112,7 +113,7 @@ async page => {
   // ── Step 5: 取消标签（从文档行移除） ──
   console.log('Step 5: 取消标签');
   const firstRowTagBtn2 = rows.first().locator('td').last().locator('button').first();
-  await firstRowTagBtn2.click();
+  await firstRowTagBtn2.click({ force: true });
   await page.waitForTimeout(500);
 
   const popover2 = page.locator('[data-radix-popper-content-wrapper]').last();

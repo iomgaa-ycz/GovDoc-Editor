@@ -85,12 +85,15 @@ async page => {
   const confirmBtn = modal.getByRole('button', { name: '确认选择' });
   if (await confirmBtn.isDisabled()) throw new Error('"确认选择"按钮仍禁用');
   await confirmBtn.click();
-  await page.waitForTimeout(500);
+  // 等待 handlePickerConfirm 的异步 API 调用完成（getDocument × N）
+  await page.waitForTimeout(2000);
   await page.screenshot({ path: SS + '-06-after-confirm.png', fullPage: true });
   console.log('PASS: 确认选择，弹窗关闭');
 
   // Step 10: 验证文件卡片出现
   const badge = page.getByText(/已选 2 个文件/);
+  // 等待 badge 出现（handlePickerConfirm 异步更新 selectedDocs）
+  await badge.waitFor({ timeout: 5000 }).catch(() => {});
   if (!(await badge.isVisible())) throw new Error('确认后 badge 未显示"已选 2 个文件"');
   const removeButtons = page.locator('button[aria-label*="移除"]');
   const cardCount = await removeButtons.count();

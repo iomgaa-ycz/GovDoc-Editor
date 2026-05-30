@@ -1,8 +1,8 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/files-F2';
-  const PDF_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/3阳山县腾晖建筑工程有限公司.pdf';
-  const DOC_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
+  const PDF_PATH = '../real_data/从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf';
+  const DOC_PATH = '../real_data/合同包1：中小企业或残疾人福利单位声明函（广州粤绿越茂工贸有限公司）.docx';
 
   await page.goto(BASE + '/files');
   await page.waitForLoadState('networkidle');
@@ -24,28 +24,45 @@ async page => {
   await fileInput.setInputFiles(PDF_PATH);
 
   // 等待上传完成 — 表格中出现文件名（大文件超时设宽）
-  const pdfRow = page.getByText('阳山县腾晖建筑工程有限公司').first();
+  const pdfRow = page.getByText('从化区中医医院').first();
   await pdfRow.waitFor({ timeout: 120000 });
   await page.screenshot({ path: SS + '-02-pdf-uploaded.png', fullPage: true });
   console.log('PASS: PDF 上传成功，文件行出现');
 
   // 验证状态为 "转换中" 或 "已就绪"
-  const pdfRowFull = page.locator('table tbody tr').filter({ hasText: '阳山县腾晖建筑工程有限公司' }).first();
+  const pdfRowFull = page.locator('table tbody tr').filter({ hasText: '从化区中医医院' }).first();
   const pdfStatusText = await pdfRowFull.textContent() || '';
   if (!pdfStatusText.includes('转换中') && !pdfStatusText.includes('已就绪')) {
     throw new Error('PDF 上传后状态异常: ' + pdfStatusText.slice(0, 100));
   }
   console.log('PASS: PDF 状态正确（' + (pdfStatusText.includes('已就绪') ? '已就绪' : '转换中') + '）');
 
+  // 验证类型列显示 "PDF" badge
+  const pdfTypeBadge = pdfRowFull.getByText('PDF').first();
+  if (await pdfTypeBadge.isVisible().catch(() => false)) {
+    console.log('PASS: PDF 文件类型列显示 "PDF" badge');
+  } else {
+    console.log('WARN: PDF 文件类型列未显示 "PDF" badge');
+  }
+
   // ── Step 2: 上传 DOC（7.8MB, 真实大文件） ──
   console.log('Step 2: 上传 DOC（7.8MB）...');
   const fileInput2 = page.locator("input[type='file']");
   await fileInput2.setInputFiles(DOC_PATH);
 
-  const docRow = page.getByText('四类').first();
+  const docRow = page.getByText('中小企业或残疾人福利').first();
   await docRow.waitFor({ timeout: 120000 });
   await page.screenshot({ path: SS + '-03-doc-uploaded.png', fullPage: true });
   console.log('PASS: DOC 上传成功，文件行出现');
+
+  // 验证类型列显示 "Word" badge
+  const docRowFull = page.locator('table tbody tr').filter({ hasText: '中小企业或残疾人福利' }).first();
+  const docTypeBadge = docRowFull.getByText('Word').first();
+  if (await docTypeBadge.isVisible().catch(() => false)) {
+    console.log('PASS: Word 文件类型列显示 "Word" badge');
+  } else {
+    console.log('WARN: Word 文件类型列未显示 "Word" badge');
+  }
 
   // ── Step 3: 统计卡片数字变化 ──
   await page.waitForTimeout(2000);
@@ -68,7 +85,7 @@ async page => {
 
   // ── Step 5: 等待转换完成（大文件可能需要较长时间） ──
   console.log('Step 5: 等待至少一个文件转换完成（最长 10 分钟）...');
-  const readyBadge = page.locator('table tbody tr').filter({ hasText: '阳山县腾晖建筑工程有限公司' }).getByText('已就绪');
+  const readyBadge = page.locator('table tbody tr').filter({ hasText: '从化区中医医院' }).getByText('已就绪');
   try {
     await readyBadge.waitFor({ timeout: 600000 });
     console.log('PASS: PDF 转换完成（已就绪）');
