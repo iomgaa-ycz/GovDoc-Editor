@@ -204,6 +204,7 @@ export default function FileManagementPage() {
 
     let successCount = 0;
     const failedIndices: number[] = [];
+    const errorMessages: Map<number, string> = new Map();
 
     // 逐个上传
     for (let i = 0; i < snapshot.length; i++) {
@@ -225,6 +226,8 @@ export default function FileManagementPage() {
         }));
       } catch (err) {
         failedIndices.push(i);
+        const errMsg = err instanceof Error ? err.message : "上传失败";
+        errorMessages.set(i, errMsg);
         setFileProgresses((prev) => ({
           ...prev,
           [key]: {
@@ -238,8 +241,18 @@ export default function FileManagementPage() {
 
     // 上传结束：保留失败文件在队列中，清除成功文件
     const failedFiles = failedIndices.map((i) => snapshot[i]);
+    // 按新索引重建失败文件的错误信息
+    const failedProgresses: Record<string, FileProgress> = {};
+    for (let fi = 0; fi < failedIndices.length; fi++) {
+      const newKey = `${fi}_${failedFiles[fi].name}`;
+      failedProgresses[newKey] = {
+        percentage: 0,
+        done: false,
+        error: errorMessages.get(failedIndices[fi]) ?? "上传失败",
+      };
+    }
     setPendingFiles(failedFiles);
-    setFileProgresses({});
+    setFileProgresses(failedProgresses);
     setUploading(false);
 
     // 弹窗提示结果
