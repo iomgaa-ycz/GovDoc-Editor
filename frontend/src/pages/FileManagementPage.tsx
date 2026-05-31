@@ -111,6 +111,7 @@ export default function FileManagementPage() {
   const [fileProgresses, setFileProgresses] = useState<Record<string, FileProgress>>({});
   const [showDoneDialog, setShowDoneDialog] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
+  const [failCount, setFailCount] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -190,19 +191,23 @@ export default function FileManagementPage() {
     setUploading(true);
     setError(null);
 
+    // 快照当前队列，避免上传中新增文件干扰
+    const snapshot = [...pendingFiles];
+
     // 初始化所有文件的进度
     const initialProgresses: Record<string, FileProgress> = {};
-    for (let i = 0; i < pendingFiles.length; i++) {
-      const key = `${i}_${pendingFiles[i].name}`;
+    for (let i = 0; i < snapshot.length; i++) {
+      const key = `${i}_${snapshot[i].name}`;
       initialProgresses[key] = { percentage: 0, done: false, error: null };
     }
     setFileProgresses(initialProgresses);
 
     let successCount = 0;
+    const failedIndices: number[] = [];
 
     // 逐个上传
-    for (let i = 0; i < pendingFiles.length; i++) {
-      const file = pendingFiles[i];
+    for (let i = 0; i < snapshot.length; i++) {
+      const file = snapshot[i];
       const key = `${i}_${file.name}`;
 
       try {
@@ -219,6 +224,7 @@ export default function FileManagementPage() {
           [key]: { percentage: 100, done: true, error: null },
         }));
       } catch (err) {
+        failedIndices.push(i);
         setFileProgresses((prev) => ({
           ...prev,
           [key]: {
@@ -230,11 +236,15 @@ export default function FileManagementPage() {
       }
     }
 
-    // 全部上传完成
-    setUploading(false);
-    setPendingFiles([]);
+    // 上传结束：保留失败文件在队列中，清除成功文件
+    const failedFiles = failedIndices.map((i) => snapshot[i]);
+    setPendingFiles(failedFiles);
     setFileProgresses({});
+    setUploading(false);
+
+    // 弹窗提示结果
     setDoneCount(successCount);
+    setFailCount(failedIndices.length);
     setShowDoneDialog(true);
     await refresh();
   }
@@ -467,11 +477,13 @@ export default function FileManagementPage() {
       <Dialog open={showDoneDialog} onOpenChange={setShowDoneDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>文件上传完成</DialogTitle>
+            <DialogTitle>
+              {failCount === 0 ? "文件上传完成" : "部分文件上传失败"}
+            </DialogTitle>
             <DialogDescription>
-              {doneCount > 0
+              {failCount === 0
                 ? `${doneCount} 个文件已上传完成，正在后台转换为可检索格式，稍后刷新即可查看。`
-                : "文件上传未成功，请检查文件格式后重试。"}
+                : `${doneCount} 个文件上传成功，${failCount} 个文件上传失败。失败文件已保留在队列中，可重新上传。`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

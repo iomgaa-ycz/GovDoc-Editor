@@ -12,12 +12,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json();
 }
 
-export async function uploadDocuments(files: File[]): Promise<GovDocument[]> {
-  const form = new FormData();
-  for (const f of files) form.append("files", f);
-  return request("/api/v1/documents/upload", { method: "POST", body: form });
-}
-
 /** 使用 XMLHttpRequest 上传单个文件，支持上传进度回调 */
 export function uploadSingleDocument(
   file: File,

@@ -46,6 +46,7 @@ export default function UploadBar({
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
+    if (uploading) return;
     const files = Array.from(e.dataTransfer.files).filter((f) =>
       ACCEPT.split(",").some((ext) => f.name.toLowerCase().endsWith(ext)),
     );
@@ -53,6 +54,7 @@ export default function UploadBar({
   };
 
   const handleSelect = () => {
+    if (uploading) return;
     const files = inputRef.current?.files;
     if (files?.length) onAddFiles(Array.from(files));
     if (inputRef.current) inputRef.current.value = "";
@@ -63,11 +65,11 @@ export default function UploadBar({
       {/* 拖拽上传区 */}
       <div
         className={`flex items-center justify-between rounded-xl border-[1.5px] px-5 py-4 transition-colors ${
-          dragging ? "border-blue-500 bg-blue-50" : "border-blue-300 bg-blue-50/50"
+          uploading ? "border-blue-200 bg-blue-50/30 opacity-60" : dragging ? "border-blue-500 bg-blue-50" : "border-blue-300 bg-blue-50/50"
         }`}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragging(true);
+          if (!uploading) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
@@ -77,7 +79,9 @@ export default function UploadBar({
             <CloudUpload className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm font-medium text-blue-800">拖拽 PDF 或 Word 文件到此处</p>
+            <p className="text-sm font-medium text-blue-800">
+              {uploading ? "正在上传中，请等待完成…" : "拖拽 PDF 或 Word 文件到此处"}
+            </p>
             <p className="text-xs text-blue-400">支持批量添加，单个文件最大 200 MB</p>
           </div>
         </div>
