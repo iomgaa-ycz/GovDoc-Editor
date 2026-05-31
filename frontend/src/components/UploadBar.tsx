@@ -2,24 +2,34 @@ import { useRef, useState, type DragEvent } from "react";
 import { CloudUpload, Upload, X, FileText } from "lucide-react";
 import { Progress } from "./ui/progress";
 
-interface FileProgress {
+export interface FileProgress {
   percentage: number;
   done: boolean;
   error: string | null;
 }
 
+/**
+ * 待上传文件项：稳定 id + 文件对象。
+ * id 在加入队列时一次性生成，与数组下标解耦——删除中间某项后，
+ * 其余文件的进度/错误信息（按 id 索引）不会串位。
+ */
+export interface PendingFile {
+  id: string;
+  file: File;
+}
+
 interface Props {
   /** 待上传文件队列（由父组件管理） */
-  pendingFiles: File[];
+  pendingFiles: PendingFile[];
   /** 向队列中添加文件 */
   onAddFiles: (files: File[]) => void;
-  /** 从队列中移除指定索引的文件 */
-  onRemoveFile: (index: number) => void;
+  /** 从队列中移除指定 id 的文件 */
+  onRemoveFile: (id: string) => void;
   /** 点击「开始上传」按钮 */
   onUpload: () => void;
   /** 是否正在上传中 */
   uploading: boolean;
-  /** 每个文件的上传进度，key 为 `${index}_${file.name}` */
+  /** 每个文件的上传进度，key 为文件稳定 id */
   fileProgresses: Record<string, FileProgress>;
 }
 
@@ -113,15 +123,14 @@ export default function UploadBar({
           </div>
 
           <div className="divide-y max-h-64 overflow-y-auto">
-            {pendingFiles.map((file, index) => {
-              const key = `${index}_${file.name}`;
-              const progress = fileProgresses[key];
+            {pendingFiles.map(({ id, file }) => {
+              const progress = fileProgresses[id];
               const isUploading = uploading && progress != null;
               const isDone = progress?.done;
               const hasError = progress?.error;
 
               return (
-                <div key={key} className="flex items-center gap-3 px-5 py-2.5">
+                <div key={id} className="flex items-center gap-3 px-5 py-2.5">
                   <FileText
                     className={`h-4 w-4 shrink-0 ${
                       hasError
@@ -157,7 +166,7 @@ export default function UploadBar({
                   {/* 未上传时可删除 */}
                   {!uploading && (
                     <button
-                      onClick={() => onRemoveFile(index)}
+                      onClick={() => onRemoveFile(id)}
                       className="shrink-0 rounded p-1 text-text-muted hover:bg-red-50 hover:text-red-500"
                     >
                       <X className="h-3.5 w-3.5" />

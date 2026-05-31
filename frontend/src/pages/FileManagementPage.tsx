@@ -26,6 +26,7 @@ import {
 } from "../api/documents";
 import TagPopover from "../components/TagPopover";
 import UploadBar from "../components/UploadBar";
+import type { FileProgress, PendingFile } from "../components/UploadBar";
 import VirtualProgressBar from "../components/VirtualProgressBar";
 import {
   Dialog,
@@ -88,12 +89,6 @@ function fileTypeMatches(document: GovDocument, typeFilter: TypeFilter): boolean
   return normalizeType(document.file_type) === typeFilter;
 }
 
-interface FileProgress {
-  percentage: number;
-  done: boolean;
-  error: string | null;
-}
-
 export default function FileManagementPage() {
   const [documents, setDocuments] = useState<GovDocument[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -106,7 +101,8 @@ export default function FileManagementPage() {
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   /* ---- 上传队列相关状态 ---- */
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const pendingIdCounter = useRef(0);
   const [uploading, setUploading] = useState(false);
   const [fileProgresses, setFileProgresses] = useState<Record<string, FileProgress>>({});
   const [showDoneDialog, setShowDoneDialog] = useState(false);
@@ -175,14 +171,23 @@ export default function FileManagementPage() {
     .map((tagId) => tags.find((tag) => tag.id === tagId))
     .filter((tag): tag is Tag => tag != null);
 
-  /** 向待上传队列中添加文件 */
+  /** 向待上传队列中添加文件（为每个文件分配稳定 id） */
   function addPendingFiles(files: File[]): void {
-    setPendingFiles((current) => [...current, ...files]);
+    const items = files.map((file) => ({
+      id: `pf-${pendingIdCounter.current++}`,
+      file,
+    }));
+    setPendingFiles((current) => [...current, ...items]);
   }
 
-  /** 从待上传队列中移除指定索引的文件 */
-  function removePendingFile(index: number): void {
-    setPendingFiles((current) => current.filter((_, i) => i !== index));
+  /** 从待上传队列中移除指定 id 的文件，并同步清理其进度记录 */
+  function removePendingFile(id: string): void {
+    setPendingFiles((current) => current.filter((item) => item.id !== id));
+    setFileProgresses((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   }
 
   /** 逐个上传队列中的所有文件 */
@@ -194,70 +199,52 @@ export default function FileManagementPage() {
     // 快照当前队列，避免上传中新增文件干扰
     const snapshot = [...pendingFiles];
 
-    // 初始化所有文件的进度
+    // 初始化所有文件的进度（按稳定 id 索引）
     const initialProgresses: Record<string, FileProgress> = {};
-    for (let i = 0; i < snapshot.length; i++) {
-      const key = `${i}_${snapshot[i].name}`;
-      initialProgresses[key] = { percentage: 0, done: false, error: null };
+    for (const item of snapshot) {
+      initialProgresses[item.id] = { percentage: 0, done: false, error: null };
     }
     setFileProgresses(initialProgresses);
 
     let successCount = 0;
-    const failedIndices: number[] = [];
-    const errorMessages: Map<number, string> = new Map();
+    const failedItems: PendingFile[] = [];
+    const failedProgresses: Record<string, FileProgress> = {};
 
     // 逐个上传
-    for (let i = 0; i < snapshot.length; i++) {
-      const file = snapshot[i];
-      const key = `${i}_${file.name}`;
-
+    for (const item of snapshot) {
+      const { id, file } = item;
       try {
         await uploadSingleDocument(file, (percentage) => {
           setFileProgresses((prev) => ({
             ...prev,
-            [key]: { percentage, done: false, error: null },
+            [id]: { percentage, done: false, error: null },
           }));
         });
 
         successCount++;
         setFileProgresses((prev) => ({
           ...prev,
-          [key]: { percentage: 100, done: true, error: null },
+          [id]: { percentage: 100, done: true, error: null },
         }));
       } catch (err) {
-        failedIndices.push(i);
         const errMsg = err instanceof Error ? err.message : "上传失败";
-        errorMessages.set(i, errMsg);
+        failedItems.push(item);
+        failedProgresses[id] = { percentage: 0, done: false, error: errMsg };
         setFileProgresses((prev) => ({
           ...prev,
-          [key]: {
-            percentage: 0,
-            done: false,
-            error: err instanceof Error ? err.message : "上传失败",
-          },
+          [id]: { percentage: 0, done: false, error: errMsg },
         }));
       }
     }
 
-    // 上传结束：保留失败文件在队列中，清除成功文件
-    const failedFiles = failedIndices.map((i) => snapshot[i]);
-    // 按新索引重建失败文件的错误信息
-    const failedProgresses: Record<string, FileProgress> = {};
-    for (let fi = 0; fi < failedIndices.length; fi++) {
-      const newKey = `${fi}_${failedFiles[fi].name}`;
-      failedProgresses[newKey] = {
-        percentage: 0,
-        done: false,
-        error: errorMessages.get(failedIndices[fi]) ?? "上传失败",
-      };
-    }
-    setPendingFiles(failedFiles);
+    // 上传结束：保留失败文件在队列中（id 不变，进度/错误不串位），清除成功文件
+    setPendingFiles(failedItems);
     setFileProgresses(failedProgresses);
     setUploading(false);
 
     // 弹窗提示结果
     setDoneCount(successCount);
-    setFailCount(failedIndices.length);
+    setFailCount(failedItems.length);
     setShowDoneDialog(true);
     await refresh();
   }
