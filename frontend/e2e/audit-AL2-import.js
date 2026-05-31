@@ -1,7 +1,7 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL2';
-  const XLS_PATH = '../real_data/附件9 处理处罚标准(2).xls';
+  const XLS_PATH = 'e2e/.test-data/E2E测试审核点.xlsx';
 
   // ── Step 1: 导航到审核点库页面 ──
   console.log('Step 1: 导航到 /audit-library');
@@ -44,8 +44,8 @@ async page => {
   await fileInput.setInputFiles(XLS_PATH);
   await page.waitForTimeout(1000);
 
-  const filenameVisible = page.getByText('处理处罚标准').first();
-  if (!(await filenameVisible.isVisible())) throw new Error('上传后文件名"处理处罚标准"不可见');
+  const filenameVisible = page.getByText('E2E测试审核点').first();
+  if (!(await filenameVisible.isVisible())) throw new Error('上传后文件名"E2E测试审核点"不可见');
   await page.screenshot({ path: SS + '-03-file-uploaded.png', fullPage: true });
   console.log('PASS: 文件上传成功，文件名可见');
 

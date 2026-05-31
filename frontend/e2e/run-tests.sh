@@ -125,6 +125,13 @@ if ! curl -sf -o /dev/null --connect-timeout 5 "$BACKEND_URL/healthz"; then
 fi
 log "✓ 后端可达"
 
+# ── 生成 e2e fixture ──
+if [ ! -d "e2e/.test-data" ]; then
+    log "▶ 生成 e2e 测试 fixture..."
+    source activate govdoc-auditor-v3 && python3 e2e/generate-test-data.py
+    log "✓ fixture 生成完成"
+fi
+
 # ── 执行测试 ──
 for t in "${TESTS[@]}"; do
     run_test "$t"

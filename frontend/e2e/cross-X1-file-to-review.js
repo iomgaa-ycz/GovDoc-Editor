@@ -1,7 +1,7 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/cross-X1';
-  const PDF_PATH = '../real_data/从化区中医医院手术室设备及附件、病房护理及医院设备采购招标文件（2024040902）.pdf.pdf';
+  const PDF_PATH = 'e2e/.test-data/E2E测试招标文件.pdf';
 
   // ── 跨页面测试：上传文件后立即在 AI 审查文件选择器中可见 ──
 
@@ -36,7 +36,7 @@ async page => {
   await fileInput.setInputFiles(PDF_PATH);
 
   // 等文件出现
-  const fileRow = page.getByText('从化区中医医院').first();
+  const fileRow = page.getByText('E2E测试招标文件').first();
   await fileRow.waitFor({ timeout: 120000 });
   console.log('PASS: 文件上传成功');
 
@@ -60,12 +60,12 @@ async page => {
   // 搜索刚上传的文件
   const searchInput = picker2.locator('input[placeholder="搜索文件名..."]').first();
   if (await searchInput.isVisible().catch(() => false)) {
-    await searchInput.fill('从化区中医医院');
+    await searchInput.fill('E2E测试招标文件');
     await page.waitForTimeout(1000);
   }
 
   // 验证能找到
-  const newFileItem = picker2.getByText('从化区中医医院').first();
+  const newFileItem = picker2.getByText('E2E测试招标文件').first();
   if (await newFileItem.isVisible().catch(() => false)) {
     console.log('PASS: 新上传的文件在选择器中可见');
   } else {

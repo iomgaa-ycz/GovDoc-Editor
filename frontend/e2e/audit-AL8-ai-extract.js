@@ -1,8 +1,8 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL8';
-  const FILE_PATH = '../real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
-  const TITLE = '政府采购四类违规行为专项整治工作指引';
+  const FILE_PATH = 'e2e/.test-data/E2E测试法规指引.md';
+  const TITLE = 'E2E测试法规指引';
   const MAX_WAIT_MS = 30 * 60 * 1000; // 30 minutes
 
   // ── Step 1: 导航到审核点库页面，记录初始行数 ──
@@ -41,10 +41,10 @@ async page => {
   await fileInput.setInputFiles(FILE_PATH);
   await page.waitForTimeout(1000);
 
-  const fileNameFragment = page.getByText('四类').first();
-  if (!(await fileNameFragment.isVisible())) throw new Error('上传后文件名片段"四类"不可见');
+  const fileNameFragment = page.getByText('E2E测试法规指引').first();
+  if (!(await fileNameFragment.isVisible())) throw new Error('上传后文件名片段"E2E测试法规指引"不可见');
   await page.screenshot({ path: SS + '-03-file-uploaded.png', fullPage: true });
-  console.log('PASS: 文件上传成功，文件名片段"四类"可见');
+  console.log('PASS: 文件上传成功，文件名片段"E2E测试法规指引"可见');
 
   // ── Step 5: 点击"开始抽取" ──
   console.log('Step 5: 点击"开始抽取"');

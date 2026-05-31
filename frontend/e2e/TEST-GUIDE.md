@@ -28,8 +28,8 @@ uvicorn govdoc.api.main:app --host 0.0.0.0 --port 8000
 # 3. 启动前端
 cd frontend && npx vite --host 0.0.0.0 --port 5173
 
-# 4. 启动测试
-bash frontend/e2e/run-tests.sh 
+# 4. 启动测试（首次运行自动生成 fixture 到 e2e/.test-data/，无需手动准备文件）
+bash frontend/e2e/run-tests.sh
 
 
 
@@ -141,7 +141,7 @@ bash frontend/e2e/run-tests.sh
 
 ### T2.2 上传 PDF 文件 🤖👤
 
-**前置**：准备一个真实的招标文书 PDF（≥5MB）
+**前置**：准备一个 PDF 文件（自动化使用运行时生成的 `e2e/.test-data/E2E测试招标文件.pdf`，人工测试可使用任意 PDF）
 
 **步骤**：
 1. 点击上传区域或拖拽 PDF 文件到上传区
@@ -351,7 +351,7 @@ bash frontend/e2e/run-tests.sh
 
 ### T3.2 导入 XLS 审核点 🤖👤
 
-**前置**：准备审核点表格文件（`.xls` 或 `.xlsx`），如 `real_data/附件9 处理处罚标准.xls`
+**前置**：准备审核点表格文件（`.xls` 或 `.xlsx`）。自动化使用运行时生成的 `e2e/.test-data/E2E测试审核点.xlsx`
 
 **步骤**：
 1. 点击"上传" → 选择"导入审查点表格"
@@ -596,7 +596,7 @@ bash frontend/e2e/run-tests.sh
 
 ### T3.20 AI 提取审核点 🤖👤
 
-**前置**：准备法规文件（`.doc`），如 `real_data/四类违法违规行为指引.doc`
+**前置**：准备法规文件。自动化使用运行时生成的 `e2e/.test-data/E2E测试法规指引.md`（人工测试可使用真实 `.doc`）
 
 **步骤**：
 1. 点击"上传" → 选择"AI 提取"
@@ -1080,16 +1080,30 @@ bash frontend/e2e/run-tests.sh
 
 ## 附录：测试数据准备与自动化对照
 
-### 需要准备的文件
+### 自动化测试数据
 
-| 文件 | 格式 | 大小 | 用途 | 路径参考 |
+自动化测试的数据文件由 `generate-test-data.py` 在首次运行 `run-tests.sh` 时自动生成到 `frontend/e2e/.test-data/`，无需手动准备：
+
+| 文件 | 格式 | 大小 | 用途 | 生成方式 |
 |------|------|------|------|---------|
-| 招标文书 | PDF | ≥5MB | T2.2 上传、T4.5 选文书 | `real_data/阳山县腾晖建筑工程有限公司.pdf` |
-| 法规文件 | .doc | 任意 | T3.20 AI 提取、T3.21 拖拽 | `real_data/四类违法违规行为指引.doc` |
-| 审核点表格 | .xls | 任意 | T3.2 导入 | `real_data/附件9 处理处罚标准.xls` |
-| 对比文件 A | PDF | 任意 | T6.4 对比 | 文件管理中已有的 PDF |
-| 对比文件 B | .doc/.docx | 任意 | T6.4 对比 | 文件管理中已有的 Word |
-| 不支持的文件 | .txt | <1KB | T3.21 格式校验 | 手动创建 |
+| `E2E测试招标文件.pdf` | PDF | ~600B | T2.2 上传、T2.4 跨页面可见 | 手写 PDF 结构 |
+| `E2E测试声明函.docx` | DOCX | ~36KB | T2.3 上传 | python-docx |
+| `E2E测试审核点.xlsx` | XLSX | ~5KB | T3.2 导入 | openpyxl（含标准表头） |
+| `E2E测试法规指引.md` | MD | ~260B | T3.20 AI 提取 | 纯文本 |
+| `E2E测试法规指引.doc` | 假 DOC | ~25B | T3.21 UI 选择测试 | 占位文件 |
+
+> **注意**：生成文件为最小合法格式，仅验证 UI 交互流程。真实大文件的转换质量、AI 提取深度等由后端单元/集成测试覆盖。
+
+### 人工测试需准备的文件
+
+| 文件 | 格式 | 大小 | 用途 |
+|------|------|------|------|
+| 招标文书 | PDF | ≥5MB | T2.2 上传、T4.5 选文书 |
+| 法规文件 | .doc/.docx | 任意 | T3.20 AI 提取、T3.21 拖拽 |
+| 审核点表格 | .xls/.xlsx | 任意 | T3.2 导入 |
+| 对比文件 A | PDF | 任意 | T6.4 对比 |
+| 对比文件 B | .doc/.docx | 任意 | T6.4 对比 |
+| 不支持的文件 | .txt | <1KB | T3.21 格式校验 |
 
 ### 测试数据清理
 
@@ -1097,6 +1111,7 @@ bash frontend/e2e/run-tests.sh
 - [ ] 删除测试创建的审核点库（如 `E2E测试库-xxx`）
 - [ ] 恢复被编辑的审核点原标题（T3.14）
 - [ ] 侧边栏"未分类"下的测试审核点可保留或手动删除
+- [ ] 自动化生成的 fixture 在 `e2e/.test-data/`，已被 `.gitignore` 忽略，可随时 `rm -rf frontend/e2e/.test-data` 清理
 
 ### 自动化测试对照表
 
@@ -1136,7 +1151,7 @@ bash frontend/e2e/run-tests.sh
 | T6.1 | compare-C1-skeleton.js | ✅ |
 | T6.2 | compare-C2-file-picker.js | ✅ |
 | T6.3 | compare-C3-selection-manage.js | ✅ |
-| T6.4 | compare-C4-pdf-doc.js | ✅ |
+| T6.4 | compare-C4-submit-progress.js | ✅ |
 | T6.5 | compare-C4-submit-progress.js | ✅ |
 | T6.6 | compare-C6-result-view.js | ✅ |
 | T6.7 | compare-C7-result-interact.js | ✅ |
