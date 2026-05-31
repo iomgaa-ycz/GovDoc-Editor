@@ -18,6 +18,47 @@ export async function uploadDocuments(files: File[]): Promise<GovDocument[]> {
   return request("/api/v1/documents/upload", { method: "POST", body: form });
 }
 
+/** 使用 XMLHttpRequest 上传单个文件，支持上传进度回调 */
+export function uploadSingleDocument(
+  file: File,
+  onProgress?: (percentage: number) => void,
+): Promise<GovDocument[]> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("files", file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api/v1/documents/upload`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as GovDocument[]);
+        } catch {
+          reject(new Error("响应解析失败"));
+        }
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new Error(body.detail ?? `HTTP ${xhr.status}`));
+        } catch {
+          reject(new Error(`HTTP ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("网络错误"));
+    xhr.onabort = () => reject(new Error("上传已取消"));
+    xhr.send(form);
+  });
+}
+
 export async function listDocuments(params?: {
   status?: string; file_type?: string; tag_id?: string; q?: string;
 }): Promise<GovDocument[]> {

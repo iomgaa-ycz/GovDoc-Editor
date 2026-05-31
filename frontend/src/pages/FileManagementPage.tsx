@@ -22,11 +22,19 @@ import {
   listTags,
   reconvertDocument,
   removeDocumentTag,
-  uploadDocuments,
+  uploadSingleDocument,
 } from "../api/documents";
 import TagPopover from "../components/TagPopover";
 import UploadBar from "../components/UploadBar";
 import VirtualProgressBar from "../components/VirtualProgressBar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import type { GovDocument, Tag } from "../types/ui";
 
 type TypeFilter = "all" | "pdf" | "docx";
@@ -80,6 +88,12 @@ function fileTypeMatches(document: GovDocument, typeFilter: TypeFilter): boolean
   return normalizeType(document.file_type) === typeFilter;
 }
 
+interface FileProgress {
+  percentage: number;
+  done: boolean;
+  error: string | null;
+}
+
 export default function FileManagementPage() {
   const [documents, setDocuments] = useState<GovDocument[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -88,9 +102,15 @@ export default function FileManagementPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
+
+  /* ---- 上传队列相关状态 ---- */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [fileProgresses, setFileProgresses] = useState<Record<string, FileProgress>>({});
+  const [showDoneDialog, setShowDoneDialog] = useState(false);
+  const [doneCount, setDoneCount] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -154,16 +174,69 @@ export default function FileManagementPage() {
     .map((tagId) => tags.find((tag) => tag.id === tagId))
     .filter((tag): tag is Tag => tag != null);
 
-  async function handleUpload(files: File[]): Promise<void> {
+  /** 向待上传队列中添加文件 */
+  function addPendingFiles(files: File[]): void {
+    setPendingFiles((current) => [...current, ...files]);
+  }
+
+  /** 从待上传队列中移除指定索引的文件 */
+  function removePendingFile(index: number): void {
+    setPendingFiles((current) => current.filter((_, i) => i !== index));
+  }
+
+  /** 逐个上传队列中的所有文件 */
+  async function handleUploadAll(): Promise<void> {
+    if (pendingFiles.length === 0) return;
     setUploading(true);
-    try {
-      await uploadDocuments(files);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "文件上传失败");
-    } finally {
-      setUploading(false);
+    setError(null);
+
+    // 初始化所有文件的进度
+    const initialProgresses: Record<string, FileProgress> = {};
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const key = `${i}_${pendingFiles[i].name}`;
+      initialProgresses[key] = { percentage: 0, done: false, error: null };
     }
+    setFileProgresses(initialProgresses);
+
+    let successCount = 0;
+
+    // 逐个上传
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const file = pendingFiles[i];
+      const key = `${i}_${file.name}`;
+
+      try {
+        await uploadSingleDocument(file, (percentage) => {
+          setFileProgresses((prev) => ({
+            ...prev,
+            [key]: { percentage, done: false, error: null },
+          }));
+        });
+
+        successCount++;
+        setFileProgresses((prev) => ({
+          ...prev,
+          [key]: { percentage: 100, done: true, error: null },
+        }));
+      } catch (err) {
+        setFileProgresses((prev) => ({
+          ...prev,
+          [key]: {
+            percentage: 0,
+            done: false,
+            error: err instanceof Error ? err.message : "上传失败",
+          },
+        }));
+      }
+    }
+
+    // 全部上传完成
+    setUploading(false);
+    setPendingFiles([]);
+    setFileProgresses({});
+    setDoneCount(successCount);
+    setShowDoneDialog(true);
+    await refresh();
   }
 
   function toggleSelected(id: string): void {
@@ -241,7 +314,14 @@ export default function FileManagementPage() {
           <p className="mt-1 text-sm text-text-muted">上传 PDF 或 Word 文件，系统将自动转换为可检索格式</p>
         </section>
 
-        <UploadBar onUpload={(files) => void handleUpload(files)} uploading={uploading} />
+        <UploadBar
+          pendingFiles={pendingFiles}
+          onAddFiles={addPendingFiles}
+          onRemoveFile={removePendingFile}
+          onUpload={() => void handleUploadAll()}
+          uploading={uploading}
+          fileProgresses={fileProgresses}
+        />
 
         <section className="flex gap-4">
           <StatsCard icon={<Files className="h-5 w-5 text-blue-600" />} label="总文件" value={stats.total} tone="blue" />
@@ -382,6 +462,28 @@ export default function FileManagementPage() {
           </table>
         </section>
       </main>
+
+      {/* 上传完成弹窗 */}
+      <Dialog open={showDoneDialog} onOpenChange={setShowDoneDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>文件上传完成</DialogTitle>
+            <DialogDescription>
+              {doneCount > 0
+                ? `${doneCount} 个文件已上传完成，正在后台转换为可检索格式，稍后刷新即可查看。`
+                : "文件上传未成功，请检查文件格式后重试。"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              onClick={() => setShowDoneDialog(false)}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              知道了
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
