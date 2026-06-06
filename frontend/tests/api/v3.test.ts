@@ -19,11 +19,13 @@ import {
   createAuditRun,
   createCheckpointLibrary,
   createProject,
+  excludeFailedPoints,
   getAuditRunProgress,
   importCheckpoints,
   listCheckpointLibraries,
   listProjects,
   request,
+  retryFailedPoints,
 } from "@/api/v3";
 import type { AuditRunProgress, Project } from "@/types/ui";
 
@@ -234,6 +236,62 @@ describe("createAuditRun() — checkpoint_library_id", () => {
       checkpoint_library_id: "lib-1",
     });
     expect(result.total_count).toBe(3);
+  });
+});
+
+describe("retryFailedPoints() — POST /api/v1/audit/runs/{id}/retry-failed", () => {
+  it("命中 retry-failed 端点并返回 retry_count", async () => {
+    let capturedUrl = "";
+    let capturedMethod = "";
+    server.use(
+      http.post(
+        "*/api/v1/audit/runs/r1/retry-failed",
+        ({ request: req }) => {
+          capturedUrl = req.url;
+          capturedMethod = req.method;
+          return HttpResponse.json({
+            audit_run_id: "r1",
+            status: "running",
+            retry_count: 3,
+          });
+        },
+      ),
+    );
+
+    const got = await retryFailedPoints("r1");
+
+    expect(capturedMethod).toBe("POST");
+    expect(capturedUrl).toMatch(/\/api\/v1\/audit\/runs\/r1\/retry-failed$/);
+    expect(got.audit_run_id).toBe("r1");
+    expect(got.retry_count).toBe(3);
+  });
+});
+
+describe("excludeFailedPoints() — POST /api/v1/audit/runs/{id}/exclude-failed", () => {
+  it("命中 exclude-failed 端点并返回 excluded_count", async () => {
+    let capturedUrl = "";
+    let capturedMethod = "";
+    server.use(
+      http.post(
+        "*/api/v1/audit/runs/r1/exclude-failed",
+        ({ request: req }) => {
+          capturedUrl = req.url;
+          capturedMethod = req.method;
+          return HttpResponse.json({
+            audit_run_id: "r1",
+            status: "completed",
+            excluded_count: 2,
+          });
+        },
+      ),
+    );
+
+    const got = await excludeFailedPoints("r1");
+
+    expect(capturedMethod).toBe("POST");
+    expect(capturedUrl).toMatch(/\/api\/v1\/audit\/runs\/r1\/exclude-failed$/);
+    expect(got.audit_run_id).toBe("r1");
+    expect(got.excluded_count).toBe(2);
   });
 });
 

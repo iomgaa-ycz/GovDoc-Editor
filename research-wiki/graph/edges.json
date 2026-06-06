@@ -209,6 +209,16 @@
       "id": "plan:audit-library-upload-fix-plan",
       "label": "审核点库上传交互修复 实现计划",
       "type": "plan"
+    },
+    {
+      "id": "design:audit-partial-failure-recovery",
+      "label": "审核部分失败恢复（残缺底稿+重试/跳过）",
+      "type": "design"
+    },
+    {
+      "id": "plan:audit-partial-failure-recovery-plan",
+      "label": "审核部分失败恢复 实现计划",
+      "type": "plan"
     }
   ],
   "links": [
@@ -309,6 +319,13 @@
       "relation": "implements",
       "evidence": "实现拖拽/.doc/标题兜底/拖错提示",
       "added": "2026-05-29T06:26:21.384946+00:00"
+    },
+    {
+      "source": "plan:audit-partial-failure-recovery-plan",
+      "target": "design:audit-partial-failure-recovery",
+      "relation": "implements",
+      "evidence": "9个TDD任务实现残缺底稿+重试/跳过+回填",
+      "added": "2026-06-06T08:34:49.740122+00:00"
     }
   ]
 }

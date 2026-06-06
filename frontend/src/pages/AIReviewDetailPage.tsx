@@ -30,6 +30,8 @@ import {
   listAuditRuns,
   listCheckpoints,
   request,
+  excludeFailedPoints,
+  retryFailedPoints,
   retryPointRun,
   updateWorkpaperDraft,
 } from "@/api/v3";
@@ -174,6 +176,19 @@ export function AIReviewDetailPage() {
   const totalCount = progress?.total_count ?? run?.total_count ?? 0;
   const processedCount = progress?.processed_count ?? run?.processed_count ?? 0;
   const progressPercent = percent(processedCount, totalCount);
+
+  // 部分完成派生值：用于提示条与重试/跳过按钮
+  const pointRuns = progress?.point_runs ?? [];
+  const completedCount = pointRuns.filter((p) => p.status === "completed").length;
+  const failedCount = pointRuns.filter((p) => p.status === "failed").length;
+  const isRunning = currentStatus === "running";
+  // 提示条按状态精准 gate：
+  // - partial_ready：后端保证有完成点且有失败点，确有残缺稿 → 提示条 + 重试 / 跳过两按钮
+  // - waiting_retry：0 完成点，暂无底稿 → 提示条 + 仅重试按钮（跳过为 no-op，不显示）
+  // - running：进度由进度视图负责，不显示提示条（避免"部分稿"误导）
+  const isPartialReady = currentStatus === "partial_ready";
+  const isWaitingRetry = currentStatus === "waiting_retry";
+  const showRecoveryBanner = isPartialReady || isWaitingRetry;
 
   const checkpointById = useMemo(
     () =>
@@ -385,6 +400,26 @@ export function AIReviewDetailPage() {
     }
   }
 
+  async function handleRetryFailed() {
+    if (!auditRunId) return;
+    try {
+      await retryFailedPoints(auditRunId);
+      setPollVersion((current) => current + 1);
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : "重试失败");
+    }
+  }
+
+  async function handleExcludeFailed() {
+    if (!auditRunId) return;
+    try {
+      await excludeFailedPoints(auditRunId);
+      setPollVersion((current) => current + 1);
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : "跳过失败");
+    }
+  }
+
   async function handleCancelAuditRun() {
     if (!auditRunId) return;
     setCancelling(true);
@@ -398,6 +433,44 @@ export function AIReviewDetailPage() {
     } finally {
       setCancelling(false);
     }
+  }
+
+  function renderStatusBanner() {
+    return (
+      <>
+        {isPartialReady && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>
+              本次审核共 {totalCount} 个审核点：已完成 {completedCount} 个，{failedCount} 个未能完成。
+            </p>
+            <p className="mt-1">当前为「部分稿」，缺少未完成审核点的内容。</p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" disabled={isRunning} onClick={handleRetryFailed}>
+                重试未完成的 {failedCount} 项
+              </Button>
+              <Button size="sm" variant="secondary" disabled={isRunning} onClick={handleExcludeFailed}>
+                跳过这 {failedCount} 项并出完整稿
+              </Button>
+            </div>
+          </div>
+        )}
+        {isWaitingRetry && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>{totalCount} 个审核点均未能完成，暂无底稿。</p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" disabled={isRunning} onClick={handleRetryFailed}>
+                重试未完成的项
+              </Button>
+            </div>
+          </div>
+        )}
+        {currentStatus === "draft_ready" && (
+          <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
+            ✅ {totalCount} 个审核点全部完成，已生成完整底稿。
+          </div>
+        )}
+      </>
+    );
   }
 
   function renderProgressView() {
@@ -744,6 +817,10 @@ export function AIReviewDetailPage() {
           )}
         </div>
       </header>
+
+      {(showRecoveryBanner || currentStatus === "draft_ready") && (
+        <div className="border-b bg-surface-card px-7 py-3">{renderStatusBanner()}</div>
+      )}
 
       {currentStatus === "failed" || currentStatus === "cancelled"
         ? renderErrorView()

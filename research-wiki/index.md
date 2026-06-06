@@ -1,12 +1,13 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-05-29 06:26 UTC
+> 自动生成，更新时间：2026-06-06 08:34 UTC
 
-## design (24)
+## design (26)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
 - [2026-05-28-scrivai-0.2.3-converter-upgrade-design](designs/2026-05-28-scrivai-0.2.3-converter-upgrade-design.md) `design:2026-05-28-scrivai-0.2.3-converter-upgrade-design`
+- [2026-06-06-audit-partial-failure-recovery-design](designs/2026-06-06-audit-partial-failure-recovery-design.md) `design:2026-06-06-audit-partial-failure-recovery-design`
 - [async offload: 解除 run_audit 同步阻塞事件循环](designs/async-offload-blocking-ops.md) `design:async-offload-blocking-ops`
 - [CI/CD 部署架构设计](designs/cicd-design.md) `design:cicd-design`
 - [Hub+Detail 前端页面重构设计](designs/hub-detail-frontend-redesign.md) `design:hub-detail-frontend-redesign`
@@ -19,6 +20,7 @@
 - [审核点库上传交互修复（拖拽 + .doc + 标题兜底）](designs/audit-library-upload-fix.md) `design:audit-library-upload-fix`
 - [审核点按标题去重设计](designs/checkpoint-title-dedup-design.md) `design:checkpoint-title-dedup-design`
 - [审核状态 UI 改进版设计（PR#26 减一层）](designs/audit-status-ui-v2.md) `design:audit-status-ui-v2`
+- [审核部分失败恢复（残缺底稿+重试/跳过）](designs/audit-partial-failure-recovery.md) `design:audit-partial-failure-recovery`
 - [对比模块 MinerU OCR 后端集成设计](designs/compare-mineru-ocr.md) `design:compare-mineru-ocr`
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
 - [文件预转换与文件管理中心架构改造](designs/file-management-center.md) `design:file-management-center`
@@ -33,7 +35,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (52)
+## plan (54)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -53,6 +55,7 @@
 - [2026-05-28-scrivai-0.2.3-converter-upgrade](plans/2026-05-28-scrivai-0.2.3-converter-upgrade.md) `plan:2026-05-28-scrivai-0.2.3-converter-upgrade`
 - [2026-05-29-audit-library-e2e-tests](plans/2026-05-29-audit-library-e2e-tests.md) `plan:2026-05-29-audit-library-e2e-tests`
 - [2026-05-29-fix-test-failures](plans/2026-05-29-fix-test-failures.md) `plan:2026-05-29-fix-test-failures`
+- [2026-06-06-audit-partial-failure-recovery](plans/2026-06-06-audit-partial-failure-recovery.md) `plan:2026-06-06-audit-partial-failure-recovery`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
@@ -78,6 +81,7 @@
 - [审核点按标题去重实施计划](plans/2026-05-24-checkpoint-title-dedup-plan.md) `plan:2026-05-24-checkpoint-title-dedup-plan`
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
+- [审核部分失败恢复 实现计划](plans/audit-partial-failure-recovery-plan.md) `plan:audit-partial-failure-recovery-plan`
 - [对比模块 MinerU OCR 后端集成 实施计划](plans/compare-mineru-ocr-plan.md) `plan:compare-mineru-ocr-plan`
 - [文件预转换与文件管理中心实施计划](plans/file-management-center.md) `plan:file-management-center`
 - [文档对比分层加载与前端重构实施计划](plans/2026-05-27-compare-lazy-load.md) `plan:compare-lazy-load`

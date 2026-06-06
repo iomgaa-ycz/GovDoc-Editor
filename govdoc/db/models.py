@@ -113,7 +113,8 @@ class AuditPointRun(SQLModel, table=True):
     id: str = Field(default_factory=uid, primary_key=True)
     audit_run_id: str = Field(foreign_key="auditrun.id")
     checkpoint_final_id: str = Field(foreign_key="checkpointfinal.id")
-    # pending / running / completed / failed / waiting_retry
+    # pending / running / completed / failed / waiting_retry / excluded
+    # excluded：被「跳过」的失败点，不计入总数、不参与出底稿、不再重跑
     status: str = "pending"
     workspace_archive_path: str | None = None
     workspace_failed_path: str | None = None

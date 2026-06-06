@@ -58,9 +58,7 @@ def _resolve_checkpoint_ids_from_library(
         raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")
 
     existing_ids = set(
-        session.exec(
-            select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))
-        ).all()
+        session.exec(select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))).all()
     )
 
     checkpoint_ids = [cp_id for cp_id in all_cp_ids if cp_id in existing_ids]
@@ -123,7 +121,9 @@ async def create_audit_run(
         skipped_deleted_count = 0
         if payload.checkpoint_library_id:
             if checkpoint_ids:
-                raise HTTPException(status_code=400, detail="checkpoint_ids 与 checkpoint_library_id 不能同时传")
+                raise HTTPException(
+                    status_code=400, detail="checkpoint_ids 与 checkpoint_library_id 不能同时传"
+                )
             source_library, checkpoint_ids, skipped_deleted_count = (
                 _resolve_checkpoint_ids_from_library(
                     session,
@@ -281,9 +281,7 @@ def _filter_orphan_point_runs(
     Returns:
         checkpoint 仍存在的 point_run 列表。
     """
-    return [
-        pr for pr in point_runs if pr.checkpoint_final_id in existing_checkpoint_ids
-    ]
+    return [pr for pr in point_runs if pr.checkpoint_final_id in existing_checkpoint_ids]
 
 
 @router.get("/runs/{audit_run_id}/progress")
@@ -293,16 +291,22 @@ async def get_audit_run_progress(audit_run_id: str):
         if run is None:
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
 
-        point_runs = session.exec(
-            select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_id)
-        ).all()
+        point_runs = [
+            pr
+            for pr in session.exec(
+                select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_id)
+            ).all()
+            if pr.status != "excluded"
+        ]
 
         cp_ids = {pr.checkpoint_final_id for pr in point_runs}
-        existing_ids = set(
-            session.exec(
-                select(CheckpointFinal.id).where(CheckpointFinal.id.in_(cp_ids))
-            ).all()
-        ) if cp_ids else set()
+        existing_ids = (
+            set(
+                session.exec(select(CheckpointFinal.id).where(CheckpointFinal.id.in_(cp_ids))).all()
+            )
+            if cp_ids
+            else set()
+        )
         visible_runs = _filter_orphan_point_runs(list(point_runs), existing_ids)
         orphan_count = len(point_runs) - len(visible_runs)
 
@@ -378,3 +382,50 @@ async def retry_point_run(
 
     background_tasks.add_task(_run_retry)
     return {"point_run_id": point_run_id, "status": "retrying"}
+
+
+@router.post("/runs/{audit_run_id}/retry-failed", status_code=202)
+async def retry_failed_points(audit_run_id: str, background_tasks: BackgroundTasks):
+    """批量重试某审核任务下的全部失败点；跑完自动重新出底稿。"""
+    from govdoc.pipelines.audit_tender import prepare_failed_points_retry, run_audit
+
+    with get_db_session() as session:
+        run = session.get(AuditRun, audit_run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        if run.status == "running":
+            raise HTTPException(status_code=409, detail="任务正在运行，请稍后再试")
+        point_ids = prepare_failed_points_retry(audit_run_id, session)
+        if not point_ids:
+            raise HTTPException(status_code=400, detail="没有失败的审核点可重试")
+
+    async def _run():
+        with get_db_session() as s:
+            try:
+                await run_audit(audit_run_id, s, point_run_ids=point_ids)
+            except Exception:
+                logger.exception("批量重试失败: %s", audit_run_id)
+
+    background_tasks.add_task(_run)
+    return {"audit_run_id": audit_run_id, "status": "retrying", "retry_count": len(point_ids)}
+
+
+@router.post("/runs/{audit_run_id}/exclude-failed", status_code=200)
+async def exclude_failed_points_endpoint(audit_run_id: str):
+    """跳过（剔除）某审核任务下全部失败点，立即重新出（完整）底稿。"""
+    from govdoc.pipelines.audit_tender import exclude_failed_points
+
+    with get_db_session() as session:
+        run = session.get(AuditRun, audit_run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        if run.status == "running":
+            raise HTTPException(status_code=409, detail="任务正在运行，请稍后再试")
+        try:
+            n = await exclude_failed_points(audit_run_id, session)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if n == 0:
+            raise HTTPException(status_code=400, detail="没有失败的审核点可跳过")
+        run = session.get(AuditRun, audit_run_id)
+        return {"audit_run_id": audit_run_id, "status": run.status, "excluded_count": n}

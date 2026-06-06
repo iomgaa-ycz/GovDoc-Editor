@@ -153,6 +153,29 @@ def _delete_trajectory_run(store: Any, run_id: str) -> None:
         conn.close()
 
 
+def _reset_point_run_fields(point_run: AuditPointRun) -> None:
+    """重置 AuditPointRun 的运行产物字段，使其回到可重跑的 pending 初始态。
+
+    集中清理重试前需要复位的 7 个字段（status 置 pending，error / usage_json /
+    finding_json / completed_at / workspace_archive_path / workspace_failed_path
+    置空）。仅做字段赋值，不涉及 session.add / commit / 状态机外的逻辑，
+    供 prepare_point_run_retry 与 prepare_failed_points_retry 复用。
+
+    Args:
+        point_run: 待重置的 AuditPointRun 实例（原地修改）。
+
+    Returns:
+        None
+    """
+    point_run.status = "pending"
+    point_run.error = None
+    point_run.usage_json = None
+    point_run.finding_json = None
+    point_run.completed_at = None
+    point_run.workspace_archive_path = None
+    point_run.workspace_failed_path = None
+
+
 def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRun:
     """预留一个失败点用于重试，防止重复点击并发发起多个后台任务。"""
 
@@ -162,13 +185,7 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
     if point_run.status not in ("failed", "waiting_retry"):
         raise ValueError(f"AuditPointRun {point_run_id} 状态为 {point_run.status}，不可重试")
 
-    point_run.status = "pending"
-    point_run.error = None
-    point_run.usage_json = None
-    point_run.finding_json = None
-    point_run.completed_at = None
-    point_run.workspace_archive_path = None
-    point_run.workspace_failed_path = None
+    _reset_point_run_fields(point_run)
     session.add(point_run)
 
     audit_run = session.get(AuditRun, point_run.audit_run_id)
@@ -180,6 +197,93 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
     session.commit()
     session.refresh(point_run)
     return point_run
+
+
+def prepare_failed_points_retry(audit_run_id: str, session: Session) -> list[str]:
+    """把某 run 下所有 failed 点重置为 pending（清产物 + 删旧 workspace），返回其 id 列表。
+
+    字段清理复用 ``_reset_point_run_fields``；workspace 删除沿用单点重试的 rmtree 策略。
+
+    Args:
+        audit_run_id: 目标审核任务 ID。
+        session: 数据库会话。
+
+    Returns:
+        被重置为 pending 的 AuditPointRun id 列表（无失败点时为空）。
+    """
+    failed = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status == "failed",
+        )
+    ).all()
+    manager = get_workspace_manager()
+    store = get_trajectory_store()
+    ids: list[str] = []
+    for pr in failed:
+        old_ws = manager.workspaces_root / pr.id
+        if old_ws.exists():
+            shutil.rmtree(old_ws)
+        _delete_trajectory_run(store, pr.id)
+        _reset_point_run_fields(pr)
+        session.add(pr)
+        ids.append(pr.id)
+    audit_run = session.get(AuditRun, audit_run_id)
+    if audit_run is not None and ids:
+        audit_run.status = "running"
+        audit_run.error = None
+        session.add(audit_run)
+    session.commit()
+    return ids
+
+
+async def exclude_failed_points(
+    audit_run_id: str,
+    session: Session,
+    *,
+    template_path: str | Path | None = None,
+) -> int:
+    """把某 run 下全部 failed 点标记为 excluded，并立即重新出底稿。返回剔除数量。
+
+    excluded 状态的点既不计入失败也不计入有效总数（见 ``_assemble_workpaper_draft``），
+    因此剔除后只要仍有 completed 点即可进入 ``draft_ready``（完整底稿）。
+
+    Args:
+        audit_run_id: 目标审核任务 ID。
+        session: 数据库会话。
+        template_path: docxtpl 模板路径（透传给 ``render_workpaper_docx``）。
+
+    Returns:
+        被标记为 excluded 的失败点数量（无失败点时为 0）。
+    """
+    audit_run = session.get(AuditRun, audit_run_id)
+    if audit_run is None:
+        raise ValueError(f"未找到 AuditRun: {audit_run_id}")
+    # 守卫：仍有 pending/running 的点说明审核尚未跑完，此时剔除失败点会把
+    # 不完整底稿误判为 draft_ready 并静默丢点，必须拒绝。
+    unfinished = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status.in_(("pending", "running")),  # type: ignore[attr-defined]
+        )
+    ).all()
+    if unfinished:
+        raise ValueError(f"AuditRun {audit_run_id} 仍有未完成的审核点，不能跳过失败点")
+    failed = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status == "failed",
+        )
+    ).all()
+    for pr in failed:
+        pr.status = "excluded"
+        session.add(pr)
+    session.commit()
+    tender_doc = session.get(Document, audit_run.main_document_id)
+    await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
+    session.add(audit_run)
+    session.commit()
+    return len(failed)
 
 
 def _add_doc_to_collection(
@@ -282,9 +386,9 @@ def _resolve_point_runs(
 
     Returns:
         (total_count, to_run)
-        - total_count: 本 audit run 下所有 point_runs 的总数（不过滤）
+        - total_count: 本 audit run 下 point_runs 的总数，排除 status=='excluded'
         - to_run: 过滤后待跑的 point_runs，按 created_at/id 稳定排序；
-                  跳过 status=='completed'（保证幂等重试）；
+                  跳过 status=='completed' 与 status=='excluded'（保证幂等重试且不跑被排除点）；
                   白名单外的也跳过
     """
     point_runs = session.exec(
@@ -296,9 +400,10 @@ def _resolve_point_runs(
     to_run = [
         pr
         for pr in point_runs
-        if (selected is None or pr.id in selected) and pr.status != "completed"
+        if (selected is None or pr.id in selected) and pr.status not in ("completed", "excluded")
     ]
-    return len(point_runs), to_run
+    total = sum(1 for pr in point_runs if pr.status != "excluded")
+    return total, to_run
 
 
 async def _run_single_point(
@@ -549,10 +654,13 @@ async def _assemble_workpaper_draft(
 ) -> None:
     """按 completed point_runs 汇总 findings，生成 WorkpaperDraft，更新 audit_run.status。
 
-    Status 分派规则（保真原 run_audit 行为）：
-    - 所有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
-    - 部分 completed 有 failed  → ``partial_ready``（不生成 WorkpaperDraft）
-    - 全部 failed 或无 completed → ``waiting_retry``（不生成 WorkpaperDraft）
+    Status 分派规则（残缺也出稿）：
+    - 有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
+    - 有 completed 且有 failed → ``partial_ready`` + 生成（残缺）WorkpaperDraft（新版本）
+    - 无 completed             → ``waiting_retry``（不生成 WorkpaperDraft）
+
+    其中 ``excluded`` 状态的 point_run 既不计入 failed，也不计入有效总数
+    （``audit_run.total_count`` 会被重算为排除 excluded 后的点数）。
 
     **不**调 ``session.commit``；调用方负责 DB 提交（与 ``_persist_point_result`` 一致）。
 
@@ -569,9 +677,12 @@ async def _assemble_workpaper_draft(
         select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
     ).all()
     completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
-    failed_runs = [pr for pr in all_runs if pr.status == "failed"]
+    failed_runs = [pr for pr in all_runs if pr.status == "failed"]  # excluded 不计
 
-    if completed_runs and not failed_runs:
+    # 有效总数：排除 excluded
+    audit_run.total_count = sum(1 for pr in all_runs if pr.status != "excluded")
+
+    if completed_runs:
         findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
         workpaper = Workpaper(
             project_id=audit_run.project_id,
@@ -598,9 +709,7 @@ async def _assemble_workpaper_draft(
                 version=next_version,
             )
         )
-        audit_run.status = "draft_ready"
-    elif completed_runs and failed_runs:
-        audit_run.status = "partial_ready"
+        audit_run.status = "draft_ready" if not failed_runs else "partial_ready"
     else:
         audit_run.status = "waiting_retry"
 

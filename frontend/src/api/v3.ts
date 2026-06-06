@@ -270,6 +270,22 @@ export function retryPointRun(
   });
 }
 
+export function retryFailedPoints(
+  auditRunId: string,
+): Promise<{ audit_run_id: string; status: string; retry_count: number }> {
+  return request(`/api/v1/audit/runs/${auditRunId}/retry-failed`, {
+    method: "POST",
+  });
+}
+
+export function excludeFailedPoints(
+  auditRunId: string,
+): Promise<{ audit_run_id: string; status: string; excluded_count: number }> {
+  return request(`/api/v1/audit/runs/${auditRunId}/exclude-failed`, {
+    method: "POST",
+  });
+}
+
 /* ── Workpapers ── */
 
 export function getWorkpaperDraft(
