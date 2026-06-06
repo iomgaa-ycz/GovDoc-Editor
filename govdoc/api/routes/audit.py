@@ -408,3 +408,21 @@ async def retry_failed_points(audit_run_id: str, background_tasks: BackgroundTas
 
     background_tasks.add_task(_run)
     return {"audit_run_id": audit_run_id, "status": "retrying", "retry_count": len(point_ids)}
+
+
+@router.post("/runs/{audit_run_id}/exclude-failed", status_code=200)
+async def exclude_failed_points_endpoint(audit_run_id: str):
+    """跳过（剔除）某审核任务下全部失败点，立即重新出（完整）底稿。"""
+    from govdoc.pipelines.audit_tender import exclude_failed_points
+
+    with get_db_session() as session:
+        run = session.get(AuditRun, audit_run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        if run.status == "running":
+            raise HTTPException(status_code=409, detail="任务正在运行，请稍后再试")
+        n = await exclude_failed_points(audit_run_id, session)
+        if n == 0:
+            raise HTTPException(status_code=400, detail="没有失败的审核点可跳过")
+        run = session.get(AuditRun, audit_run_id)
+        return {"audit_run_id": audit_run_id, "status": run.status, "excluded_count": n}

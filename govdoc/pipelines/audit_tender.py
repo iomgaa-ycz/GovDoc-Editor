@@ -226,6 +226,45 @@ def prepare_failed_points_retry(audit_run_id: str, session: Session) -> list[str
     return ids
 
 
+async def exclude_failed_points(
+    audit_run_id: str,
+    session: Session,
+    *,
+    template_path: str | Path | None = None,
+) -> int:
+    """把某 run 下全部 failed 点标记为 excluded，并立即重新出底稿。返回剔除数量。
+
+    excluded 状态的点既不计入失败也不计入有效总数（见 ``_assemble_workpaper_draft``），
+    因此剔除后只要仍有 completed 点即可进入 ``draft_ready``（完整底稿）。
+
+    Args:
+        audit_run_id: 目标审核任务 ID。
+        session: 数据库会话。
+        template_path: docxtpl 模板路径（透传给 ``render_workpaper_docx``）。
+
+    Returns:
+        被标记为 excluded 的失败点数量（无失败点时为 0）。
+    """
+    audit_run = session.get(AuditRun, audit_run_id)
+    if audit_run is None:
+        raise ValueError(f"未找到 AuditRun: {audit_run_id}")
+    failed = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status == "failed",
+        )
+    ).all()
+    for pr in failed:
+        pr.status = "excluded"
+        session.add(pr)
+    session.commit()
+    tender_doc = session.get(Document, audit_run.main_document_id)
+    await _assemble_workpaper_draft(audit_run, session, tender_doc, template_path)
+    session.add(audit_run)
+    session.commit()
+    return len(failed)
+
+
 def _add_doc_to_collection(
     coll: Any,
     audit_run_id: str,
