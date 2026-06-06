@@ -1,10 +1,11 @@
 /**
  * AIReviewDetailPage 「部分完成」提示条与重试/跳过按钮测试。
  *
- * 覆盖 Task 6 的目标行为：
- * - partial_ready + 含失败审核点 → 渲染琥珀色提示条 + 重试/跳过按钮（含失败计数）
- * - running + 含失败审核点 → 两个按钮 disabled（审核进行中不可重试/跳过）
+ * 覆盖按状态精准 gate 的提示条行为：
+ * - partial_ready（有完成点 + 有失败点）→ 琥珀提示条 + 重试/跳过两按钮（含失败计数）
+ * - waiting_retry（0 完成点）→ 琥珀提示条「均未能完成」+ 仅重试按钮（无"跳过出完整稿"）
  * - draft_ready（全部完成）→ 渲染绿色「全部完成」提示条
+ * - running → 不显示该提示条（进度由进度视图负责，避免"部分稿"误导）
  *
  * 采用 vi.mock 直接替换 @/api/v3 与 @/api/documents，避免触发真实网络请求；
  * 用 MemoryRouter + Routes 注入 useParams 的 auditRunId。
@@ -140,7 +141,27 @@ describe("AIReviewDetailPage 部分完成提示条", () => {
     ).toBeInTheDocument();
   });
 
-  it("running 状态下重试/跳过按钮 disabled", async () => {
+  it("waiting_retry（0 完成点）渲染提示条与仅重试按钮，无跳过出完整稿按钮", async () => {
+    getAuditRunProgress.mockResolvedValue(
+      makeProgress("waiting_retry", [
+        makePointRun("p1", "failed"),
+        makePointRun("p2", "failed"),
+        makePointRun("p3", "failed"),
+      ]),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/均未能完成/)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /重试未完成的项/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /跳过.*出完整稿/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("running 状态下不显示部分稿提示条（进度由进度视图负责）", async () => {
     getAuditRunProgress.mockResolvedValue(
       makeProgress("running", [
         makePointRun("p1", "running"),
@@ -151,10 +172,15 @@ describe("AIReviewDetailPage 部分完成提示条", () => {
 
     renderPage();
 
-    const retryBtn = await screen.findByRole("button", { name: /重试未完成的 2 项/ });
-    const excludeBtn = screen.getByRole("button", { name: /跳过这 2 项并出完整稿/ });
-    expect(retryBtn).toBeDisabled();
-    expect(excludeBtn).toBeDisabled();
+    // 等待进度视图加载完成（进度卡片出现）后再断言提示条不存在
+    expect(await screen.findByText(/审查进度/)).toBeInTheDocument();
+    expect(screen.queryByText(/未能完成/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /重试未完成的/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /跳过.*出完整稿/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("draft_ready 全部完成时渲染绿色提示条", async () => {

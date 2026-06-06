@@ -153,6 +153,29 @@ def _delete_trajectory_run(store: Any, run_id: str) -> None:
         conn.close()
 
 
+def _reset_point_run_fields(point_run: AuditPointRun) -> None:
+    """重置 AuditPointRun 的运行产物字段，使其回到可重跑的 pending 初始态。
+
+    集中清理重试前需要复位的 7 个字段（status 置 pending，error / usage_json /
+    finding_json / completed_at / workspace_archive_path / workspace_failed_path
+    置空）。仅做字段赋值，不涉及 session.add / commit / 状态机外的逻辑，
+    供 prepare_point_run_retry 与 prepare_failed_points_retry 复用。
+
+    Args:
+        point_run: 待重置的 AuditPointRun 实例（原地修改）。
+
+    Returns:
+        None
+    """
+    point_run.status = "pending"
+    point_run.error = None
+    point_run.usage_json = None
+    point_run.finding_json = None
+    point_run.completed_at = None
+    point_run.workspace_archive_path = None
+    point_run.workspace_failed_path = None
+
+
 def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRun:
     """预留一个失败点用于重试，防止重复点击并发发起多个后台任务。"""
 
@@ -162,13 +185,7 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
     if point_run.status not in ("failed", "waiting_retry"):
         raise ValueError(f"AuditPointRun {point_run_id} 状态为 {point_run.status}，不可重试")
 
-    point_run.status = "pending"
-    point_run.error = None
-    point_run.usage_json = None
-    point_run.finding_json = None
-    point_run.completed_at = None
-    point_run.workspace_archive_path = None
-    point_run.workspace_failed_path = None
+    _reset_point_run_fields(point_run)
     session.add(point_run)
 
     audit_run = session.get(AuditRun, point_run.audit_run_id)
@@ -185,7 +202,7 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
 def prepare_failed_points_retry(audit_run_id: str, session: Session) -> list[str]:
     """把某 run 下所有 failed 点重置为 pending（清产物 + 删旧 workspace），返回其 id 列表。
 
-    复用 prepare_point_run_retry 的字段清理；workspace 删除沿用单点重试的 rmtree 策略。
+    字段清理复用 ``_reset_point_run_fields``；workspace 删除沿用单点重试的 rmtree 策略。
 
     Args:
         audit_run_id: 目标审核任务 ID。
@@ -208,13 +225,7 @@ def prepare_failed_points_retry(audit_run_id: str, session: Session) -> list[str
         if old_ws.exists():
             shutil.rmtree(old_ws)
         _delete_trajectory_run(store, pr.id)
-        pr.status = "pending"
-        pr.error = None
-        pr.usage_json = None
-        pr.finding_json = None
-        pr.completed_at = None
-        pr.workspace_archive_path = None
-        pr.workspace_failed_path = None
+        _reset_point_run_fields(pr)
         session.add(pr)
         ids.append(pr.id)
     audit_run = session.get(AuditRun, audit_run_id)
