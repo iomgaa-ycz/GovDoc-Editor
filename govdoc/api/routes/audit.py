@@ -58,9 +58,7 @@ def _resolve_checkpoint_ids_from_library(
         raise HTTPException(status_code=400, detail="审核点库为空或库内审核点均已删除")
 
     existing_ids = set(
-        session.exec(
-            select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))
-        ).all()
+        session.exec(select(CheckpointFinal.id).where(CheckpointFinal.id.in_(all_cp_ids))).all()
     )
 
     checkpoint_ids = [cp_id for cp_id in all_cp_ids if cp_id in existing_ids]
@@ -123,7 +121,9 @@ async def create_audit_run(
         skipped_deleted_count = 0
         if payload.checkpoint_library_id:
             if checkpoint_ids:
-                raise HTTPException(status_code=400, detail="checkpoint_ids 与 checkpoint_library_id 不能同时传")
+                raise HTTPException(
+                    status_code=400, detail="checkpoint_ids 与 checkpoint_library_id 不能同时传"
+                )
             source_library, checkpoint_ids, skipped_deleted_count = (
                 _resolve_checkpoint_ids_from_library(
                     session,
@@ -281,9 +281,7 @@ def _filter_orphan_point_runs(
     Returns:
         checkpoint 仍存在的 point_run 列表。
     """
-    return [
-        pr for pr in point_runs if pr.checkpoint_final_id in existing_checkpoint_ids
-    ]
+    return [pr for pr in point_runs if pr.checkpoint_final_id in existing_checkpoint_ids]
 
 
 @router.get("/runs/{audit_run_id}/progress")
@@ -293,16 +291,22 @@ async def get_audit_run_progress(audit_run_id: str):
         if run is None:
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
 
-        point_runs = session.exec(
-            select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_id)
-        ).all()
+        point_runs = [
+            pr
+            for pr in session.exec(
+                select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run_id)
+            ).all()
+            if pr.status != "excluded"
+        ]
 
         cp_ids = {pr.checkpoint_final_id for pr in point_runs}
-        existing_ids = set(
-            session.exec(
-                select(CheckpointFinal.id).where(CheckpointFinal.id.in_(cp_ids))
-            ).all()
-        ) if cp_ids else set()
+        existing_ids = (
+            set(
+                session.exec(select(CheckpointFinal.id).where(CheckpointFinal.id.in_(cp_ids))).all()
+            )
+            if cp_ids
+            else set()
+        )
         visible_runs = _filter_orphan_point_runs(list(point_runs), existing_ids)
         orphan_count = len(point_runs) - len(visible_runs)
 

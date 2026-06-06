@@ -282,9 +282,9 @@ def _resolve_point_runs(
 
     Returns:
         (total_count, to_run)
-        - total_count: 本 audit run 下所有 point_runs 的总数（不过滤）
+        - total_count: 本 audit run 下 point_runs 的总数，排除 status=='excluded'
         - to_run: 过滤后待跑的 point_runs，按 created_at/id 稳定排序；
-                  跳过 status=='completed'（保证幂等重试）；
+                  跳过 status=='completed' 与 status=='excluded'（保证幂等重试且不跑被排除点）；
                   白名单外的也跳过
     """
     point_runs = session.exec(
@@ -296,9 +296,10 @@ def _resolve_point_runs(
     to_run = [
         pr
         for pr in point_runs
-        if (selected is None or pr.id in selected) and pr.status != "completed"
+        if (selected is None or pr.id in selected) and pr.status not in ("completed", "excluded")
     ]
-    return len(point_runs), to_run
+    total = sum(1 for pr in point_runs if pr.status != "excluded")
+    return total, to_run
 
 
 async def _run_single_point(
