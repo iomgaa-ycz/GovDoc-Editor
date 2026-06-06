@@ -163,7 +163,13 @@ export function AIReviewHubPage() {
                           <Badge variant="outline">{run.total_count}</Badge>
                         </div>
                         <div>
-                          <StatusBadge status={status} />
+                          {status === "partial_ready" ? (
+                            <Badge variant="warn">
+                              部分完成 {run.processed_count}/{run.total_count}
+                            </Badge>
+                          ) : (
+                            <StatusBadge status={status} />
+                          )}
                         </div>
                         <div className="space-y-1">
                           <Progress
