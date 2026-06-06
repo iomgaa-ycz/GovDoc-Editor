@@ -182,6 +182,50 @@ def prepare_point_run_retry(point_run_id: str, session: Session) -> AuditPointRu
     return point_run
 
 
+def prepare_failed_points_retry(audit_run_id: str, session: Session) -> list[str]:
+    """把某 run 下所有 failed 点重置为 pending（清产物 + 删旧 workspace），返回其 id 列表。
+
+    复用 prepare_point_run_retry 的字段清理；workspace 删除沿用单点重试的 rmtree 策略。
+
+    Args:
+        audit_run_id: 目标审核任务 ID。
+        session: 数据库会话。
+
+    Returns:
+        被重置为 pending 的 AuditPointRun id 列表（无失败点时为空）。
+    """
+    failed = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status == "failed",
+        )
+    ).all()
+    manager = get_workspace_manager()
+    store = get_trajectory_store()
+    ids: list[str] = []
+    for pr in failed:
+        old_ws = manager.workspaces_root / pr.id
+        if old_ws.exists():
+            shutil.rmtree(old_ws)
+        _delete_trajectory_run(store, pr.id)
+        pr.status = "pending"
+        pr.error = None
+        pr.usage_json = None
+        pr.finding_json = None
+        pr.completed_at = None
+        pr.workspace_archive_path = None
+        pr.workspace_failed_path = None
+        session.add(pr)
+        ids.append(pr.id)
+    audit_run = session.get(AuditRun, audit_run_id)
+    if audit_run is not None and ids:
+        audit_run.status = "running"
+        audit_run.error = None
+        session.add(audit_run)
+    session.commit()
+    return ids
+
+
 def _add_doc_to_collection(
     coll: Any,
     audit_run_id: str,

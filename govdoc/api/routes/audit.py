@@ -382,3 +382,29 @@ async def retry_point_run(
 
     background_tasks.add_task(_run_retry)
     return {"point_run_id": point_run_id, "status": "retrying"}
+
+
+@router.post("/runs/{audit_run_id}/retry-failed", status_code=202)
+async def retry_failed_points(audit_run_id: str, background_tasks: BackgroundTasks):
+    """批量重试某审核任务下的全部失败点；跑完自动重新出底稿。"""
+    from govdoc.pipelines.audit_tender import prepare_failed_points_retry, run_audit
+
+    with get_db_session() as session:
+        run = session.get(AuditRun, audit_run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="AuditRun 不存在")
+        if run.status == "running":
+            raise HTTPException(status_code=409, detail="任务正在运行，请稍后再试")
+        point_ids = prepare_failed_points_retry(audit_run_id, session)
+        if not point_ids:
+            raise HTTPException(status_code=400, detail="没有失败的审核点可重试")
+
+    async def _run():
+        with get_db_session() as s:
+            try:
+                await run_audit(audit_run_id, s, point_run_ids=point_ids)
+            except Exception:
+                logger.exception("批量重试失败: %s", audit_run_id)
+
+    background_tasks.add_task(_run)
+    return {"audit_run_id": audit_run_id, "status": "retrying", "retry_count": len(point_ids)}
