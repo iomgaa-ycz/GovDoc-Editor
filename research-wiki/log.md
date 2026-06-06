@@ -106,3 +106,6 @@
 - [2026-05-29 06:26 UTC] 重建索引: 121 篇页面
 - [2026-06-06 08:26 UTC] 新增 design: 审核部分失败恢复（残缺底稿+重试/跳过） (design:audit-partial-failure-recovery)
 - [2026-06-06 08:27 UTC] 重建索引: 123 篇页面
+- [2026-06-06 08:34 UTC] 新增 plan: 审核部分失败恢复 实现计划 (plan:audit-partial-failure-recovery-plan)
+- [2026-06-06 08:34 UTC] 新增边: plan:audit-partial-failure-recovery-plan --implements--> design:audit-partial-failure-recovery
+- [2026-06-06 08:34 UTC] 重建索引: 125 篇页面
