@@ -248,6 +248,16 @@ async def exclude_failed_points(
     audit_run = session.get(AuditRun, audit_run_id)
     if audit_run is None:
         raise ValueError(f"未找到 AuditRun: {audit_run_id}")
+    # 守卫：仍有 pending/running 的点说明审核尚未跑完，此时剔除失败点会把
+    # 不完整底稿误判为 draft_ready 并静默丢点，必须拒绝。
+    unfinished = session.exec(
+        select(AuditPointRun).where(
+            AuditPointRun.audit_run_id == audit_run_id,
+            AuditPointRun.status.in_(("pending", "running")),  # type: ignore[attr-defined]
+        )
+    ).all()
+    if unfinished:
+        raise ValueError(f"AuditRun {audit_run_id} 仍有未完成的审核点，不能跳过失败点")
     failed = session.exec(
         select(AuditPointRun).where(
             AuditPointRun.audit_run_id == audit_run_id,

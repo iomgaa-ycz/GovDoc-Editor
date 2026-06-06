@@ -421,7 +421,10 @@ async def exclude_failed_points_endpoint(audit_run_id: str):
             raise HTTPException(status_code=404, detail="AuditRun 不存在")
         if run.status == "running":
             raise HTTPException(status_code=409, detail="任务正在运行，请稍后再试")
-        n = await exclude_failed_points(audit_run_id, session)
+        try:
+            n = await exclude_failed_points(audit_run_id, session)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if n == 0:
             raise HTTPException(status_code=400, detail="没有失败的审核点可跳过")
         run = session.get(AuditRun, audit_run_id)
