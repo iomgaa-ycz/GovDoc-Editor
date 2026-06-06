@@ -104,3 +104,5 @@
 - [2026-05-29 06:23 UTC] 新增 plan: 审核点库上传交互修复 实现计划 (plan:audit-library-upload-fix-plan)
 - [2026-05-29 06:26 UTC] 新增边: plan:audit-library-upload-fix-plan --implements--> design:audit-library-upload-fix
 - [2026-05-29 06:26 UTC] 重建索引: 121 篇页面
+- [2026-06-06 08:26 UTC] 新增 design: 审核部分失败恢复（残缺底稿+重试/跳过） (design:audit-partial-failure-recovery)
+- [2026-06-06 08:27 UTC] 重建索引: 123 篇页面

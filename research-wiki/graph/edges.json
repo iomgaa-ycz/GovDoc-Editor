@@ -209,6 +209,11 @@
       "id": "plan:audit-library-upload-fix-plan",
       "label": "审核点库上传交互修复 实现计划",
       "type": "plan"
+    },
+    {
+      "id": "design:audit-partial-failure-recovery",
+      "label": "审核部分失败恢复（残缺底稿+重试/跳过）",
+      "type": "design"
     }
   ],
   "links": [
