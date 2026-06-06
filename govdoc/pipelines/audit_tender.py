@@ -549,10 +549,13 @@ async def _assemble_workpaper_draft(
 ) -> None:
     """按 completed point_runs 汇总 findings，生成 WorkpaperDraft，更新 audit_run.status。
 
-    Status 分派规则（保真原 run_audit 行为）：
-    - 所有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
-    - 部分 completed 有 failed  → ``partial_ready``（不生成 WorkpaperDraft）
-    - 全部 failed 或无 completed → ``waiting_retry``（不生成 WorkpaperDraft）
+    Status 分派规则（残缺也出稿）：
+    - 有 completed 且无 failed → ``draft_ready`` + 生成 WorkpaperDraft（新版本）
+    - 有 completed 且有 failed → ``partial_ready`` + 生成（残缺）WorkpaperDraft（新版本）
+    - 无 completed             → ``waiting_retry``（不生成 WorkpaperDraft）
+
+    其中 ``excluded`` 状态的 point_run 既不计入 failed，也不计入有效总数
+    （``audit_run.total_count`` 会被重算为排除 excluded 后的点数）。
 
     **不**调 ``session.commit``；调用方负责 DB 提交（与 ``_persist_point_result`` 一致）。
 
@@ -569,9 +572,12 @@ async def _assemble_workpaper_draft(
         select(AuditPointRun).where(AuditPointRun.audit_run_id == audit_run.id)
     ).all()
     completed_runs = [pr for pr in all_runs if pr.status == "completed" and pr.finding_json]
-    failed_runs = [pr for pr in all_runs if pr.status == "failed"]
+    failed_runs = [pr for pr in all_runs if pr.status == "failed"]  # excluded 不计
 
-    if completed_runs and not failed_runs:
+    # 有效总数：排除 excluded
+    audit_run.total_count = sum(1 for pr in all_runs if pr.status != "excluded")
+
+    if completed_runs:
         findings = [GovFinding.model_validate_json(pr.finding_json) for pr in completed_runs]
         workpaper = Workpaper(
             project_id=audit_run.project_id,
@@ -598,9 +604,7 @@ async def _assemble_workpaper_draft(
                 version=next_version,
             )
         )
-        audit_run.status = "draft_ready"
-    elif completed_runs and failed_runs:
-        audit_run.status = "partial_ready"
+        audit_run.status = "draft_ready" if not failed_runs else "partial_ready"
     else:
         audit_run.status = "waiting_retry"
 
