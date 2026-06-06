@@ -629,8 +629,8 @@ export function AIReviewDetailPage() {
           )}
         </Card>
 
-        <aside className="w-80 shrink-0 space-y-4 overflow-auto">
-          <Card>
+        <aside className="flex w-80 shrink-0 flex-col gap-4 overflow-hidden">
+          <Card className="shrink-0">
             <CardHeader>
               <CardTitle>底稿操作</CardTitle>
             </CardHeader>
@@ -696,17 +696,17 @@ export function AIReviewDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <CardTitle>审查发现</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               {pointRunViews.length === 0 ? (
                 <div className="px-5 pb-5">
                   <EmptyState title="暂无发现" description="审查点完成后会在这里汇总结果。" />
                 </div>
               ) : (
-                <ScrollArea className="max-h-[520px]">
+                <ScrollArea className="h-full">
                   {pointRunViews.map((view) => (
                     <button
                       key={view.pr.id}
