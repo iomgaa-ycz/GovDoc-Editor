@@ -19,10 +19,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_FILTERS: Array<{ id: CompareCategoryId; label: string }> = [
-  { id: "paragraph", label: "完全重复" },
-  { id: "sentence", label: "高度相似" },
-  { id: "similar", label: "疑似抄袭" },
+  { id: "paragraph", label: "相同段落" },
+  { id: "sentence", label: "相同句子" },
+  { id: "similar", label: "近似段落" },
 ];
+
+const LENGTH_FILTER_MAX = 500;
 
 function formatFileIndices(indices: number[]): string {
   return indices.map((i) => `文件 ${i + 1}`).join("、");
@@ -44,12 +46,13 @@ export function DocCompareResultPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minLength, setMinLength] = useState(0);
 
   useEffect(() => {
     if (!reviewId) return;
     setLoading(true);
     setMatches([]);
-    getCompareSummary(reviewId, activeCategory, 1)
+    getCompareSummary(reviewId, activeCategory, 1, 100, minLength)
       .then((data) => {
         setSummary(data);
         setMatches(data.matches);
@@ -58,12 +61,12 @@ export function DocCompareResultPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
-  }, [reviewId, activeCategory]);
+  }, [reviewId, activeCategory, minLength]);
 
   function loadMore() {
     if (!reviewId || !pagination || pagination.page >= pagination.totalPages || loadingMore) return;
     setLoadingMore(true);
-    getCompareSummary(reviewId, activeCategory, pagination.page + 1)
+    getCompareSummary(reviewId, activeCategory, pagination.page + 1, pagination.pageSize, minLength)
       .then((data) => {
         setMatches((prev) => [...prev, ...data.matches]);
         setPagination(data.matchPagination);
@@ -74,6 +77,12 @@ export function DocCompareResultPage() {
 
   function handleCategoryChange(category: CompareCategoryId) {
     setActiveCategory(category);
+    setSelectedMatchId(null);
+    setContext(null);
+  }
+
+  function handleMinLengthChange(value: number) {
+    setMinLength(value);
     setSelectedMatchId(null);
     setContext(null);
   }
@@ -141,8 +150,10 @@ export function DocCompareResultPage() {
             context={context}
             selectedMatchId={selectedMatchId}
             activeCategory={activeCategory}
+            minLength={minLength}
             onSelect={setSelectedMatchId}
             onCategoryChange={handleCategoryChange}
+            onMinLengthChange={handleMinLengthChange}
             onBack={() => setSelectedMatchId(null)}
             onLoadMore={loadMore}
             loading={contextLoading}
@@ -154,7 +165,9 @@ export function DocCompareResultPage() {
             matches={matches}
             pagination={pagination}
             activeCategory={activeCategory}
+            minLength={minLength}
             onCategoryChange={handleCategoryChange}
+            onMinLengthChange={handleMinLengthChange}
             onSelectMatch={setSelectedMatchId}
             onLoadMore={loadMore}
             loadingMore={loadingMore}
@@ -170,7 +183,9 @@ function SummaryView({
   matches,
   pagination,
   activeCategory,
+  minLength,
   onCategoryChange,
+  onMinLengthChange,
   onSelectMatch,
   onLoadMore,
   loadingMore,
@@ -179,7 +194,9 @@ function SummaryView({
   matches: MatchSummaryItem[];
   pagination: MatchPagination | null;
   activeCategory: CompareCategoryId;
+  minLength: number;
   onCategoryChange: (cat: CompareCategoryId) => void;
+  onMinLengthChange: (value: number) => void;
   onSelectMatch: (id: string) => void;
   onLoadMore: () => void;
   loadingMore: boolean;
@@ -222,30 +239,33 @@ function SummaryView({
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard label="总段落数" value={totalParagraphCount(summary)} tone="blue" />
-        <MetricCard label="完全重复" value={summary.summary.commonParagraphCount} tone="amber" />
-        <MetricCard label="高度相似" value={summary.summary.commonSentenceCount} tone="green" />
-        <MetricCard label="疑似抄袭" value={summary.summary.commonSimilarCount} tone="slate" />
+        <MetricCard label="相同段落" value={summary.summary.commonParagraphCount} tone="amber" />
+        <MetricCard label="相同句子" value={summary.summary.commonSentenceCount} tone="green" />
+        <MetricCard label="近似段落" value={summary.summary.commonSimilarCount} tone="slate" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {CATEGORY_FILTERS.map((filter) => {
-          const active = activeCategory === filter.id;
-          const count = counts[filter.id] ?? 0;
-          return (
-            <button
-              key={filter.id}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                active
-                  ? "border-accent bg-accent text-white"
-                  : "border-gray-300 bg-white text-text-secondary hover:bg-surface",
-              )}
-              onClick={() => onCategoryChange(filter.id)}
-            >
-              {filter.label} ({count.toLocaleString()})
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {CATEGORY_FILTERS.map((filter) => {
+            const active = activeCategory === filter.id;
+            const count = counts[filter.id] ?? 0;
+            return (
+              <button
+                key={filter.id}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  active
+                    ? "border-accent bg-accent text-white"
+                    : "border-gray-300 bg-white text-text-secondary hover:bg-surface",
+                )}
+                onClick={() => onCategoryChange(filter.id)}
+              >
+                {filter.label} ({count.toLocaleString()})
+              </button>
+            );
+          })}
+        </div>
+        <LengthThresholdControl value={minLength} onChange={onMinLengthChange} />
       </div>
 
       <Card className="flex min-h-0 flex-1 flex-col rounded-lg border bg-surface-card shadow-none">
@@ -307,8 +327,10 @@ function ContextView({
   context,
   selectedMatchId,
   activeCategory,
+  minLength,
   onSelect,
   onCategoryChange,
+  onMinLengthChange,
   onBack,
   onLoadMore,
   loading,
@@ -320,8 +342,10 @@ function ContextView({
   context: CompareContextResponse;
   selectedMatchId: string;
   activeCategory: CompareCategoryId;
+  minLength: number;
   onSelect: (id: string) => void;
   onCategoryChange: (cat: CompareCategoryId) => void;
+  onMinLengthChange: (value: number) => void;
   onBack: () => void;
   onLoadMore: () => void;
   loading: boolean;
@@ -356,6 +380,7 @@ function ContextView({
               </button>
             ))}
           </div>
+          <LengthThresholdControl value={minLength} onChange={onMinLengthChange} compact />
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onBack}>
             <ArrowLeft className="h-3.5 w-3.5" />
             返回匹配表格
@@ -410,6 +435,35 @@ function ContextView({
         </div>
       </div>
     </div>
+  );
+}
+
+function LengthThresholdControl({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label className={cn("flex items-center gap-3", compact ? "w-full" : "min-w-[280px]")}>
+      <span className="shrink-0 text-xs font-medium text-text-muted">最小长度</span>
+      <input
+        type="range"
+        min={0}
+        max={LENGTH_FILTER_MAX}
+        step={1}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-2 flex-1 accent-accent"
+        aria-label="最小匹配长度"
+      />
+      <span className="w-16 shrink-0 text-right text-xs tabular-nums text-text-primary">
+        ≥ {value}
+      </span>
+    </label>
   );
 }
 

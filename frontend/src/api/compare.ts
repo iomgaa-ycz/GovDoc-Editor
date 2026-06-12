@@ -164,6 +164,7 @@ export interface MatchPagination {
   category: CompareCategoryId;
   page: number;
   pageSize: number;
+  minLength: number;
   totalInCategory: number;
   totalPages: number;
   categoryCounts: Record<string, number>;
@@ -199,11 +200,16 @@ export function getCompareSummary(
   category?: CompareCategoryId,
   page = 1,
   pageSize = 100,
+  minLength = 0,
 ): Promise<CompareSummaryResponse> {
   const cat = category || "paragraph";
-  return request(
-    `/api/v1/compare/${reviewId}/summary?category=${cat}&page=${page}&page_size=${pageSize}`,
-  );
+  const params = new URLSearchParams({
+    category: cat,
+    page: String(page),
+    page_size: String(pageSize),
+    min_length: String(Math.max(0, Math.floor(minLength))),
+  });
+  return request(`/api/v1/compare/${reviewId}/summary?${params.toString()}`);
 }
 
 export function getCompareContext(

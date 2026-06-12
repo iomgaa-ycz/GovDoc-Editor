@@ -266,12 +266,14 @@ def get_compare_result(review_id: str) -> CompareResponse:
 def get_compare_summary(
     review_id: str,
     category: str | None = None,
+    min_length: int = 0,
     page: int = 1,
     page_size: int = 100,
 ) -> dict:
     """读取对比摘要，支持按类别筛选和分页。
 
     - category: paragraph / sentence / similar，不传则默认 paragraph
+    - min_length: 最小匹配文本长度，过滤小于该值的匹配项
     - page: 页码（从 1 开始）
     - page_size: 每页条数（默认 100）
     """
@@ -293,12 +295,16 @@ def get_compare_summary(
 
     data = json.loads(summary_path.read_text(encoding="utf-8"))
     all_matches = data.get("matches", [])
+    threshold = max(0, min_length)
+    length_filtered = [
+        m for m in all_matches if int(m.get("length") or 0) >= threshold
+    ]
 
     active_category = category or "paragraph"
-    filtered = [m for m in all_matches if m.get("category") == active_category]
+    filtered = [m for m in length_filtered if m.get("category") == active_category]
 
     category_counts = {}
-    for m in all_matches:
+    for m in length_filtered:
         cat = m.get("category", "unknown")
         category_counts[cat] = category_counts.get(cat, 0) + 1
 
@@ -312,6 +318,7 @@ def get_compare_summary(
         "category": active_category,
         "page": page,
         "pageSize": page_size,
+        "minLength": threshold,
         "totalInCategory": total,
         "totalPages": (total + page_size - 1) // page_size,
         "categoryCounts": category_counts,
