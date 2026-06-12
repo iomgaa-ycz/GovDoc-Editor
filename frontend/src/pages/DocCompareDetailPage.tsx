@@ -39,9 +39,9 @@ type NormalizedRunStatus = "completed" | "running" | "pending" | "failed" | "unk
 
 const FILTERS: Array<{ id: FilterId; label: string; category?: CompareCategoryId }> = [
   { id: "all", label: "全部" },
-  { id: "paragraph", label: "完全重复", category: "paragraph" },
-  { id: "sentence", label: "高度相似", category: "sentence" },
-  { id: "similar", label: "疑似抄袭", category: "similar" },
+  { id: "paragraph", label: "相同段落", category: "paragraph" },
+  { id: "sentence", label: "相同句子", category: "sentence" },
+  { id: "similar", label: "近似段落", category: "similar" },
 ];
 
 const PROGRESS_STEPS = ["上传文件", "文档转换", "段落匹配", "句子匹配", "近似检测", "生成结果"];
@@ -350,9 +350,9 @@ function CompareResultView({ result }: { result: CompareResponse }) {
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard label="总段落数" value={totalParagraphCount(result)} tone="blue" />
-        <MetricCard label="完全重复" value={result.summary.commonParagraphCount} tone="amber" />
-        <MetricCard label="高度相似" value={result.summary.commonSentenceCount} tone="green" />
-        <MetricCard label="疑似抄袭" value={result.summary.commonSimilarCount} tone="slate" />
+        <MetricCard label="相同段落" value={result.summary.commonParagraphCount} tone="amber" />
+        <MetricCard label="相同句子" value={result.summary.commonSentenceCount} tone="green" />
+        <MetricCard label="近似段落" value={result.summary.commonSimilarCount} tone="slate" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

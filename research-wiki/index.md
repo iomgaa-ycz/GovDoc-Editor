@@ -1,8 +1,8 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-06-06 08:34 UTC
+> 自动生成，更新时间：2026-06-12 03:49 UTC
 
-## design (26)
+## design (27)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
 - [2026-05-23-e2e-full-coverage-design](designs/2026-05-23-e2e-full-coverage-design.md) `design:2026-05-23-e2e-full-coverage-design`
 - [2026-05-25-compare-mineru-ocr-design](designs/2026-05-25-compare-mineru-ocr-design.md) `design:2026-05-25-compare-mineru-ocr-design`
@@ -25,6 +25,7 @@
 - [技术债务清理设计](designs/tech-debt-cleanup-design.md) `design:tech-debt-cleanup-design`
 - [文件预转换与文件管理中心架构改造](designs/file-management-center.md) `design:file-management-center`
 - [文档对比分层加载与前端重构](designs/compare-lazy-load.md) `design:compare-lazy-load`
+- [文档对比分类命名与最小长度过滤](designs/2026-06-12-compare-labels-length-filter.md) `design:compare-labels-length-filter`
 - [文档对比性能优化设计（去 Tier3 + SimHash + 异步化）](designs/compare-perf-optimization.md) `design:compare-perf-optimization`
 - [端到端 Harness 评估基础设施设计](designs/harness-e2e-design.md) `design:harness-e2e-design`
 - [统一文档转 Markdown 路径（Scrivai 0.1.8 适配）](designs/unified-doc-conversion-design.md) `design:unified-doc-conversion`
