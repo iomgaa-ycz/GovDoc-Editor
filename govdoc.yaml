@@ -4,7 +4,9 @@ app:
   converter:
     mode: api
     dispatch: fallback
-    api_backends: [monkey, glm]
+    # 仅用本地 MonkeyOCR：glm 云端 OCR 曾长时间挂死（调用不返回、socket 泄漏），
+    # 导致文档卡在 converting，故移除 glm 兜底，OCR 一律走本地 MonkeyOCR。
+    api_backends: [monkey]
     monkey_endpoints:
       - "http://100.83.164.94:7866"
       - "http://100.83.164.94:7867"

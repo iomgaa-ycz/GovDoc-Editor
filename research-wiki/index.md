@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-06-12 03:49 UTC
+> 自动生成，更新时间：2026-06-12 06:27 UTC
 
 ## design (27)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -36,7 +36,7 @@
 - [Harness 评估: L2-5aa315f6（API 层首次运行）](findings/eval-L2-5aa315f6.md) `finding:eval-L2-5aa315f6`
 - [多文件审核调查报告](findings/multi-file-audit-investigation.md) `finding:multi-file-audit-investigation`
 
-## plan (54)
+## plan (57)
 - [2026-05-13-harness-resilience](plans/2026-05-13-harness-resilience.md) `plan:2026-05-13-harness-resilience`
 - [2026-05-14-l2-api-eval-upgrade](plans/2026-05-14-l2-api-eval-upgrade.md) `plan:2026-05-14-l2-api-eval-upgrade`
 - [2026-05-15-api-robustness-and-l2-rewrite](plans/2026-05-15-api-robustness-and-l2-rewrite.md) `plan:2026-05-15-api-robustness-and-l2-rewrite`
@@ -57,6 +57,9 @@
 - [2026-05-29-audit-library-e2e-tests](plans/2026-05-29-audit-library-e2e-tests.md) `plan:2026-05-29-audit-library-e2e-tests`
 - [2026-05-29-fix-test-failures](plans/2026-05-29-fix-test-failures.md) `plan:2026-05-29-fix-test-failures`
 - [2026-06-06-audit-partial-failure-recovery](plans/2026-06-06-audit-partial-failure-recovery.md) `plan:2026-06-06-audit-partial-failure-recovery`
+- [2026-06-12-leadership-data-report](plans/2026-06-12-leadership-data-report.md) `plan:2026-06-12-leadership-data-report`
+- [2026-06-12-saas-production-requirements-inventory](plans/2026-06-12-saas-production-requirements-inventory.md) `plan:2026-06-12-saas-production-requirements-inventory`
+- [2026-06-12-v3-full-requirements-inventory](plans/2026-06-12-v3-full-requirements-inventory.md) `plan:2026-06-12-v3-full-requirements-inventory`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
