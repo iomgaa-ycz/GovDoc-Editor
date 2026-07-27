@@ -40,6 +40,7 @@ import type { GovDocument, Tag } from "../types/ui";
 
 type TypeFilter = "all" | "pdf" | "docx";
 
+// 与后端 _MAX_UPLOAD_BYTES 及 nginx client_max_body_size 1g 保持一致，调整限额需三处同步
 const MAX_UPLOAD_BYTES = 1024 ** 3;
 
 const TAG_COLOR_PALETTE = [
