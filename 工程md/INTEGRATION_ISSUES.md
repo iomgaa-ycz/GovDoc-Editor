@@ -21,3 +21,11 @@ skills/ 与 agents/ 放项目根，`.claude/skills` 为指向 `skills/` 的 syml
   - `converter.py` 两处消费点（MonkeyOCR 临时文件 / glm base64）改为按需调用。
 - **效果**: 单文件转换内存峰值从「全部分块 × 块大小」降为「backend 并发数（monkey=3）× 单块大小」。
 - **配套业务侧防护**（GovDoc）: `documents.py` 转换并发上限 2（Semaphore）+ 上传 1GB 限额（前端/后端/nginx 三层一致）。
+
+## ISSUE-004 病态 PDF 分块不减体积 → 建议整文件直发退化策略（待办）
+
+- **日期**: 2026-07-27（登记，未实施）
+- **现象**: 部分扫描版 PDF（如事故文件，876 页/160MB）所有页共享同一全局资源树（图片对象流），pypdf 按页分块后**每个分块仍 ~143-163MB**（`compress_identical_objects(remove_orphans)` 实测无效）。876 页 → 18 块 × 143MB ≈ 2.6GB 需传给 MonkeyOCR。
+- **加重因素**: 后端部署机 pci-3 与 MonkeyOCR 机 4090-server 之间 Tailscale 走 DERP 中继（hkg，~1MB/s），该类文件单份转换耗时 1.5~3 小时。
+- **建议方案**（scrivai，二选一）: (a) `chunk_pdf` 后检测「分块总字节 / 源文件字节 > 阈值（如 3x）」时退化为整文件单次发送（传输量降 ~18x，牺牲 OCR 并行度）；(b) 解决两机 Tailscale 直连（打洞/端口映射），带宽提升后此问题自然缓解。
+- **优先级**: 中（当前功能正确、内存受控，仅影响该类文件的转换时长）。
