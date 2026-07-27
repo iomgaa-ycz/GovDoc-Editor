@@ -21,7 +21,7 @@ app:
 
 model:
   model: glm-5.1
-  base_url: "http://110.42.53.85:11098"
+  base_url: "https://newapi.iomgaa.online"
   api_key: ${ANTHROPIC_API_KEY}
   fallback_model: glm-5.1
 
@@ -42,7 +42,7 @@ evolution:
 harness:
   db_path: ./results/harness.db
   judge_model: "glm-5.1"
-  judge_base_url: "http://110.42.53.85:11098/v1"
+  judge_base_url: "https://newapi.iomgaa.online/v1"
 
 audit:
   point_timeout_s: 900

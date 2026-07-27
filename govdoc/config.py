@@ -68,7 +68,7 @@ class HarnessConfig(BaseModel):
 
     db_path: str = "./results/harness.db"
     judge_model: str = "glm-5.1"
-    judge_base_url: str = "http://110.42.53.85:11098/v1"
+    judge_base_url: str = "https://newapi.iomgaa.online/v1"
 
 
 class AuditConfig(BaseModel):

@@ -857,7 +857,7 @@ def _create_semantic_judge(log: HarnessLog) -> HarnessJudge | None:
         return HarnessJudge(
             provider="openai",
             model=os.environ.get("HARNESS_JUDGE_MODEL", "qwen3.6-plus"),
-            base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "http://110.42.53.85:11098"),
+            base_url=os.environ.get("HARNESS_JUDGE_BASE_URL", "https://newapi.iomgaa.online/v1"),
             api_key=os.environ.get("HARNESS_JUDGE_API_KEY", ""),
         )
     except Exception as exc:
