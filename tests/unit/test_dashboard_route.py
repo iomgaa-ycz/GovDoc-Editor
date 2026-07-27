@@ -13,9 +13,7 @@ def _make_project(pid: str, name: str) -> Project:
     return p
 
 
-def _make_audit_run(
-    rid: str, pid: str, status: str, total: int, processed: int
-) -> AuditRun:
+def _make_audit_run(rid: str, pid: str, status: str, total: int, processed: int) -> AuditRun:
     r = AuditRun(
         project_id=pid,
         tender_doc_id="td-1",

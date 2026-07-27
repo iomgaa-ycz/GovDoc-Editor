@@ -1,4 +1,5 @@
 """分层加载新增 schema 单元测试。"""
+
 from govdoc.schemas.compare import (
     MatchSummaryItem,
     CompareSummaryResponse,
@@ -27,8 +28,14 @@ class TestMatchSummaryItem:
 
     def test_camel_alias(self) -> None:
         item = MatchSummaryItem(
-            id="p-001", category="paragraph", label="x", color="#000",
-            length=1, file_indices=[0], occurrence_count=1, preview="x",
+            id="p-001",
+            category="paragraph",
+            label="x",
+            color="#000",
+            length=1,
+            file_indices=[0],
+            occurrence_count=1,
+            preview="x",
         )
         dumped = item.model_dump(mode="json", by_alias=True)
         assert "fileIndices" in dumped
@@ -40,9 +47,13 @@ class TestCompareSummaryResponse:
         resp = CompareSummaryResponse(
             review_id="abc",
             summary=CompareSummary(
-                file_count=2, files=[], common_paragraph_count=0,
-                common_sentence_count=0, common_segment_count=0,
-                match_count=0, min_segment_length=16,
+                file_count=2,
+                files=[],
+                common_paragraph_count=0,
+                common_sentence_count=0,
+                common_segment_count=0,
+                match_count=0,
+                min_segment_length=16,
             ),
             matches=[],
             categories=[],
@@ -56,14 +67,23 @@ class TestCompareContextResponse:
     def test_basic(self) -> None:
         ctx = CompareContextResponse(
             match=MatchSummaryItem(
-                id="p-001", category="paragraph", label="x", color="#000",
-                length=1, file_indices=[0], occurrence_count=1, preview="x",
+                id="p-001",
+                category="paragraph",
+                label="x",
+                color="#000",
+                length=1,
+                file_indices=[0],
+                occurrence_count=1,
+                preview="x",
                 text="full text",
             ),
             file_contexts=[
                 FileContext(
-                    file_index=0, name="test.pdf", total_blocks=100,
-                    match_block_index=50, blocks=[],
+                    file_index=0,
+                    name="test.pdf",
+                    total_blocks=100,
+                    match_block_index=50,
+                    blocks=[],
                 )
             ],
         )

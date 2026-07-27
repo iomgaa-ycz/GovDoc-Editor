@@ -63,10 +63,7 @@ def test_find_similar_paragraphs_detects_near_duplicates() -> None:
     )
 
     assert len(matches) >= 1
-    assert any(
-        "商业信誉" in m.text_a and "商业信誉" in m.text_b
-        for m in matches
-    )
+    assert any("商业信誉" in m.text_a and "商业信誉" in m.text_b for m in matches)
 
 
 def test_find_similar_paragraphs_excludes_exact_matches() -> None:

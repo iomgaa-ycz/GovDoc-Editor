@@ -1,4 +1,5 @@
 """Document API 路由单元测试。"""
+
 from contextlib import contextmanager
 from typing import Iterator
 import uuid

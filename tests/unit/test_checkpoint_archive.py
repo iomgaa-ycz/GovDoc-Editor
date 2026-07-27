@@ -59,12 +59,8 @@ def test_archive_when_referenced() -> None:
         session.commit()
         session.refresh(final)
 
-        session.add(
-            CheckpointLibraryItem(library_id="lib1", checkpoint_final_id=final.id)
-        )
-        session.add(
-            AuditPointRun(audit_run_id="run1", checkpoint_final_id=final.id)
-        )
+        session.add(CheckpointLibraryItem(library_id="lib1", checkpoint_final_id=final.id))
+        session.add(AuditPointRun(audit_run_id="run1", checkpoint_final_id=final.id))
         session.commit()
 
         result = _archive_or_delete_checkpoint(session, final)
@@ -137,9 +133,7 @@ def test_dedup_migrates_archived_to_active() -> None:
                 checkpoint_final_ids=json.dumps([archived.id]),
             )
         )
-        session.add(
-            AuditPointRun(audit_run_id="run1", checkpoint_final_id=archived.id)
-        )
+        session.add(AuditPointRun(audit_run_id="run1", checkpoint_final_id=archived.id))
         session.commit()
 
         stats = deduplicate_existing_checkpoints(session)

@@ -55,7 +55,6 @@ def test_nfile_exact_matches_preserve_subset_and_duplicate_positions() -> None:
     assert by_text["乙"].file_positions == {0: [2], 2: [1]}
 
 
-
 def _create_three_file_bundle(tmp_path: Path) -> tuple[Path, CompareResponse]:
     """构建三文件对比 fixture 并返回 (output_root, payload)。"""
     first_path = tmp_path / "first.docx"
@@ -63,11 +62,17 @@ def _create_three_file_bundle(tmp_path: Path) -> tuple[Path, CompareResponse]:
     third_path = tmp_path / "third.docx"
     output_root = tmp_path / "compare"
     common_segment = "具有良好的商业信誉和健全的财务会计制度"
-    _write_docx(first_path, ["共同段落。", f"第一份前缀{common_segment}后缀。", "重复段落。", "重复段落。"])
+    _write_docx(
+        first_path, ["共同段落。", f"第一份前缀{common_segment}后缀。", "重复段落。", "重复段落。"]
+    )
     _write_docx(second_path, ["共同段落。", f"第二份前缀{common_segment}尾部。", "重复段落。"])
     _write_docx(third_path, ["第三份独有。", "重复段落。"])
     payload = create_compare_bundle(
-        files=[(first_path, first_path.name), (second_path, second_path.name), (third_path, third_path.name)],
+        files=[
+            (first_path, first_path.name),
+            (second_path, second_path.name),
+            (third_path, third_path.name),
+        ],
         output_root=output_root,
         min_segment_length=12,
     )

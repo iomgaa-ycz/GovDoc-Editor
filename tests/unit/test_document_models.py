@@ -1,4 +1,5 @@
 """Document / Tag / DocumentTag 模型单元测试。"""
+
 from datetime import datetime
 import uuid
 
@@ -6,7 +7,13 @@ from govdoc.db.models import Document, Tag, DocumentTag
 
 
 def test_document_defaults():
-    doc = Document(filename="test.pdf", file_type="pdf", file_size=1024, sha256="abc123", raw_path="/data/raw/test.pdf")
+    doc = Document(
+        filename="test.pdf",
+        file_type="pdf",
+        file_size=1024,
+        sha256="abc123",
+        raw_path="/data/raw/test.pdf",
+    )
     assert doc.id is not None
     assert doc.status == "uploading"
     assert doc.markdown_path is None
