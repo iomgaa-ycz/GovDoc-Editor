@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,10 @@ router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_SUFFIXES = frozenset({".pdf", ".docx", ".doc"})
+# 同一时刻最多 2 个文档在 chunk/OCR 转换，防止大 PDF 并发转换耗尽内存（2026-07-24 OOM 事故防护）。
+_CONVERT_SEMAPHORE = threading.Semaphore(2)
+# 1GB 上传上限，与 nginx client_max_body_size 1g 一致。
+_MAX_UPLOAD_BYTES = 1024**3
 
 
 class BatchTagRequest(GovDocModel):
@@ -132,15 +137,9 @@ def _load_tags_by_document(session: Session, document_ids: list[str]) -> dict[st
     if not document_ids:
         return {}
 
-    links = session.exec(
-        select(DocumentTag).where(DocumentTag.document_id.in_(document_ids))
-    ).all()
+    links = session.exec(select(DocumentTag).where(DocumentTag.document_id.in_(document_ids))).all()
     tag_ids = sorted({link.tag_id for link in links})
-    tags = (
-        session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()
-        if tag_ids
-        else []
-    )
+    tags = session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all() if tag_ids else []
     tags_by_id = {tag.id: tag for tag in tags}
     result: dict[str, list[Tag]] = {document_id: [] for document_id in document_ids}
     for link in links:
@@ -181,7 +180,8 @@ def _convert_document(doc_id: str) -> None:
             return
         try:
             store = get_document_store()
-            markdown_path = store.get_or_convert(document.raw_path)
+            with _CONVERT_SEMAPHORE:
+                markdown_path = store.get_or_convert(document.raw_path)
             document.markdown_path = str(markdown_path)
             document.status = "ready"
             document.error_message = None
@@ -216,11 +216,14 @@ async def upload_documents(
             filename = upload_file.filename or ""
             file_type = _normalize_file_type(filename)
             content = await upload_file.read()
+            if len(content) > _MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"文件 {filename} 超过 1GB 上传上限，请拆分后重试",
+                )
             sha256 = hashlib.sha256(content).hexdigest()
 
-            existing = session.exec(
-                select(Document).where(Document.sha256 == sha256)
-            ).first()
+            existing = session.exec(select(Document).where(Document.sha256 == sha256)).first()
             if existing is not None:
                 tags_by_document = _load_tags_by_document(session, [existing.id])
                 responses.append(
@@ -306,9 +309,7 @@ async def batch_tag_documents(payload: BatchTagRequest) -> dict[str, int]:
                 detail=f"Document 不存在: {', '.join(missing_documents)}",
             )
 
-        missing_tags = [
-            tag_id for tag_id in payload.tag_ids if session.get(Tag, tag_id) is None
-        ]
+        missing_tags = [tag_id for tag_id in payload.tag_ids if session.get(Tag, tag_id) is None]
         if missing_tags:
             raise HTTPException(status_code=404, detail=f"Tag 不存在: {', '.join(missing_tags)}")
 
@@ -359,9 +360,7 @@ async def delete_document(doc_id: str) -> Response:
         if document is None:
             raise HTTPException(status_code=404, detail="Document 不存在")
 
-        links = session.exec(
-            select(DocumentTag).where(DocumentTag.document_id == doc_id)
-        ).all()
+        links = session.exec(select(DocumentTag).where(DocumentTag.document_id == doc_id)).all()
         for link in links:
             session.delete(link)
 

@@ -40,6 +40,8 @@ import type { GovDocument, Tag } from "../types/ui";
 
 type TypeFilter = "all" | "pdf" | "docx";
 
+const MAX_UPLOAD_BYTES = 1024 ** 3;
+
 const TAG_COLOR_PALETTE = [
   "#EFF6FF:#1D4ED8",
   "#F0FDF4:#15803D",
@@ -173,10 +175,21 @@ export default function FileManagementPage() {
 
   /** 向待上传队列中添加文件（为每个文件分配稳定 id） */
   function addPendingFiles(files: File[]): void {
-    const items = files.map((file) => ({
+    const validFiles = files.filter((file) => file.size <= MAX_UPLOAD_BYTES);
+    const oversizedFiles = files.filter((file) => file.size > MAX_UPLOAD_BYTES);
+    if (oversizedFiles.length > 0) {
+      setError(
+        `以下文件超过 1GB，暂不支持上传，请拆分后重试：${oversizedFiles
+          .map((file) => file.name)
+          .join("、")}`,
+      );
+    }
+
+    const items = validFiles.map((file) => ({
       id: `pf-${pendingIdCounter.current++}`,
       file,
     }));
+    if (items.length === 0) return;
     setPendingFiles((current) => [...current, ...items]);
   }
 
