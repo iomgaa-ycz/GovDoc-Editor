@@ -149,7 +149,7 @@ def test_convert_document_limits_concurrent_conversions() -> None:
             entered_paths.append(raw_path)
             if len(entered_paths) == 2:
                 first_two_entered.set()
-        release_conversion.wait(timeout=2)
+        release_conversion.wait(timeout=10)
         return f"{raw_path}.md"
 
     mock_store = MagicMock()

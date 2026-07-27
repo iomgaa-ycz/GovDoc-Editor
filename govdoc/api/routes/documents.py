@@ -172,26 +172,26 @@ def _convert_document(doc_id: str) -> None:
         doc_id: 待转换的 Document ID。
 
     关键实现:
-        后台任务自行创建 Session，避免复用请求生命周期中的会话。
+        先进入转换信号量，再创建 Session，避免排队期间占用数据库连接。
     """
-    with _session_scope() as session:
-        document = session.get(Document, doc_id)
-        if document is None:
-            return
-        try:
-            store = get_document_store()
-            with _CONVERT_SEMAPHORE:
+    with _CONVERT_SEMAPHORE:
+        with _session_scope() as session:
+            document = session.get(Document, doc_id)
+            if document is None:
+                return
+            try:
+                store = get_document_store()
                 markdown_path = store.get_or_convert(document.raw_path)
-            document.markdown_path = str(markdown_path)
-            document.status = "ready"
-            document.error_message = None
-        except Exception as exc:
-            logger.exception("文档转换失败: %s", doc_id)
-            document.status = "failed"
-            document.error_message = str(exc)
-        document.updated_at = _now()
-        session.add(document)
-        session.commit()
+                document.markdown_path = str(markdown_path)
+                document.status = "ready"
+                document.error_message = None
+            except Exception as exc:
+                logger.exception("文档转换失败: %s", doc_id)
+                document.status = "failed"
+                document.error_message = str(exc)
+            document.updated_at = _now()
+            session.add(document)
+            session.commit()
 
 
 @router.post("/upload", status_code=201)
