@@ -130,6 +130,8 @@ def test_compare_too_complex_error_message_passthrough(
     monkeypatch,
 ) -> None:
     """子进程入口应透传 simhash 熔断异常的用户友好文案。"""
+    # 非笔误：自赋值向 monkeypatch 登记原值，teardown 时恢复被
+    # _bind_child_db_session 进程内改写的模块全局，防止泄漏到后续测试
     monkeypatch.setattr(compare_route, "get_db_session", compare_route.get_db_session)
     database_url = f"sqlite:///{tmp_path}/compare.db"
     engine = create_engine(database_url, connect_args={"check_same_thread": False})

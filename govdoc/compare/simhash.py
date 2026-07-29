@@ -14,8 +14,11 @@ from itertools import combinations
 import numpy as np
 from numpy.typing import NDArray
 
+# 短于 8 字符的段落（页码、序号等碎片）指纹区分度过低，直接跳过
 MIN_PARAGRAPH_LENGTH = 8
+# 单块 XOR 矩阵内存 = 4096 × 对侧段落数 × 8B（uint64），万段级文件单块约 300MB，安全可控
 SIMHASH_BLOCK_SIZE = 4096
+# 候选对仅存整数索引（约 32B/对），5000 万对 ≈ 1.6GB，远超正常规模（真实 9 文件事故数据实测 269 万对）
 MAX_CANDIDATE_PAIRS = 50_000_000
 
 _POPCOUNT_TABLE = np.array([int(value).bit_count() for value in range(256)], dtype=np.uint8)
@@ -242,9 +245,10 @@ def _union_candidate_pairs(
         通过阈值且非等文本的候选对数量。
 
     关键实现细节:
-        内存上界由 ``SIMHASH_BLOCK_SIZE`` 控制，单块距离矩阵约
-        ``block_size * len(file_b)`` 字节级 popcount 结果；候选边不保存文本，
-        直接以整数节点合并，因此零近似语义与逐对汉明距离判断一致。
+        内存上界由 ``SIMHASH_BLOCK_SIZE`` 控制：单块 XOR 矩阵峰值约
+        ``block_size × len(file_b) × 8`` 字节（uint64），popcount 结果另占
+        每元素 1 字节；候选边不保存文本，直接以整数节点合并，
+        因此零近似语义与逐对汉明距离判断一致。
     """
     candidate_count = 0
     for file_a, file_b in combinations(sorted(batches), 2):
