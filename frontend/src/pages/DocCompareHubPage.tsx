@@ -405,7 +405,8 @@ export function DocCompareHubPage() {
                         )}
                       </div>
                     </div>
-                    {run.status === "failed" && run.error && (
+                    {/* 重试失败原因优先展示并替代历史失败原因，避免两行红字并列造成困惑 */}
+                    {run.status === "failed" && run.error && !retryErrors[run.reviewId] && (
                       <p className="my-1 line-clamp-2 px-4 text-xs text-status-err" title={run.error}>
                         {run.error}
                       </p>
