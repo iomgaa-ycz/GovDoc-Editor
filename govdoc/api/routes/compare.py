@@ -13,8 +13,9 @@ import resource
 from pathlib import Path
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import update
 from sqlmodel import Session, create_engine
 
 from govdoc.api.deps import get_db_session
@@ -507,22 +508,39 @@ def download_compare_file(
     )
 
 
-def _load_failed_run_document_ids(review_id: str) -> list[str]:
-    """从失败的 CompareRun 中提取 document_ids。"""
+def _load_retry_run_state(review_id: str) -> tuple[str, list[str]]:
+    """读取重试任务状态，并在需要重新派发时提取 document_ids。
+
+    参数:
+        review_id: CompareRun ID。
+
+    返回值:
+        ``(status, document_ids)``；pending/running 幂等返回时 document_ids 为空。
+    """
     with get_db_session() as session:
         run = session.get(CompareRun, review_id)
         if run is None:
             raise HTTPException(status_code=404, detail="对比任务不存在。")
-        if run.status != "failed":
-            raise HTTPException(status_code=409, detail="仅失败任务可重试。")
-        document_ids = json.loads(run.document_ids) if run.document_ids else []
+        if run.status in {"pending", "running"}:
+            return run.status, []
+        if run.status not in {"failed", "completed"}:
+            raise HTTPException(status_code=409, detail="仅失败或已完成任务可重试。")
+        try:
+            document_ids = json.loads(run.document_ids) if run.document_ids else []
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="原始文档信息损坏，无法重试。") from exc
     if len(document_ids) < 2:
         raise HTTPException(status_code=400, detail="原始文档信息丢失，无法重试。")
-    return document_ids
+    return run.status, [str(document_id) for document_id in document_ids]
 
 
-def _create_retry_run(document_ids: list[str]) -> tuple[str, list[tuple[str, str]]]:
-    """校验文档并创建重试用的 CompareRun。"""
+def _collect_retry_file_info(document_ids: list[str]) -> list[tuple[str, str]]:
+    """校验重试文档并返回后台对比输入。"""
+    file_count_error = _validate_compare_file_count(len(document_ids))
+    if file_count_error is not None:
+        detail = json.loads(file_count_error.body).get("detail", "对比文件数量超过限制。")
+        raise HTTPException(status_code=400, detail=detail)
+
     with get_db_session() as session:
         docs = []
         for doc_id in document_ids:
@@ -535,27 +553,67 @@ def _create_retry_run(document_ids: list[str]) -> tuple[str, list[tuple[str, str
         if isinstance(collected, JSONResponse):
             detail = json.loads(collected.body).get("detail", "文档转换结果缺失。")
             raise HTTPException(status_code=400, detail=detail)
-        file_names, file_info_list = collected
-        new_id = uid()
-        new_run = CompareRun(
-            id=new_id,
-            status="pending",
-            file_count=len(docs),
-            file_names_json=json.dumps(file_names, ensure_ascii=False),
-            document_ids=json.dumps(document_ids),
+        _, file_info_list = collected
+    return file_info_list
+
+
+def _reset_compare_run_for_retry(review_id: str) -> bool:
+    """把终态 CompareRun 原地重置为 pending，并返回本请求是否抢到派发权。
+
+    参数:
+        review_id: CompareRun ID。
+
+    返回值:
+        条件更新命中 1 行返回 True；若并发请求已先把任务置为 pending/running，
+        当前请求返回 False，调用方应走幂等返回分支。
+    """
+    with get_db_session() as session:
+        # 两个重试请求可能同时读到 failed/completed；用条件 UPDATE 收窄竞争窗口，
+        # 确保只有抢到终态 -> pending 转换的请求会派发后台任务。
+        result = session.exec(
+            update(CompareRun)
+            .where(
+                CompareRun.id == review_id,
+                CompareRun.status.in_(["failed", "completed"]),
+            )
+            .values(
+                status="pending",
+                error=None,
+                progress_json=None,
+                result_path=None,
+                completed_at=None,
+            )
         )
-        session.add(new_run)
         session.commit()
-    return new_id, file_info_list
+        return int(getattr(result, "rowcount", 0)) == 1
+
+
+def _load_compare_run_status(review_id: str) -> str:
+    """读取 CompareRun 当前状态，缺失时抛出 404。"""
+    with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="对比任务不存在。")
+        return run.status
 
 
 @router.post("/{review_id}/retry", status_code=202)
 async def retry_compare_run(
     review_id: str,
     background_tasks: BackgroundTasks,
+    response: Response,
 ) -> dict[str, str]:
-    """重试失败的对比任务（创建新任务）。"""
-    document_ids = _load_failed_run_document_ids(review_id)
-    new_id, file_info_list = _create_retry_run(document_ids)
-    background_tasks.add_task(_run_compare_from_docs, new_id, file_info_list)
-    return {"reviewId": new_id, "status": "pending"}
+    """重试对比任务，复用原 CompareRun 记录并保持点击幂等。"""
+    status, document_ids = _load_retry_run_state(review_id)
+    if status in {"pending", "running"}:
+        response.status_code = 200
+        return {"reviewId": review_id, "status": status}
+
+    file_info_list = _collect_retry_file_info(document_ids)
+    if not _reset_compare_run_for_retry(review_id):
+        current_status = _load_compare_run_status(review_id)
+        response.status_code = 200
+        return {"reviewId": review_id, "status": current_status}
+
+    background_tasks.add_task(_run_compare_from_docs, review_id, file_info_list)
+    return {"reviewId": review_id, "status": "pending"}

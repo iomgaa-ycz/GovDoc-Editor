@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 import asyncio
 import json
 import uuid
 
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Response
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from govdoc.api.routes.compare import create_compare_run, get_compare_summary
+from govdoc.api.routes.compare import create_compare_run, get_compare_summary, retry_compare_run
 from govdoc.config import CompareConfig
 from govdoc.db.models import CompareRun, Document
 
@@ -219,3 +220,143 @@ def test_create_compare_run_rejects_over_max_files(
 
     assert response.status_code == 400
     assert json.loads(response.body)["detail"] == "当前部署最多支持 2 份文件。"
+
+
+def _add_ready_compare_documents(compare_session: Session, tmp_path: Path) -> list[str]:
+    """写入两个已转换文档，返回可用于重试的文档 ID。"""
+    document_ids = ["doc-a", "doc-b"]
+    for document_id in document_ids:
+        markdown_path = tmp_path / f"{document_id}.md"
+        markdown_path.write_text(f"{document_id} 已转换内容", encoding="utf-8")
+        compare_session.add(
+            Document(
+                id=document_id,
+                filename=f"{document_id}.docx",
+                file_type="docx",
+                file_size=16,
+                sha256=f"sha-{document_id}",
+                raw_path=str(tmp_path / f"{document_id}.docx"),
+                markdown_path=str(markdown_path),
+                status="ready",
+            )
+        )
+    compare_session.commit()
+    return document_ids
+
+
+def _compare_run_count(compare_session: Session) -> int:
+    """返回当前 CompareRun 总行数。"""
+    return len(compare_session.exec(select(CompareRun)).all())
+
+
+def test_retry_failed_compare_run_reuses_original_row(
+    compare_session: Session,
+    tmp_path: Path,
+) -> None:
+    """失败任务重试应复用原 reviewId，并原地清理失败状态。"""
+    document_ids = _add_ready_compare_documents(compare_session, tmp_path)
+    compare_session.add(
+        CompareRun(
+            id="review-failed",
+            status="failed",
+            file_count=2,
+            document_ids=json.dumps(document_ids),
+            error="子进程异常退出",
+            progress_json=json.dumps({"phase": "matching"}, ensure_ascii=False),
+            result_path=str(tmp_path / "old-review.json"),
+            completed_at=datetime.utcnow(),
+        )
+    )
+    compare_session.commit()
+    before_count = _compare_run_count(compare_session)
+    background_tasks = BackgroundTasks()
+
+    response = asyncio.run(
+        retry_compare_run("review-failed", background_tasks, response=Response(status_code=202))
+    )
+
+    compare_session.expire_all()
+    run = compare_session.get(CompareRun, "review-failed")
+    assert response == {"reviewId": "review-failed", "status": "pending"}
+    assert run is not None
+    assert run.status == "pending"
+    assert run.error is None
+    assert run.progress_json is None
+    assert run.result_path is None
+    assert run.completed_at is None
+    assert _compare_run_count(compare_session) == before_count
+    assert len(background_tasks.tasks) == 1
+
+
+def test_retry_pending_compare_run_returns_current_status_without_dispatch(
+    compare_session: Session,
+    tmp_path: Path,
+) -> None:
+    """排队中的任务再次重试应幂等返回，不重复派发后台任务。"""
+    document_ids = _add_ready_compare_documents(compare_session, tmp_path)
+    compare_session.add(
+        CompareRun(
+            id="review-pending",
+            status="pending",
+            file_count=2,
+            document_ids=json.dumps(document_ids),
+            error="保留现场",
+        )
+    )
+    compare_session.commit()
+    before_count = _compare_run_count(compare_session)
+    background_tasks = BackgroundTasks()
+    http_response = Response(status_code=202)
+
+    response = asyncio.run(
+        retry_compare_run("review-pending", background_tasks, response=http_response)
+    )
+
+    compare_session.expire_all()
+    run = compare_session.get(CompareRun, "review-pending")
+    assert response == {"reviewId": "review-pending", "status": "pending"}
+    assert http_response.status_code == 200
+    assert run is not None
+    assert run.status == "pending"
+    assert run.error == "保留现场"
+    assert _compare_run_count(compare_session) == before_count
+    assert len(background_tasks.tasks) == 0
+
+
+def test_retry_failed_compare_run_twice_keeps_single_row(
+    compare_session: Session,
+    tmp_path: Path,
+) -> None:
+    """连续重试同一失败任务时第二次应走幂等分支，不新增任务行。"""
+    document_ids = _add_ready_compare_documents(compare_session, tmp_path)
+    compare_session.add(
+        CompareRun(
+            id="review-clicked",
+            status="failed",
+            file_count=2,
+            document_ids=json.dumps(document_ids),
+            error="首次失败",
+        )
+    )
+    compare_session.commit()
+    before_count = _compare_run_count(compare_session)
+    first_background_tasks = BackgroundTasks()
+    second_background_tasks = BackgroundTasks()
+    first_http_response = Response(status_code=202)
+    second_http_response = Response(status_code=202)
+
+    first_response = asyncio.run(
+        retry_compare_run("review-clicked", first_background_tasks, response=first_http_response)
+    )
+    second_response = asyncio.run(
+        retry_compare_run("review-clicked", second_background_tasks, response=second_http_response)
+    )
+
+    compare_session.expire_all()
+    assert first_response == {"reviewId": "review-clicked", "status": "pending"}
+    assert second_response == {"reviewId": "review-clicked", "status": "pending"}
+    assert first_http_response.status_code == 202
+    assert second_http_response.status_code == 200
+    assert _compare_run_count(compare_session) == before_count
+    assert len(first_background_tasks.tasks) == 1
+    assert len(second_background_tasks.tasks) == 0

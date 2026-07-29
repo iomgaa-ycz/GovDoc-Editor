@@ -128,6 +128,7 @@ export function DocCompareHubPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(() => new Set());
   const exceedsMaxFiles = selectedDocs.length > MAX_COMPARE_FILES;
 
   useEffect(() => {
@@ -198,11 +199,20 @@ export function DocCompareHubPage() {
   }
 
   async function handleRetry(failedReviewId: string) {
+    if (retryingIds.has(failedReviewId)) return;
+    setRetryingIds((current) => new Set(current).add(failedReviewId));
+    setError(null);
     try {
       await retryCompareRun(failedReviewId);
-      refreshRuns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "重试失败");
+      setError(err instanceof Error ? err.message : "重试请求失败，请稍后再试");
+    } finally {
+      setRetryingIds((current) => {
+        const next = new Set(current);
+        next.delete(failedReviewId);
+        return next;
+      });
+      refreshRuns();
     }
   }
 
@@ -335,6 +345,7 @@ export function DocCompareHubPage() {
             {!historyError &&
               runs.map((run) => {
                 const isRunning = run.status === "running";
+                const isRetrying = retryingIds.has(run.reviewId);
                 return (
                   <div
                     key={run.reviewId}
@@ -378,9 +389,10 @@ export function DocCompareHubPage() {
                             variant="ghost"
                             size="sm"
                             className="text-[#DC2626] hover:text-[#DC2626]"
+                            disabled={isRetrying}
                             onClick={() => handleRetry(run.reviewId)}
                           >
-                            重试
+                            {isRetrying ? "重试中…" : "重试"}
                           </Button>
                         )}
                       </div>
