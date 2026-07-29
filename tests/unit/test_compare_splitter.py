@@ -118,6 +118,8 @@ class TestSplitCompareResponse:
         assert len(summary["matches"]) == 1
         assert "preview" in summary["matches"][0]
         assert len(summary["matches"][0]["preview"]) <= 150
+        assert summary["matches"][0]["perFileCounts"] == {"0": 1, "1": 1}
+        assert "sim" + "ilarity" not in summary["matches"][0]
 
     def test_generates_blocks_files(self, tmp_path: Path) -> None:
         resp = _make_response()

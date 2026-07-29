@@ -48,7 +48,8 @@ audit:
   point_timeout_s: 900
 
 compare:
-  max_files: null
+  # 与前端 HubPage 提示、后端校验三处同步。
+  max_files: 6
   min_segment_length: 16
   pdf_timeout_s: 7200
   simhash_threshold: 10

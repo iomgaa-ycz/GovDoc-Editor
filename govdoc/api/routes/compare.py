@@ -3,24 +3,32 @@
 from __future__ import annotations
 
 from asyncio import to_thread
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 import json
 import logging
+import multiprocessing
+import resource
 from pathlib import Path
 from zipfile import BadZipFile
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from sqlmodel import Session, create_engine
 
 from govdoc.api.deps import get_db_session
 from govdoc.compare.service import create_compare_bundle, get_compare_download
 from govdoc.db.models import CompareRun, Document, uid
+from govdoc.runtime import get_config
 from govdoc.schemas.compare import CompareResponse, CompareRunStatus
 
 
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ALLOWED_EXTENSIONS = {".docx", ".pdf"}
+# 正常 9 文件真实对比实测峰值 <1GB；16GB 给文档转换和序列化保留安全余量。
+COMPARE_CHILD_MEMORY_LIMIT_BYTES = 16 * 1024**3
+COMPARE_SAFE_ABORT_ERROR = "对比规模过大或文件异常，已安全终止，请减少文件数量后重试"
 
 
 router = APIRouter(
@@ -36,9 +44,7 @@ def list_compare_runs() -> list[CompareRunStatus]:
     from sqlmodel import select
 
     with get_db_session() as session:
-        runs = session.exec(
-            select(CompareRun).order_by(CompareRun.created_at.desc())
-        ).all()
+        runs = session.exec(select(CompareRun).order_by(CompareRun.created_at.desc())).all()
         return [
             CompareRunStatus(
                 review_id=run.id,
@@ -59,6 +65,53 @@ def _ensure_supported(filename: str) -> None:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="仅支持 DOCX 和 PDF 文件。")
+
+
+def _validate_compare_file_count(count: int) -> JSONResponse | None:
+    """校验对比文件数量是否超过后端部署上限。
+
+    参数:
+        count: 本次对比的文档数量。
+
+    返回值:
+        超限时返回 400 JSONResponse；未超限返回 None。
+    """
+    max_files = get_config().compare.max_files
+    if max_files is not None and count > max_files:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"当前部署最多支持 {max_files} 份文件。"},
+        )
+    return None
+
+
+def _collect_markdown_file_info(
+    documents: list[Document],
+) -> tuple[list[str], list[tuple[str, str]]] | JSONResponse:
+    """校验文档转换结果并提取对比输入文件。
+
+    参数:
+        documents: 已校验就绪的 Document 记录。
+
+    返回值:
+        成功时返回 ``(file_names, file_info_list)``；转换结果缺失时返回 400。
+
+    关键实现细节:
+        对比只消费 markdown_path，禁止回退 raw_path，避免绕过文件转换状态。
+    """
+    file_names: list[str] = []
+    file_info_list: list[tuple[str, str]] = []
+    for document in documents:
+        if not document.markdown_path or not Path(document.markdown_path).exists():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": f"文档「{document.filename}」转换结果缺失，请在文件管理中重新转换后再对比"
+                },
+            )
+        file_names.append(document.filename)
+        file_info_list.append((document.markdown_path, document.filename))
+    return file_names, file_info_list
 
 
 def _load_json_list(raw: str | None) -> list[str]:
@@ -147,6 +200,9 @@ async def create_compare_run(
     document_ids = payload.get("document_ids", [])
     if len(document_ids) < 2:
         return JSONResponse(status_code=400, content={"detail": "至少需要 2 个文档"})
+    file_count_error = _validate_compare_file_count(len(document_ids))
+    if file_count_error is not None:
+        return file_count_error
 
     with get_db_session() as session:
         docs: list[Document] = []
@@ -159,11 +215,10 @@ async def create_compare_run(
                 )
             docs.append(document)
 
-        file_names = [document.filename for document in docs]
-        file_info_list = [
-            (document.markdown_path or document.raw_path, document.filename)
-            for document in docs
-        ]
+        collected = _collect_markdown_file_info(docs)
+        if isinstance(collected, JSONResponse):
+            return collected
+        file_names, file_info_list = collected
         review_id = uid()
         compare_run = CompareRun(
             id=review_id,
@@ -183,39 +238,115 @@ async def create_compare_run(
     return {"reviewId": review_id, "status": "pending"}
 
 
+def _bind_child_db_session(database_url: str) -> None:
+    """在子进程内把本模块 DB 会话绑定到父进程传入的 SQLite URL。
+
+    参数:
+        database_url: 父进程解析出的应用数据库 URL。
+
+    关键实现细节:
+        spawn 子进程不会继承 pytest monkeypatch 或父进程 lru_cache，因此显式传入
+        database_url，并只替换本模块全局 get_db_session，沿用现有状态写入辅助函数。
+    """
+    engine = create_engine(database_url, connect_args={"check_same_thread": False})
+
+    @contextmanager
+    def _child_session() -> Any:
+        with Session(engine) as session:
+            yield session
+
+    globals()["get_db_session"] = _child_session
+
+
+def _execute_compare_process(
+    review_id: str,
+    file_info_list: list[tuple[str, str]],
+    database_url: str,
+    memory_limit_bytes: int = COMPARE_CHILD_MEMORY_LIMIT_BYTES,
+) -> None:
+    """子进程入口：设置内存上限并执行文档对比。
+
+    参数:
+        review_id: CompareRun ID。
+        file_info_list: ``(markdown_path, filename)`` 列表。
+        database_url: 应用 SQLite URL，供子进程写状态。
+        memory_limit_bytes: RLIMIT_AS 上限，默认 16GB。
+
+    关键实现细节:
+        子进程内负责 running/progress/completed/failed 全部 DB 状态写入；父进程只在
+        超时或非零退出且 DB 未进入终态时兜底标记失败。
+    """
+    resource.setrlimit(resource.RLIMIT_AS, (memory_limit_bytes, memory_limit_bytes))
+    _bind_child_db_session(database_url)
+
+    _set_compare_run_running(review_id)
+    try:
+        payload = create_compare_bundle(
+            files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
+            on_progress=lambda progress: _update_compare_progress(review_id, progress),
+        )
+    except (BadZipFile, ValueError) as exc:
+        _set_compare_run_failed(review_id, f"文件解析失败: {exc}")
+        return
+    except (RuntimeError, OSError) as exc:
+        _set_compare_run_failed(review_id, f"文档转换失败: {exc}")
+        return
+    except Exception:
+        logger.exception("后台对比子进程执行失败: %s", review_id)
+        _set_compare_run_failed(review_id, "后台任务异常退出")
+        return
+
+    result_path = Path(payload.artifacts.review_dir) / "review.json"
+    _set_compare_run_completed(review_id, str(result_path))
+
+
+def _compare_run_in_terminal_state(review_id: str) -> bool:
+    """判断 CompareRun 是否已进入 completed/failed 终态。
+
+    参数:
+        review_id: CompareRun ID。
+
+    返回值:
+        已完成或失败返回 True；缺失或非终态返回 False。
+    """
+    with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        return run is not None and run.status in {"completed", "failed"}
+
+
 async def _run_compare_from_docs(
     review_id: str,
     file_info_list: list[tuple[str, str]],
 ) -> None:
-    """后台执行已上传文档对比任务。"""
+    """后台执行已上传文档对比任务，并用子进程隔离内存风险。"""
     from govdoc.compare.concurrency import get_compare_semaphore
-    from govdoc.runtime import get_config
 
-    sem = get_compare_semaphore(get_config().compare.max_concurrent)
+    cfg = get_config()
+    sem = get_compare_semaphore(cfg.compare.max_concurrent)
 
     async with sem:
-        def _execute_compare() -> None:
-            _set_compare_run_running(review_id)
-            try:
-                payload = create_compare_bundle(
-                    files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
-                    on_progress=lambda progress: _update_compare_progress(review_id, progress),
-                )
-            except (BadZipFile, ValueError) as exc:
-                _set_compare_run_failed(review_id, f"文件解析失败: {exc}")
-                return
-            except (RuntimeError, OSError) as exc:
-                _set_compare_run_failed(review_id, f"文档转换失败: {exc}")
-                return
-            except Exception:
-                logger.exception("后台对比执行失败: %s", review_id)
-                _set_compare_run_failed(review_id, "后台任务异常退出")
-                return
+        ctx = multiprocessing.get_context("spawn")
+        process = ctx.Process(
+            target=_execute_compare_process,
+            args=(
+                review_id,
+                file_info_list,
+                cfg.app.database_url,
+                COMPARE_CHILD_MEMORY_LIMIT_BYTES,
+            ),
+        )
+        process.start()
+        await to_thread(process.join, cfg.compare.pdf_timeout_s)
 
-            result_path = Path(payload.artifacts.review_dir) / "review.json"
-            _set_compare_run_completed(review_id, str(result_path))
+        if process.is_alive():
+            process.terminate()
+            await to_thread(process.join, 5)
+            if not _compare_run_in_terminal_state(review_id):
+                _set_compare_run_failed(review_id, "对比任务超时，请减少文件数量后重试")
+            return
 
-        await to_thread(_execute_compare)
+        if process.exitcode != 0 and not _compare_run_in_terminal_state(review_id):
+            _set_compare_run_failed(review_id, COMPARE_SAFE_ABORT_ERROR)
 
 
 @router.get("/{review_id}/status", response_model=CompareRunStatus)
@@ -296,9 +427,7 @@ def get_compare_summary(
     data = json.loads(summary_path.read_text(encoding="utf-8"))
     all_matches = data.get("matches", [])
     threshold = max(0, min_length)
-    length_filtered = [
-        m for m in all_matches if int(m.get("length") or 0) >= threshold
-    ]
+    length_filtered = [m for m in all_matches if int(m.get("length") or 0) >= threshold]
 
     active_category = category or "paragraph"
     filtered = [m for m in length_filtered if m.get("category") == active_category]
@@ -342,6 +471,7 @@ def get_compare_context(review_id: str, matchId: str, surrounding: int = 3) -> d
 
     review_dir = Path(result_path).parent
     from govdoc.compare.context_loader import load_match_context
+
     try:
         return load_match_context(review_dir, matchId, surrounding=surrounding)
     except KeyError as exc:
@@ -392,11 +522,16 @@ def _create_retry_run(document_ids: list[str]) -> tuple[str, list[tuple[str, str
                 raise HTTPException(status_code=400, detail=f"文档 {doc_id} 不存在或未就绪。")
             docs.append(doc)
 
-        file_names = [d.filename for d in docs]
-        file_info_list = [(d.markdown_path or d.raw_path, d.filename) for d in docs]
+        collected = _collect_markdown_file_info(docs)
+        if isinstance(collected, JSONResponse):
+            detail = json.loads(collected.body).get("detail", "文档转换结果缺失。")
+            raise HTTPException(status_code=400, detail=detail)
+        file_names, file_info_list = collected
         new_id = uid()
         new_run = CompareRun(
-            id=new_id, status="pending", file_count=len(docs),
+            id=new_id,
+            status="pending",
+            file_count=len(docs),
             file_names_json=json.dumps(file_names, ensure_ascii=False),
             document_ids=json.dumps(document_ids),
         )

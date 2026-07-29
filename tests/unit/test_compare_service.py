@@ -11,6 +11,9 @@ from docx import Document
 
 from govdoc.compare.compare import find_nfile_exact_matches
 from govdoc.compare.service import (
+    DocumentModel,
+    TextBlock,
+    _build_nfile_similar_matches,
     _extract_pdf_paragraphs,
     create_compare_bundle,
     create_compare_bundle_from_bytes,
@@ -204,6 +207,84 @@ def test_compare_empty_documents_returns_zero_matches(tmp_path: Path) -> None:
     assert payload.summary.files[0].paragraph_count == 0
     assert payload.summary.files[1].paragraph_count == 0
     assert payload.matches == []
+
+
+def test_build_nfile_similar_matches_consumes_clusters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """近似段落聚类应被压缩成一条记录，并覆盖组内所有成员。"""
+    documents = [
+        DocumentModel(
+            file_index=0,
+            file_name="a.md",
+            suffix=".md",
+            blocks=[
+                TextBlock(id="a-0", index=0, text="短段落", start=0, end=3),
+                TextBlock(
+                    id="a-1",
+                    index=1,
+                    text="投标人应具有良好的商业信誉和健全的财务会计制度",
+                    start=4,
+                    end=28,
+                ),
+            ],
+            full_text="",
+        ),
+        DocumentModel(
+            file_index=1,
+            file_name="b.md",
+            suffix=".md",
+            blocks=[
+                TextBlock(
+                    id="b-0",
+                    index=0,
+                    text="投标人须具有良好的商业信誉和健全的财务会计制度",
+                    start=0,
+                    end=24,
+                )
+            ],
+            full_text="",
+        ),
+        DocumentModel(
+            file_index=2,
+            file_name="c.md",
+            suffix=".md",
+            blocks=[
+                TextBlock(
+                    id="c-0",
+                    index=0,
+                    text="投标人应具有良好的商业信誉和健全的财务会计制度并提供承诺函",
+                    start=0,
+                    end=31,
+                )
+            ],
+            full_text="",
+        ),
+    ]
+
+    from govdoc.compare.simhash import SimilarParagraphCluster
+    from govdoc.config import CompareConfig
+
+    class FakeConfig:
+        compare = CompareConfig()
+
+    monkeypatch.setattr("govdoc.runtime.get_config", lambda: FakeConfig())
+    monkeypatch.setattr(
+        "govdoc.compare.simhash.find_similar_paragraphs",
+        lambda **_: [
+            SimilarParagraphCluster(
+                members=[(0, 1), (1, 0), (2, 0)],
+                representative_file=2,
+                representative_paragraph=0,
+            )
+        ],
+    )
+
+    matches = _build_nfile_similar_matches(documents, exact_matched_texts=set())
+
+    assert len(matches) == 1
+    assert matches[0].id == "similar-001"
+    assert matches[0].text == "投标人应具有良好的商业信誉和健全的财务会计制度并提供承诺函"
+    assert sorted(matches[0].file_occurrences) == [0, 1, 2]
+    assert matches[0].file_occurrences[0][0].start == 4
 
 
 def test_sanitize_filename_strips_dangerous_characters() -> None:

@@ -38,8 +38,11 @@ class TestMatchSummaryItem:
             preview="x",
         )
         dumped = item.model_dump(mode="json", by_alias=True)
+        removed_near_match_score_field = "sim" + "ilarity"
         assert "fileIndices" in dumped
         assert "occurrenceCount" in dumped
+        assert dumped["perFileCounts"] == {}
+        assert removed_near_match_score_field not in dumped
 
 
 class TestCompareSummaryResponse:

@@ -124,8 +124,6 @@ class CompareMatch(CompareModel):
     per_file_counts: dict[str, int]
     file_count: int
     occurrence_count: int
-    similarity: float | None = None
-    text_b: str | None = None
 
 
 class CompareDownloads(CompareModel):
@@ -176,9 +174,9 @@ class MatchSummaryItem(CompareModel):
     length: int
     file_indices: list[int]
     occurrence_count: int
+    per_file_counts: dict[str, int] = {}
     preview: str
     text: str | None = None
-    similarity: float | None = None
 
 
 class CompareSummaryResponse(CompareModel):

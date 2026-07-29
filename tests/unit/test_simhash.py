@@ -1,12 +1,66 @@
-"""SimHash 模糊段落匹配测试。"""
+"""SimHash 模糊段落聚类测试。"""
 
 from __future__ import annotations
 
+import random
+from itertools import combinations
+
+import pytest
+
+from govdoc.compare import simhash
 from govdoc.compare.simhash import (
+    CompareTooComplexError,
+    SimilarParagraphCluster,
     compute_simhash,
     find_similar_paragraphs,
     hamming_distance,
 )
+
+
+def _bruteforce_pairs(
+    all_paragraphs: dict[int, list[str]],
+    threshold: int,
+    exact_texts: set[str],
+) -> set[tuple[tuple[int, int], tuple[int, int]]]:
+    """用纯 Python 逐对比较生成跨文件近似成员对。"""
+    candidates: dict[int, list[tuple[int, int, str]]] = {}
+    for file_index, paragraphs in all_paragraphs.items():
+        candidates[file_index] = [
+            (para_index, compute_simhash(text), text)
+            for para_index, text in enumerate(paragraphs)
+            if len(text) >= simhash.MIN_PARAGRAPH_LENGTH and text not in exact_texts
+        ]
+
+    pairs: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+    for file_a, file_b in combinations(sorted(candidates), 2):
+        for para_a, fp_a, left_text in candidates[file_a]:
+            for para_b, fp_b, right_text in candidates[file_b]:
+                if left_text != right_text and hamming_distance(fp_a, fp_b) <= threshold:
+                    pairs.add(((file_a, para_a), (file_b, para_b)))
+    return pairs
+
+
+def _cluster_pairs(
+    clusters: list[SimilarParagraphCluster],
+    all_paragraphs: dict[int, list[str]],
+    threshold: int,
+) -> set[tuple[tuple[int, int], tuple[int, int]]]:
+    """把聚类展开为组内真实满足阈值的跨文件成员对。"""
+    pairs: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+    for cluster in clusters:
+        for left, right in combinations(cluster.members, 2):
+            if left[0] == right[0]:
+                continue
+            text_left = all_paragraphs[left[0]][left[1]]
+            text_right = all_paragraphs[right[0]][right[1]]
+            if text_left == text_right:
+                continue
+            if (
+                hamming_distance(compute_simhash(text_left), compute_simhash(text_right))
+                <= threshold
+            ):
+                pairs.add((left, right) if left < right else (right, left))
+    return pairs
 
 
 def test_identical_text_produces_same_hash() -> None:
@@ -42,46 +96,84 @@ def test_hamming_distance_counts_differing_bits() -> None:
     assert hamming_distance(0b1010, 0b0101) == 4
 
 
-def test_find_similar_paragraphs_detects_near_duplicates() -> None:
-    """应检测出高度相似但非完全相同的段落对。"""
-    paragraphs_a = [
-        "投标人应具有良好的商业信誉和健全的财务会计制度",
-        "本项目不接受联合体投标",
-        "完全不同的独有段落内容放在这里用来测试",
-    ]
-    paragraphs_b = [
-        "投标人须具有良好的商业信誉和健全的财务会计制度",
-        "本项目不接受联合体投标",
-        "另一段完全无关的文字内容放在这里用来测试",
-    ]
-    exact_texts = {"本项目不接受联合体投标"}
+def test_vectorized_clusters_match_bruteforce_pairs() -> None:
+    """固定随机小样本上，向量化聚类展开结果应等于暴力逐对结果。"""
+    random.seed(20260729)
+    all_paragraphs: dict[int, list[str]] = {}
+    base = "投标人应具有良好的商业信誉和健全的财务会计制度，且依法缴纳税收。"
+    exact = "本项目不接受联合体投标，资格后审。"
+    for file_index in range(3):
+        paragraphs = [
+            f"文件{file_index}随机段落{idx:03d}，采购需求和评分办法内容互不相同。"
+            for idx in range(76)
+        ]
+        paragraphs.extend(
+            [
+                base.replace("应", "须") if file_index == 1 else base.replace("依法", "按规定"),
+                exact,
+                f"短{file_index}",
+                f"完全独立补充条款{random.randint(1000, 9999)}。",
+            ]
+        )
+        random.shuffle(paragraphs)
+        all_paragraphs[file_index] = paragraphs
 
-    matches = find_similar_paragraphs(
-        all_paragraphs={0: paragraphs_a, 1: paragraphs_b},
-        threshold=10,
-        exact_matched_texts=exact_texts,
+    exact_texts = {exact}
+    clusters = find_similar_paragraphs(
+        all_paragraphs, threshold=10, exact_matched_texts=exact_texts
     )
 
-    assert len(matches) >= 1
-    assert any("商业信誉" in m.text_a and "商业信誉" in m.text_b for m in matches)
+    assert _cluster_pairs(clusters, all_paragraphs, 10) == _bruteforce_pairs(
+        all_paragraphs, 10, exact_texts
+    )
 
 
-def test_find_similar_paragraphs_excludes_exact_matches() -> None:
-    """已被精确匹配覆盖的段落不应出现在模糊结果中。"""
+def test_known_cluster_members_and_representative() -> None:
+    """已知三文件近似段落应聚成一组，并以最长文本为代表。"""
+    all_paragraphs = {
+        0: ["投标人应具有良好的商业信誉和健全的财务会计制度"],
+        1: ["投标人须具有良好的商业信誉和健全的财务会计制度"],
+        2: ["投标人应具有良好的商业信誉和健全的财务会计制度并提供承诺函"],
+    }
+
+    clusters = find_similar_paragraphs(all_paragraphs, threshold=12)
+
+    assert len(clusters) == 1
+    assert clusters[0].members == [(0, 0), (1, 0), (2, 0)]
+    assert (clusters[0].representative_file, clusters[0].representative_paragraph) == (2, 0)
+
+
+def test_candidate_pair_circuit_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """候选对超过熔断阈值时应抛出面向用户的具名异常。"""
+    monkeypatch.setattr(simhash, "MAX_CANDIDATE_PAIRS", 1)
+    paragraphs = {
+        0: ["投标人应具有良好的商业信誉和健全的财务会计制度"] * 2,
+        1: ["投标人须具有良好的商业信誉和健全的财务会计制度"] * 2,
+    }
+
+    with pytest.raises(CompareTooComplexError, match="相似内容过多"):
+        find_similar_paragraphs(paragraphs, threshold=64)
+
+
+def test_same_file_only_near_duplicate_is_not_returned() -> None:
+    """纯同文件近似段落不应产生跨文件聚类。"""
+    paragraphs = {
+        0: [
+            "投标人应具有良好的商业信誉和健全的财务会计制度",
+            "投标人须具有良好的商业信誉和健全的财务会计制度",
+        ],
+        1: ["本项目采用公开招标方式选择承包商进行施工建设"],
+    }
+
+    assert find_similar_paragraphs(paragraphs, threshold=10) == []
+
+
+def test_exact_matches_are_excluded_from_similar_clusters() -> None:
+    """已被精确层覆盖的段落不应进入模糊聚类。"""
     paragraphs = ["完全相同的段落内容用于测试去重逻辑"]
-    matches = find_similar_paragraphs(
+    clusters = find_similar_paragraphs(
         all_paragraphs={0: paragraphs, 1: paragraphs},
         threshold=10,
         exact_matched_texts={"完全相同的段落内容用于测试去重逻辑"},
     )
-    assert matches == []
-
-
-def test_short_paragraphs_are_skipped() -> None:
-    """过短的段落（< 8 字符）不参与模糊匹配。"""
-    matches = find_similar_paragraphs(
-        all_paragraphs={0: ["短文本"], 1: ["短文本"]},
-        threshold=10,
-        exact_matched_texts=set(),
-    )
-    assert matches == []
+    assert clusters == []

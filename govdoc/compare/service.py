@@ -383,7 +383,9 @@ def _sentence_covered_by_paragraph(
     if not paragraph_ranges_by_file or doc.file_index not in paragraph_ranges_by_file:
         return False
     return _is_covered_by_ranges(
-        document=doc, start=sentence.start, end=sentence.end,
+        document=doc,
+        start=sentence.start,
+        end=sentence.end,
         ranges=paragraph_ranges_by_file[doc.file_index],
     )
 
@@ -406,9 +408,7 @@ def _build_nfile_sentence_matches(
             first_seen.setdefault(sentence.text, (doc.file_index, order))
 
     texts = [
-        text
-        for text, per_file_sentences in sentence_lookup.items()
-        if len(per_file_sentences) >= 2
+        text for text, per_file_sentences in sentence_lookup.items() if len(per_file_sentences) >= 2
     ]
     texts.sort(key=lambda text: (first_seen[text][0], first_seen[text][1], text))
 
@@ -443,17 +443,22 @@ def _build_nfile_similar_matches(
     documents: list[DocumentModel],
     exact_matched_texts: set[str],
 ) -> list[MatchRecord]:
-    """构建 N 份文档中的近似段落匹配。"""
+    """构建 N 份文档中的近似段落聚类匹配。
+
+    参数:
+        documents: 已解析为段落块的文档列表。
+        exact_matched_texts: 已由精确段落层覆盖的文本集合。
+
+    返回值:
+        每个近似聚类一条 MatchRecord，occurrences 覆盖组内全部成员。
+    """
     from govdoc.compare.simhash import find_similar_paragraphs
     from govdoc.runtime import get_config
 
     threshold = get_config().compare.simhash_threshold
 
-    all_paragraphs = {
-        doc.file_index: [block.text for block in doc.blocks]
-        for doc in documents
-    }
-    similar_matches = find_similar_paragraphs(
+    all_paragraphs = {doc.file_index: [block.text for block in doc.blocks] for doc in documents}
+    similar_clusters = find_similar_paragraphs(
         all_paragraphs=all_paragraphs,
         threshold=threshold,
         exact_matched_texts=exact_matched_texts,
@@ -462,34 +467,28 @@ def _build_nfile_similar_matches(
     documents_by_index = {doc.file_index: doc for doc in documents}
     matches: list[MatchRecord] = []
 
-    for sim in similar_matches:
-        doc_a = documents_by_index[sim.file_index_a]
-        doc_b = documents_by_index[sim.file_index_b]
-        block_a = doc_a.blocks[sim.paragraph_index_a]
-        block_b = doc_b.blocks[sim.paragraph_index_b]
+    for cluster in similar_clusters:
+        representative_doc = documents_by_index[cluster.representative_file]
+        representative_block = representative_doc.blocks[cluster.representative_paragraph]
+        file_occurrences: dict[int, list[MatchOccurrence]] = defaultdict(list)
 
-        file_occurrences = {
-            sim.file_index_a: [
+        for file_index, paragraph_index in cluster.members:
+            document = documents_by_index[file_index]
+            block = document.blocks[paragraph_index]
+            file_occurrences[file_index].append(
                 MatchOccurrence(
-                    file_index=sim.file_index_a,
-                    start=block_a.start,
-                    end=block_a.end,
+                    file_index=file_index,
+                    start=block.start,
+                    end=block.end,
                 )
-            ],
-            sim.file_index_b: [
-                MatchOccurrence(
-                    file_index=sim.file_index_b,
-                    start=block_b.start,
-                    end=block_b.end,
-                )
-            ],
-        }
+            )
+
         matches.append(
             MatchRecord(
                 id=f"similar-{len(matches) + 1:03d}",
                 category="similar",
-                text=sim.text_a,
-                file_occurrences=file_occurrences,
+                text=representative_block.text,
+                file_occurrences=dict(file_occurrences),
             )
         )
 
@@ -501,7 +500,9 @@ def _build_exact_ranges_by_file(matches: list[MatchRecord]) -> dict[int, list[tu
     ranges: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for match in matches:
         for file_index, occurrences in match.file_occurrences.items():
-            ranges[file_index].extend((occurrence.start, occurrence.end) for occurrence in occurrences)
+            ranges[file_index].extend(
+                (occurrence.start, occurrence.end) for occurrence in occurrences
+            )
     return {file_index: sorted(items) for file_index, items in ranges.items()}
 
 
@@ -638,7 +639,10 @@ def _build_block_segments(
     if not annotations:
         return [
             CompareBlockSegment(
-                text=block.text, match_ids=[], categories=[], primary_match_id=None,
+                text=block.text,
+                match_ids=[],
+                categories=[],
+                primary_match_id=None,
             )
         ]
 
@@ -655,7 +659,9 @@ def _build_block_segments(
             continue
         current = _segment_for_range(block, start, end, annotations, match_lookup)
         if segments and _can_merge_segments(segments[-1], current):
-            segments[-1] = segments[-1].model_copy(update={"text": segments[-1].text + current.text})
+            segments[-1] = segments[-1].model_copy(
+                update={"text": segments[-1].text + current.text}
+            )
         else:
             segments.append(current)
 
@@ -702,9 +708,7 @@ def _serialize_matches(
             str(file_index): match_segments_by_file.get(file_index, {}).get(match.id, [])
             for file_index in file_indices
         }
-        per_file_counts = {
-            str(file_index): len(items) for file_index, items in occurrences.items()
-        }
+        per_file_counts = {str(file_index): len(items) for file_index, items in occurrences.items()}
         occurrence_count = sum(per_file_counts.values())
         serialized.append(
             CompareMatch(
@@ -864,6 +868,7 @@ def _build_compare_response(
     )
 
     from govdoc.compare.splitter import split_compare_response
+
     split_compare_response(payload, review_dir)
 
     return payload

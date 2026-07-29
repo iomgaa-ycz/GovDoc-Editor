@@ -93,10 +93,10 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _sweep_orphaned_runs():
-        """启动时将无心跳的 running 状态 AuditRun/ExtractRun 标记为 interrupted。"""
+        """启动时清扫服务重启遗留的未终结任务。"""
         from datetime import datetime, timedelta
 
-        from govdoc.db.models import AuditRun, ExtractRun
+        from govdoc.db.models import AuditRun, CompareRun, ExtractRun
         from sqlmodel import select
 
         cutoff = datetime.utcnow() - timedelta(minutes=10)
@@ -115,6 +115,14 @@ def create_app() -> FastAPI:
                     er.error = "服务重启时检测到孤儿任务"
                     session.add(er)
                     _logger.warning("标记孤儿 ExtractRun: %s", er.id)
+            for cr in session.exec(
+                select(CompareRun).where(CompareRun.status.in_(["pending", "running"]))
+            ).all():
+                cr.status = "failed"
+                cr.error = "服务重启中断，请重新发起对比"
+                cr.completed_at = datetime.utcnow()
+                session.add(cr)
+                _logger.warning("标记中断 CompareRun: %s", cr.id)
             session.commit()
         _logger.info("孤儿任务扫描完成")
 

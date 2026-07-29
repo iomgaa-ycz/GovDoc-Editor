@@ -1,4 +1,5 @@
 """对比结果拆分器：将 CompareResponse 拆分为多个索引文件。"""
+
 from __future__ import annotations
 
 import json
@@ -20,17 +21,19 @@ def _write_summary(response: CompareResponse, review_dir: Path) -> None:
     """生成 summary.json：摘要 + 匹配列表（仅 preview，无 text）。"""
     match_items = []
     for m in response.matches:
-        match_items.append({
-            "id": m.id,
-            "category": m.category,
-            "label": m.label,
-            "color": m.color,
-            "length": m.length,
-            "fileIndices": m.file_indices,
-            "occurrenceCount": m.occurrence_count,
-            "preview": m.text[:PREVIEW_MAX_LENGTH] if m.text else "",
-            "similarity": m.similarity,
-        })
+        match_items.append(
+            {
+                "id": m.id,
+                "category": m.category,
+                "label": m.label,
+                "color": m.color,
+                "length": m.length,
+                "fileIndices": m.file_indices,
+                "occurrenceCount": m.occurrence_count,
+                "perFileCounts": m.per_file_counts,
+                "preview": m.text[:PREVIEW_MAX_LENGTH] if m.text else "",
+            }
+        )
 
     summary_payload = {
         "reviewId": response.review_id,
@@ -41,7 +44,8 @@ def _write_summary(response: CompareResponse, review_dir: Path) -> None:
         "artifacts": response.artifacts.model_dump(mode="json", by_alias=True),
     }
     (review_dir / "summary.json").write_text(
-        json.dumps(summary_payload, ensure_ascii=False), encoding="utf-8",
+        json.dumps(summary_payload, ensure_ascii=False),
+        encoding="utf-8",
     )
 
 
@@ -50,7 +54,8 @@ def _write_blocks(response: CompareResponse, review_dir: Path) -> None:
     for doc in response.documents.files:
         blocks_data = [b.model_dump(mode="json", by_alias=True) for b in doc.blocks]
         (review_dir / f"blocks_{doc.file_index}.json").write_text(
-            json.dumps(blocks_data, ensure_ascii=False), encoding="utf-8",
+            json.dumps(blocks_data, ensure_ascii=False),
+            encoding="utf-8",
         )
 
 
@@ -69,5 +74,6 @@ def _write_match_index(response: CompareResponse, review_dir: Path) -> None:
         index[m.id] = entry
 
     (review_dir / "match_index.json").write_text(
-        json.dumps(index, ensure_ascii=False), encoding="utf-8",
+        json.dumps(index, ensure_ascii=False),
+        encoding="utf-8",
     )

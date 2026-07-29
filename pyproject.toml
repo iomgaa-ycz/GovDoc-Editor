@@ -20,6 +20,7 @@ dependencies = [
     "python-docx>=1.1",
     "scrivai>=0.2.3",
     "json5>=0.9.28",
+    "numpy>=2.0",
     "xlrd>=2.0",
     "openpyxl>=3.1",
 ]
