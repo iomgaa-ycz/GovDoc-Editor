@@ -360,3 +360,63 @@ def test_retry_failed_compare_run_twice_keeps_single_row(
     assert _compare_run_count(compare_session) == before_count
     assert len(first_background_tasks.tasks) == 1
     assert len(second_background_tasks.tasks) == 0
+
+
+def test_retry_failed_compare_run_removes_old_review_dir_only_under_compare_root(
+    compare_session: Session,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """失败任务重试后只删除对比根目录下的旧 review_dir。"""
+    document_ids = _add_ready_compare_documents(compare_session, tmp_path)
+    compare_root = tmp_path / "storage" / "compare"
+    old_review_dir = compare_root / "old-review"
+    old_review_dir.mkdir(parents=True)
+    (old_review_dir / "review.json").write_text("{}", encoding="utf-8")
+    (old_review_dir / "uploads").mkdir()
+    (old_review_dir / "uploads" / "copy.docx").write_bytes(b"old-copy")
+
+    outside_review_dir = tmp_path / "outside-review"
+    outside_review_dir.mkdir()
+    (outside_review_dir / "review.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        "govdoc.api.routes.compare.get_compare_root", lambda: compare_root, raising=False
+    )
+
+    compare_session.add(
+        CompareRun(
+            id="review-cleanup",
+            status="failed",
+            file_count=2,
+            document_ids=json.dumps(document_ids),
+            result_path=str(old_review_dir / "review.json"),
+        )
+    )
+    compare_session.add(
+        CompareRun(
+            id="review-outside",
+            status="failed",
+            file_count=2,
+            document_ids=json.dumps(document_ids),
+            result_path=str(outside_review_dir / "review.json"),
+        )
+    )
+    compare_session.commit()
+
+    asyncio.run(
+        retry_compare_run(
+            "review-cleanup",
+            BackgroundTasks(),
+            response=Response(status_code=202),
+        )
+    )
+    asyncio.run(
+        retry_compare_run(
+            "review-outside",
+            BackgroundTasks(),
+            response=Response(status_code=202),
+        )
+    )
+
+    assert not old_review_dir.exists()
+    assert outside_review_dir.exists()

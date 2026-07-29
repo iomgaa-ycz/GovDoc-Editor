@@ -10,6 +10,7 @@ import json
 import logging
 import multiprocessing
 import resource
+import shutil
 from pathlib import Path
 from zipfile import BadZipFile
 
@@ -19,7 +20,7 @@ from sqlalchemy import update
 from sqlmodel import Session, create_engine
 
 from govdoc.api.deps import get_db_session
-from govdoc.compare.service import create_compare_bundle, get_compare_download
+from govdoc.compare.service import create_compare_bundle, get_compare_download, get_compare_root
 from govdoc.compare.simhash import CompareTooComplexError
 from govdoc.db.models import CompareRun, Document, uid
 from govdoc.runtime import get_config
@@ -521,17 +522,19 @@ def _load_retry_run_state(review_id: str) -> tuple[str, list[str]]:
         run = session.get(CompareRun, review_id)
         if run is None:
             raise HTTPException(status_code=404, detail="对比任务不存在。")
-        if run.status in {"pending", "running"}:
-            return run.status, []
-        if run.status not in {"failed", "completed"}:
+        status = run.status
+        document_ids_raw = run.document_ids
+        if status in {"pending", "running"}:
+            return status, []
+        if status not in {"failed", "completed"}:
             raise HTTPException(status_code=409, detail="仅失败或已完成任务可重试。")
         try:
-            document_ids = json.loads(run.document_ids) if run.document_ids else []
+            document_ids = json.loads(document_ids_raw) if document_ids_raw else []
         except json.JSONDecodeError as exc:
             raise HTTPException(status_code=400, detail="原始文档信息损坏，无法重试。") from exc
     if len(document_ids) < 2:
         raise HTTPException(status_code=400, detail="原始文档信息丢失，无法重试。")
-    return run.status, [str(document_id) for document_id in document_ids]
+    return status, [str(document_id) for document_id in document_ids]
 
 
 def _collect_retry_file_info(document_ids: list[str]) -> list[tuple[str, str]]:
@@ -568,6 +571,8 @@ def _reset_compare_run_for_retry(review_id: str) -> bool:
         当前请求返回 False，调用方应走幂等返回分支。
     """
     with get_db_session() as session:
+        run = session.get(CompareRun, review_id)
+        old_result_path = run.result_path if run is not None else None
         # 两个重试请求可能同时读到 failed/completed；用条件 UPDATE 收窄竞争窗口，
         # 确保只有抢到终态 -> pending 转换的请求会派发后台任务。
         result = session.exec(
@@ -585,7 +590,27 @@ def _reset_compare_run_for_retry(review_id: str) -> bool:
             )
         )
         session.commit()
-        return int(getattr(result, "rowcount", 0)) == 1
+        updated = int(getattr(result, "rowcount", 0)) == 1
+
+    if updated and old_result_path:
+        _remove_compare_review_dir(old_result_path)
+    return updated
+
+
+def _remove_compare_review_dir(result_path: str) -> None:
+    """删除旧对比结果目录，路径异常时跳过。"""
+    review_dir = Path(result_path).expanduser().parent
+    try:
+        resolved_review_dir = review_dir.resolve(strict=False)
+        resolved_compare_root = get_compare_root().resolve(strict=False)
+        resolved_review_dir.relative_to(resolved_compare_root)
+    except (OSError, ValueError):
+        return
+    if resolved_review_dir == resolved_compare_root:
+        return
+
+    # 清空 result_path 后旧 review_dir 已无读者引用；只删除 compare 根目录下的目录。
+    shutil.rmtree(resolved_review_dir, ignore_errors=True)
 
 
 def _load_compare_run_status(review_id: str) -> str:
