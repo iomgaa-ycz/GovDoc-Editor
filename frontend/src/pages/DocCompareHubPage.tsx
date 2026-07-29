@@ -13,7 +13,7 @@ import type { GovDocument } from "../types/ui";
 type NormalizedRunStatus = "completed" | "running" | "pending" | "failed" | "unknown";
 
 // 与后端 govdoc.yaml compare.max_files、_validate_file_count 三处同步。
-const MAX_COMPARE_FILES = 6;
+const MAX_COMPARE_FILES = 10;
 
 function normalizeStatus(status: string): NormalizedRunStatus {
   if (status === "completed" || status === "running" || status === "pending" || status === "failed") {
@@ -129,6 +129,7 @@ export function DocCompareHubPage() {
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(() => new Set());
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
   const exceedsMaxFiles = selectedDocs.length > MAX_COMPARE_FILES;
 
   useEffect(() => {
@@ -201,11 +202,18 @@ export function DocCompareHubPage() {
   async function handleRetry(failedReviewId: string) {
     if (retryingIds.has(failedReviewId)) return;
     setRetryingIds((current) => new Set(current).add(failedReviewId));
-    setError(null);
+    setRetryErrors((current) => {
+      const next = { ...current };
+      delete next[failedReviewId];
+      return next;
+    });
     try {
       await retryCompareRun(failedReviewId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "重试请求失败，请稍后再试");
+      setRetryErrors((current) => ({
+        ...current,
+        [failedReviewId]: err instanceof Error ? err.message : "重试请求失败，请稍后再试",
+      }));
     } finally {
       setRetryingIds((current) => {
         const next = new Set(current);
@@ -400,6 +408,14 @@ export function DocCompareHubPage() {
                     {run.status === "failed" && run.error && (
                       <p className="my-1 line-clamp-2 px-4 text-xs text-status-err" title={run.error}>
                         {run.error}
+                      </p>
+                    )}
+                    {run.status === "failed" && retryErrors[run.reviewId] && (
+                      <p
+                        className="my-1 line-clamp-2 px-4 text-xs text-status-err"
+                        title={retryErrors[run.reviewId]}
+                      >
+                        重试失败：{retryErrors[run.reviewId]}
                       </p>
                     )}
                     {isRunning && <InlineProgress run={run} />}

@@ -5,8 +5,21 @@ const BASE = import.meta.env.VITE_GOVDOC_API_BASE_URL ?? "";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, init);
   if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.detail ?? `HTTP ${resp.status}`);
+    const body = await resp.text().catch(() => "");
+    // FastAPI 常用 {"detail": "..."} 返回业务错误；只直抛字符串 detail，避免展示原始 JSON。
+    if (body) {
+      try {
+        const parsedBody = JSON.parse(body) as { detail?: unknown };
+        if (typeof parsedBody.detail === "string") {
+          throw new Error(parsedBody.detail);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === "Error") {
+          throw err;
+        }
+      }
+    }
+    throw new Error(`API ${resp.status}: ${body || resp.statusText}`);
   }
   if (resp.status === 204) return undefined as T;
   return resp.json();

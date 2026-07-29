@@ -29,6 +29,19 @@ export async function request<T>(
   const res = await fetch(`${base}${path}`, init);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // FastAPI 常用 {"detail": "..."} 返回业务错误；优先展示给律师看的中文文案。
+    if (body) {
+      try {
+        const parsedBody = JSON.parse(body) as { detail?: unknown };
+        if (typeof parsedBody.detail === "string") {
+          throw new Error(parsedBody.detail);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === "Error") {
+          throw err;
+        }
+      }
+    }
     throw new Error(`API ${res.status}: ${body || res.statusText}`);
   }
   if (res.status === 204) return undefined as T;

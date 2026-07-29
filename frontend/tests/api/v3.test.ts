@@ -340,22 +340,21 @@ describe("request() — 错误响应映射", () => {
     );
   });
 
-  it("500 + JSON 字符串 body → 抛 `API 500: <body 原文>`", async () => {
-    const errPayload = JSON.stringify({ detail: "boom" });
+  it("400 + JSON 字符串 detail → 只抛 detail 中文文案", async () => {
+    const errPayload = JSON.stringify({ detail: "当前部署最多支持 10 份文件。" });
     server.use(
       http.get(
         "*/api/v1/server-err",
         () =>
           new HttpResponse(errPayload, {
-            status: 500,
+            status: 400,
             headers: { "Content-Type": "application/json" },
           }),
       ),
     );
 
-    // request 用 res.text() 取 body，故应包含原始 JSON 字符串
     await expect(request("/api/v1/server-err")).rejects.toThrow(
-      /^API 500: \{"detail":"boom"\}$/,
+      /^当前部署最多支持 10 份文件。$/,
     );
   });
 
