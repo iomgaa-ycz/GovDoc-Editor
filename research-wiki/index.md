@@ -1,6 +1,6 @@
 # Research Wiki 索引
 
-> 自动生成，更新时间：2026-06-12 06:27 UTC
+> 自动生成，更新时间：2026-07-29 11:53 UTC
 
 ## design (27)
 - [2026-05-23-e2e-fix-round2-design](designs/2026-05-23-e2e-fix-round2-design.md) `design:2026-05-23-e2e-fix-round2-design`
@@ -57,9 +57,8 @@
 - [2026-05-29-audit-library-e2e-tests](plans/2026-05-29-audit-library-e2e-tests.md) `plan:2026-05-29-audit-library-e2e-tests`
 - [2026-05-29-fix-test-failures](plans/2026-05-29-fix-test-failures.md) `plan:2026-05-29-fix-test-failures`
 - [2026-06-06-audit-partial-failure-recovery](plans/2026-06-06-audit-partial-failure-recovery.md) `plan:2026-06-06-audit-partial-failure-recovery`
-- [2026-06-12-leadership-data-report](plans/2026-06-12-leadership-data-report.md) `plan:2026-06-12-leadership-data-report`
-- [2026-06-12-saas-production-requirements-inventory](plans/2026-06-12-saas-production-requirements-inventory.md) `plan:2026-06-12-saas-production-requirements-inventory`
-- [2026-06-12-v3-full-requirements-inventory](plans/2026-06-12-v3-full-requirements-inventory.md) `plan:2026-06-12-v3-full-requirements-inventory`
+- [2026-06-13-formal-report](plans/2026-06-13-formal-report.md) `plan:2026-06-13-formal-report`
+- [2026-06-13-report](plans/2026-06-13-report.md) `plan:2026-06-13-report`
 - [Alembic 统一数据库初始化计划](plans/alembic-unify.md) `plan:alembic-unify`
 - [async offload 实现计划](plans/async-offload-blocking-ops.md) `plan:async-offload-blocking-ops`
 - [CI/CD Docker 部署计划](plans/cicd-deploy.md) `plan:cicd-deploy`
@@ -86,6 +85,7 @@
 - [审核状态 UI 改进版实现计划](plans/2026-05-22-audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核状态 UI 改进版实现计划](plans/audit-status-ui-v2-impl.md) `plan:audit-status-ui-v2-impl`
 - [审核部分失败恢复 实现计划](plans/audit-partial-failure-recovery-plan.md) `plan:audit-partial-failure-recovery-plan`
+- [对比功能内存爆炸根治：向量化聚类+子进程隔离](plans/2026-07-29-compare-oom-root-fix.md) `plan:2026-07-29-compare-oom-root-fix`
 - [对比模块 MinerU OCR 后端集成 实施计划](plans/compare-mineru-ocr-plan.md) `plan:compare-mineru-ocr-plan`
 - [文件预转换与文件管理中心实施计划](plans/file-management-center.md) `plan:file-management-center`
 - [文档对比分层加载与前端重构实施计划](plans/2026-05-27-compare-lazy-load.md) `plan:compare-lazy-load`

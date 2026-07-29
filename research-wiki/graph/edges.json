@@ -219,6 +219,11 @@
       "id": "plan:audit-partial-failure-recovery-plan",
       "label": "审核部分失败恢复 实现计划",
       "type": "plan"
+    },
+    {
+      "id": "plan:2026-07-29-compare-oom-root-fix",
+      "label": "对比功能内存爆炸根治：向量化聚类+子进程隔离",
+      "type": "plan"
     }
   ],
   "links": [
