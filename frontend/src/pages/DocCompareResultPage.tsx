@@ -273,7 +273,7 @@ function SummaryView({
           <div>
             <CardTitle>匹配清单</CardTitle>
             <p className="mt-1 text-xs text-text-muted">
-              {totalInCategory.toLocaleString()} 条 · 已加载 {matches.length} 条 · 点击查看各文件对应段落
+              {totalInCategory.toLocaleString()} 组 · 已加载 {matches.length} 组 · 点击查看各文件对应段落
             </p>
           </div>
         </CardHeader>
@@ -361,7 +361,7 @@ function ContextView({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">匹配清单</h3>
             <span className="text-xs text-text-muted">
-              {(pagination?.totalInCategory ?? matches.length).toLocaleString()} 项
+              {(pagination?.totalInCategory ?? matches.length).toLocaleString()} 组
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -434,7 +434,6 @@ function ContextView({
               key={fc.fileIndex}
               fc={fc}
               match={context.match}
-              matchColor={context.match.color}
             />
           ))}
         </div>
@@ -475,7 +474,6 @@ function LengthThresholdControl({
 function FileContextCol({
   fc,
   match,
-  matchColor,
 }: {
   fc: {
     fileIndex: number;
@@ -490,10 +488,10 @@ function FileContextCol({
     }>;
   };
   match: MatchSummaryItem;
-  matchColor: string;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
   const perFileCount = match.perFileCounts?.[String(fc.fileIndex)] ?? 0;
+  const matchColor = match.color;
 
   useEffect(() => {
     targetRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });

@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { getCompareSummary, type MatchSummaryItem } from "./compare";
 
 describe("compare API", () => {
-  it("摘要匹配类型使用聚类计数契约", () => {
+  it("固定摘要匹配类型契约，编译期校验聚类计数字段", () => {
+    // 该字面量主要用于 TypeScript 编译期把关：后端 summary.json 必须继续提供 perFileCounts。
     const summaryItem: MatchSummaryItem = {
       id: "match-1",
       category: "similar",

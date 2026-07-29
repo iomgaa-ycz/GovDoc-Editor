@@ -301,7 +301,7 @@ export function DocCompareHubPage() {
               {error && <p className="text-sm text-status-err">{error}</p>}
               {exceedsMaxFiles && (
                 <p className="text-sm text-status-err">
-                  单次对比最多 6 份文件，请移除多余文件
+                  {`单次对比最多 ${MAX_COMPARE_FILES} 份文件，请移除多余文件`}
                 </p>
               )}
             </form>
@@ -386,7 +386,7 @@ export function DocCompareHubPage() {
                       </div>
                     </div>
                     {run.status === "failed" && run.error && (
-                      <p className="mt-1 mb-1 line-clamp-2 px-4 text-xs text-[#DC2626]" title={run.error}>
+                      <p className="my-1 line-clamp-2 px-4 text-xs text-status-err" title={run.error}>
                         {run.error}
                       </p>
                     )}

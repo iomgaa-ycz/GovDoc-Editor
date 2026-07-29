@@ -41,14 +41,6 @@ export interface CompareDocumentBlock {
   segments: CompareBlockSegment[];
 }
 
-export interface CompareDocument {
-  fileIndex: number;
-  name: string;
-  suffix: string;
-  blockCount: number;
-  blocks: CompareDocumentBlock[];
-}
-
 export interface CompareSubmitResponse {
   reviewId: string;
   status: string;
