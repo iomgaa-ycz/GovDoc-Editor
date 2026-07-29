@@ -97,8 +97,15 @@ def test_hamming_distance_counts_differing_bits() -> None:
     assert hamming_distance(0b1010, 0b0101) == 4
 
 
-def test_vectorized_clusters_match_bruteforce_pairs() -> None:
-    """固定随机小样本上，向量化聚类展开结果应等于暴力逐对结果。"""
+@pytest.mark.parametrize("block_size", [None, 7])
+def test_vectorized_clusters_match_bruteforce_pairs(
+    block_size: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """固定随机小样本上，默认/多块分块结果都应等于暴力逐对结果。"""
+    if block_size is not None:
+        monkeypatch.setattr(simhash, "SIMHASH_BLOCK_SIZE", block_size)
+
     random.seed(20260729)
     all_paragraphs: dict[int, list[str]] = {}
     base = "投标人应具有良好的商业信誉和健全的财务会计制度，且依法缴纳税收。"

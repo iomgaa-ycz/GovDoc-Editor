@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 import asyncio
+import resource
 
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -74,7 +75,9 @@ def test_compare_subprocess_completes_small_markdown_run(
 
     asyncio.run(
         compare_route._run_compare_from_docs(
-            "run-ok", [(str(first), "a.docx"), (str(second), "b.docx")]
+            "run-ok",
+            [(str(first), "a.docx"), (str(second), "b.docx")],
+            output_root=str(tmp_path / "compare-output"),
         )
     )
 
@@ -111,7 +114,9 @@ def test_compare_subprocess_memory_death_marks_failed(
 
     asyncio.run(
         compare_route._run_compare_from_docs(
-            "run-oom", [(str(first), "a.docx"), (str(second), "b.docx")]
+            "run-oom",
+            [(str(first), "a.docx"), (str(second), "b.docx")],
+            output_root=str(tmp_path / "compare-output"),
         )
     )
 
@@ -125,6 +130,7 @@ def test_compare_too_complex_error_message_passthrough(
     monkeypatch,
 ) -> None:
     """子进程入口应透传 simhash 熔断异常的用户友好文案。"""
+    monkeypatch.setattr(compare_route, "get_db_session", compare_route.get_db_session)
     database_url = f"sqlite:///{tmp_path}/compare.db"
     engine = create_engine(database_url, connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -160,6 +166,8 @@ def test_compare_too_complex_error_message_passthrough(
         "run-too-complex",
         [(str(first), "a.docx"), (str(second), "b.docx")],
         database_url,
+        memory_limit_bytes=resource.getrlimit(resource.RLIMIT_AS)[0],
+        output_root=str(tmp_path / "compare-output"),
     )
 
     run = _read_run(database_url, "run-too-complex")

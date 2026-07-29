@@ -264,6 +264,7 @@ def _execute_compare_process(
     file_info_list: list[tuple[str, str]],
     database_url: str,
     memory_limit_bytes: int = COMPARE_CHILD_MEMORY_LIMIT_BYTES,
+    output_root: str | None = None,
 ) -> None:
     """子进程入口：设置内存上限并执行文档对比。
 
@@ -272,6 +273,7 @@ def _execute_compare_process(
         file_info_list: ``(markdown_path, filename)`` 列表。
         database_url: 应用 SQLite URL，供子进程写状态。
         memory_limit_bytes: RLIMIT_AS 上限，默认 16GB。
+        output_root: 对比结果输出根目录；生产为 None 时使用默认存储目录，测试可传临时目录。
 
     关键实现细节:
         子进程内负责 running/progress/completed/failed 全部 DB 状态写入；父进程只在
@@ -285,6 +287,7 @@ def _execute_compare_process(
         payload = create_compare_bundle(
             files=[(Path(raw_path), filename) for raw_path, filename in file_info_list],
             on_progress=lambda progress: _update_compare_progress(review_id, progress),
+            output_root=Path(output_root) if output_root is not None else None,
         )
     except (BadZipFile, ValueError) as exc:
         _set_compare_run_failed(review_id, f"文件解析失败: {exc}")
@@ -321,6 +324,7 @@ def _compare_run_in_terminal_state(review_id: str) -> bool:
 async def _run_compare_from_docs(
     review_id: str,
     file_info_list: list[tuple[str, str]],
+    output_root: str | None = None,
 ) -> None:
     """后台执行已上传文档对比任务，并用子进程隔离内存风险。"""
     from govdoc.compare.concurrency import get_compare_semaphore
@@ -337,6 +341,7 @@ async def _run_compare_from_docs(
                 file_info_list,
                 cfg.app.database_url,
                 COMPARE_CHILD_MEMORY_LIMIT_BYTES,
+                output_root,
             ),
         )
         process.start()

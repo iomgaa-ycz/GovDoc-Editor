@@ -257,6 +257,8 @@ def _union_candidate_pairs(
             stop = min(start + SIMHASH_BLOCK_SIZE, len(batch_a.fingerprints))
             xor_values = batch_a.fingerprints[start:stop, None] ^ batch_b.fingerprints[None, :]
             row_indices, col_indices = np.nonzero(_bitwise_popcount(xor_values) <= threshold)
+            if candidate_count + len(row_indices) > MAX_CANDIDATE_PAIRS:
+                _raise_too_complex()
 
             for row_offset, col_offset in zip(
                 row_indices.tolist(), col_indices.tolist(), strict=True
@@ -267,8 +269,6 @@ def _union_candidate_pairs(
                     continue
 
                 candidate_count += 1
-                if candidate_count > MAX_CANDIDATE_PAIRS:
-                    _raise_too_complex()
                 union_find.union(node_ids[(file_a, para_a)], node_ids[(file_b, para_b)])
 
     return candidate_count
