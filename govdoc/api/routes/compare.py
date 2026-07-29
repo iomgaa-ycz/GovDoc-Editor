@@ -19,6 +19,7 @@ from sqlmodel import Session, create_engine
 
 from govdoc.api.deps import get_db_session
 from govdoc.compare.service import create_compare_bundle, get_compare_download
+from govdoc.compare.simhash import CompareTooComplexError
 from govdoc.db.models import CompareRun, Document, uid
 from govdoc.runtime import get_config
 from govdoc.schemas.compare import CompareResponse, CompareRunStatus
@@ -290,6 +291,9 @@ def _execute_compare_process(
         return
     except (RuntimeError, OSError) as exc:
         _set_compare_run_failed(review_id, f"文档转换失败: {exc}")
+        return
+    except CompareTooComplexError as exc:
+        _set_compare_run_failed(review_id, str(exc))
         return
     except Exception:
         logger.exception("后台对比子进程执行失败: %s", review_id)

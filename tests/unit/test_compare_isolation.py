@@ -118,3 +118,51 @@ def test_compare_subprocess_memory_death_marks_failed(
     run = _read_run(database_url, "run-oom")
     assert run.status == "failed"
     assert run.error == "对比规模过大或文件异常，已安全终止，请减少文件数量后重试"
+
+
+def test_compare_too_complex_error_message_passthrough(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """子进程入口应透传 simhash 熔断异常的用户友好文案。"""
+    database_url = f"sqlite:///{tmp_path}/compare.db"
+    engine = create_engine(database_url, connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(CompareRun(id="run-too-complex", status="pending", file_count=2))
+        session.commit()
+
+    from govdoc.compare import simhash
+
+    monkeypatch.setattr(simhash, "MAX_CANDIDATE_PAIRS", 1)
+    first = tmp_path / "a.md"
+    second = tmp_path / "b.md"
+    first.write_text(
+        "\n\n".join(
+            [
+                "投标人应具有良好的商业信誉和健全的财务会计制度",
+                "供应商应具有良好的商业信誉和健全的财务会计制度",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    second.write_text(
+        "\n\n".join(
+            [
+                "投标人须具有良好的商业信誉和健全的财务会计制度",
+                "供应商须具有良好的商业信誉和健全的财务会计制度",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    compare_route._execute_compare_process(
+        "run-too-complex",
+        [(str(first), "a.docx"), (str(second), "b.docx")],
+        database_url,
+    )
+
+    run = _read_run(database_url, "run-too-complex")
+    assert run.status == "failed"
+    assert run.error == "对比文件间相似内容过多，已安全终止，请减少文件数量后重试"
+    assert run.error != "后台任务异常退出"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from itertools import combinations
 
+import numpy as np
 import pytest
 
 from govdoc.compare import simhash
@@ -177,3 +178,12 @@ def test_exact_matches_are_excluded_from_similar_clusters() -> None:
         exact_matched_texts={"完全相同的段落内容用于测试去重逻辑"},
     )
     assert clusters == []
+
+
+def test_popcount_lookup_fallback_matches_numpy_primary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """numpy 无 bitwise_count 时，uint8 查表回退应与主路径结果一致。"""
+    values = np.array([0, 1, 3, 0xFFFFFFFFFFFFFFFF, 0x123456789ABCDEF0], dtype=np.uint64)
+    expected = simhash._bitwise_popcount(values)
+    monkeypatch.delattr(simhash.np, "bitwise_count", raising=False)
+
+    assert simhash._bitwise_popcount(values).tolist() == expected.tolist()
