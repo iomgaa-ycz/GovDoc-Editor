@@ -119,7 +119,7 @@ def create_app() -> FastAPI:
                 select(CompareRun).where(CompareRun.status.in_(["pending", "running"]))
             ).all():
                 cr.status = "failed"
-                cr.error = "服务重启中断，请重新发起对比"
+                cr.error = "对比任务中途中断，未能完成，请点击「重试」继续"
                 cr.completed_at = datetime.utcnow()
                 session.add(cr)
                 _logger.warning("标记中断 CompareRun: %s", cr.id)

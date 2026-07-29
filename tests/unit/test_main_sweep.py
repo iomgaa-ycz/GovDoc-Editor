@@ -64,5 +64,5 @@ def test_startup_sweep_marks_pending_and_running_compare_runs_failed(
 
     assert runs["pending-run"].status == "failed"
     assert runs["running-run"].status == "failed"
-    assert runs["pending-run"].error == "服务重启中断，请重新发起对比"
+    assert runs["pending-run"].error == "对比任务中途中断，未能完成，请点击「重试」继续"
     assert runs["done-run"].status == "completed"
