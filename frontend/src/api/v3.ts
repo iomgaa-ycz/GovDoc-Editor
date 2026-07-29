@@ -29,7 +29,7 @@ export async function request<T>(
   const res = await fetch(`${base}${path}`, init);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // FastAPI 常用 {"detail": "..."} 返回业务错误；优先展示给律师看的中文文案。
+    // FastAPI 常用 {"detail": "..."} 返回业务错误；只直抛字符串 detail（律师可读的中文文案），避免展示原始 JSON。
     if (body) {
       try {
         const parsedBody = JSON.parse(body) as { detail?: unknown };
@@ -38,6 +38,7 @@ export async function request<T>(
           throw new Error(parsedBody.detail);
         }
       } catch (err) {
+        // 自抛的 detail 错误 name 为 "Error"；JSON.parse 失败抛 SyntaxError，吞掉后落到下方回退格式
         if (err instanceof Error && err.name === "Error") {
           throw err;
         }
