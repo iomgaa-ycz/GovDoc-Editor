@@ -33,7 +33,8 @@ export async function request<T>(
     if (body) {
       try {
         const parsedBody = JSON.parse(body) as { detail?: unknown };
-        if (typeof parsedBody.detail === "string") {
+        // 空字符串 detail 会让错误在 UI 上静默消失，落到下方回退格式
+        if (typeof parsedBody.detail === "string" && parsedBody.detail) {
           throw new Error(parsedBody.detail);
         }
       } catch (err) {
