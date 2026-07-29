@@ -76,8 +76,6 @@ export interface CompareMatch {
   perFileCounts: Record<string, number>;
   fileCount: number;
   occurrenceCount: number;
-  similarity: number | null;
-  textB: string | null;
 }
 
 export interface CompareResponse {
@@ -157,7 +155,7 @@ export interface MatchSummaryItem {
   fileIndices: number[];
   occurrenceCount: number;
   preview: string;
-  similarity: number | null;
+  perFileCounts?: Record<string, number>;
 }
 
 export interface MatchPagination {

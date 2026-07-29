@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const CATEGORY_FILTERS: Array<{ id: CompareCategoryId; label: string }> = [
   { id: "paragraph", label: "相同段落" },
   { id: "sentence", label: "相同句子" },
-  { id: "similar", label: "近似段落" },
+  { id: "similar", label: "近似段落组" },
 ];
 
 const LENGTH_FILTER_MAX = 500;
@@ -241,7 +241,7 @@ function SummaryView({
         <MetricCard label="总段落数" value={totalParagraphCount(summary)} tone="blue" />
         <MetricCard label="相同段落" value={summary.summary.commonParagraphCount} tone="amber" />
         <MetricCard label="相同句子" value={summary.summary.commonSentenceCount} tone="green" />
-        <MetricCard label="近似段落" value={summary.summary.commonSimilarCount} tone="slate" />
+        <MetricCard label="近似段落组" value={summary.summary.commonSimilarCount} tone="slate" />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -282,7 +282,7 @@ function SummaryView({
             <span>类型</span>
             <span>匹配内容</span>
             <span>涉及文件</span>
-            <span>出现次数</span>
+            <span>出现位置</span>
           </div>
           {matches.map((match) => (
             <button
@@ -430,7 +430,12 @@ function ContextView({
 
         <div className="flex min-h-0 flex-1 gap-3">
           {context.fileContexts.map((fc) => (
-            <FileContextCol key={fc.fileIndex} fc={fc} matchColor={context.match.color} />
+            <FileContextCol
+              key={fc.fileIndex}
+              fc={fc}
+              match={context.match}
+              matchColor={context.match.color}
+            />
           ))}
         </div>
       </div>
@@ -469,6 +474,7 @@ function LengthThresholdControl({
 
 function FileContextCol({
   fc,
+  match,
   matchColor,
 }: {
   fc: {
@@ -483,9 +489,11 @@ function FileContextCol({
       segments: Array<{ text: string; matchIds: string[]; categories: CompareCategoryId[]; primaryMatchId: string | null }>;
     }>;
   };
+  match: MatchSummaryItem;
   matchColor: string;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
+  const perFileCount = match.perFileCounts?.[String(fc.fileIndex)] ?? 0;
 
   useEffect(() => {
     targetRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -520,11 +528,16 @@ function FileContextCol({
                 </span>
                 <span
                   className={cn(
-                    "flex-1",
+                    "flex-1 space-y-1",
                     isTarget ? "font-medium text-amber-900" : "text-text-primary",
                   )}
                 >
-                  {block.text || block.segments?.map((s) => s.text).join("") || ""}
+                  <span>{block.text || block.segments?.map((s) => s.text).join("") || ""}</span>
+                  {isTarget && perFileCount > 1 && (
+                    <span className="block text-[11px] font-normal text-text-muted">
+                      本文件共 {perFileCount} 处相似位置
+                    </span>
+                  )}
                 </span>
               </div>
             );

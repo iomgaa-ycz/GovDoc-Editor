@@ -1,8 +1,41 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { getCompareSummary } from "./compare";
+import { getCompareSummary, type CompareMatch, type MatchSummaryItem } from "./compare";
 
 describe("compare API", () => {
+  it("对比匹配类型使用聚类契约", () => {
+    const match: CompareMatch = {
+      id: "match-1",
+      category: "similar",
+      label: "近似段落组",
+      color: "#9b59b6",
+      text: "代表段落",
+      length: 4,
+      fileIndices: [0, 1],
+      occurrences: {
+        "0": [{ fileIndex: 0, start: 0, end: 4, segments: [] }],
+        "1": [{ fileIndex: 1, start: 0, end: 4, segments: [] }],
+      },
+      perFileCounts: { "0": 1, "1": 2 },
+      fileCount: 2,
+      occurrenceCount: 3,
+    };
+    const summaryItem: MatchSummaryItem = {
+      id: "match-1",
+      category: "similar",
+      label: "近似段落组",
+      color: "#9b59b6",
+      length: 4,
+      fileIndices: [0, 1],
+      occurrenceCount: 3,
+      preview: "代表段落",
+      perFileCounts: { "0": 1, "1": 2 },
+    };
+
+    expect(match.perFileCounts["1"]).toBe(2);
+    expect(summaryItem.perFileCounts?.["1"]).toBe(2);
+  });
+
   it("getCompareSummary 把当前长度阈值传给后端", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

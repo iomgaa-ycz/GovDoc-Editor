@@ -12,6 +12,9 @@ import type { GovDocument } from "../types/ui";
 
 type NormalizedRunStatus = "completed" | "running" | "pending" | "failed" | "unknown";
 
+// 与后端 govdoc.yaml compare.max_files、_validate_file_count 三处同步。
+const MAX_COMPARE_FILES = 6;
+
 function normalizeStatus(status: string): NormalizedRunStatus {
   if (status === "completed" || status === "running" || status === "pending" || status === "failed") {
     return status;
@@ -69,7 +72,7 @@ function formatMatchCount(run: CompareRunStatus): string {
     summary?: { matchCount?: number };
   };
   const count = enrichedRun.matchCount ?? enrichedRun.summary?.matchCount;
-  return typeof count === "number" ? String(count) : "-";
+  return typeof count === "number" ? `${count} 组匹配` : "-";
 }
 
 function progressIndex(run: CompareRunStatus): number {
@@ -125,6 +128,7 @@ export function DocCompareHubPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const exceedsMaxFiles = selectedDocs.length > MAX_COMPARE_FILES;
 
   useEffect(() => {
     let active = true;
@@ -174,7 +178,7 @@ export function DocCompareHubPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (selectedDocs.length < 2 || loading) return;
+    if (selectedDocs.length < 2 || selectedDocs.length > MAX_COMPARE_FILES || loading) return;
 
     setLoading(true);
     setError(null);
@@ -226,7 +230,11 @@ export function DocCompareHubPage() {
                 <FolderOpen className="h-4 w-4" />
                 从文件库添加
               </Button>
-              <Button type="submit" form="compare-upload-form" disabled={selectedDocs.length < 2 || loading}>
+              <Button
+                type="submit"
+                form="compare-upload-form"
+                disabled={selectedDocs.length < 2 || exceedsMaxFiles || loading}
+              >
                 <Play className="h-4 w-4" />
                 {loading ? "提交中..." : "开始对比"}
               </Button>
@@ -291,6 +299,11 @@ export function DocCompareHubPage() {
               )}
 
               {error && <p className="text-sm text-status-err">{error}</p>}
+              {exceedsMaxFiles && (
+                <p className="text-sm text-status-err">
+                  单次对比最多 6 份文件，请移除多余文件
+                </p>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -303,10 +316,10 @@ export function DocCompareHubPage() {
             </span>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 overflow-auto p-0">
-            <div className="grid grid-cols-[minmax(0,1fr)_90px_70px_150px_80px] border-b px-4 py-2 text-xs font-medium text-text-muted">
+            <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_150px_80px] border-b px-4 py-2 text-xs font-medium text-text-muted">
               <span>文件</span>
               <span>状态</span>
-              <span>匹配数</span>
+              <span>匹配组</span>
               <span>创建时间</span>
               <span>操作</span>
             </div>
@@ -332,7 +345,7 @@ export function DocCompareHubPage() {
                   >
                     <div
                       className={cn(
-                        "grid grid-cols-[minmax(0,1fr)_90px_70px_150px_80px] items-center px-4 py-3 text-sm",
+                        "grid grid-cols-[minmax(0,1fr)_90px_90px_150px_80px] items-center px-4 py-3 text-sm",
                         !isRunning && "hover:bg-surface/60",
                       )}
                     >

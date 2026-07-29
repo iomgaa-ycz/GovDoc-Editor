@@ -4,7 +4,6 @@ import { AppShell } from "./components/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AuditLibraryPage } from "./pages/AuditLibraryPage";
 import { DocCompareHubPage } from "./pages/DocCompareHubPage";
-import { DocCompareDetailPage } from "./pages/DocCompareDetailPage";
 import { DocCompareResultPage } from "./pages/DocCompareResultPage";
 import { AIReviewHubPage } from "./pages/AIReviewHubPage";
 import { AIReviewDetailPage } from "./pages/AIReviewDetailPage";
