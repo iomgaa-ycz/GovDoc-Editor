@@ -386,7 +386,9 @@ export function DocCompareHubPage() {
                       </div>
                     </div>
                     {run.status === "failed" && run.error && (
-                      <p className="mt-1 px-2 text-xs text-[#DC2626]">{run.error}</p>
+                      <p className="mt-1 mb-1 line-clamp-2 px-4 text-xs text-[#DC2626]" title={run.error}>
+                        {run.error}
+                      </p>
                     )}
                     {isRunning && <InlineProgress run={run} />}
                   </div>

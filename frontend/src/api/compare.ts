@@ -49,52 +49,6 @@ export interface CompareDocument {
   blocks: CompareDocumentBlock[];
 }
 
-export interface CompareOccurrenceSegment {
-  fileIndex: number;
-  blockId: string;
-  blockIndex: number;
-  start: number;
-  end: number;
-}
-
-export interface CompareOccurrence {
-  fileIndex: number;
-  start: number;
-  end: number;
-  segments: CompareOccurrenceSegment[];
-}
-
-export interface CompareMatch {
-  id: string;
-  category: CompareCategoryId;
-  label: string;
-  color: string;
-  text: string;
-  length: number;
-  fileIndices: number[];
-  occurrences: Record<string, CompareOccurrence[]>;
-  perFileCounts: Record<string, number>;
-  fileCount: number;
-  occurrenceCount: number;
-}
-
-export interface CompareResponse {
-  reviewId: string;
-  summary: CompareSummary;
-  documents: {
-    files: CompareDocument[];
-  };
-  matches: CompareMatch[];
-  categories: CompareCategory[];
-  downloads: {
-    files: Record<string, string>;
-  };
-  artifacts: {
-    reviewDir: string;
-    downloadNames: Record<string, string>;
-  };
-}
-
 export interface CompareSubmitResponse {
   reviewId: string;
   status: string;
@@ -130,10 +84,6 @@ export async function compareDocuments(documentIds: string[]): Promise<CompareSu
 
 export function getCompareStatus(reviewId: string): Promise<CompareRunStatus> {
   return request(`/api/v1/compare/${reviewId}/status`);
-}
-
-export function getCompareResult(reviewId: string): Promise<CompareResponse> {
-  return request(`/api/v1/compare/${reviewId}/result`);
 }
 
 export function listCompareRuns(): Promise<CompareRunStatus[]> {
