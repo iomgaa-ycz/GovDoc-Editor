@@ -76,7 +76,13 @@ async page => {
 
   const removeBtn = page.getByRole('button', { name: '移出当前库' });
   await removeBtn.click();
-  await page.waitForTimeout(2000);
+
+  // 轮询等待行数减少（后端异步移出 + 前端刷新需要时间）
+  await page.waitForFunction(
+    (expectedCount) => document.querySelectorAll('table tbody tr').length < expectedCount,
+    libRowCount,
+    { timeout: 10000, polling: 500 }
+  );
   await page.screenshot({ path: SS + '-06-after-remove.png', fullPage: true });
 
   const afterRemoveCount = await page.locator('table tbody tr').count();

@@ -1,8 +1,8 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL10';
-  // 真实 .doc（旧版 Word，7.8MB）——验证「.doc 选不了」是否真正修复。与 AL8/F2 同源文件。
-  const DOC_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/2025年政府采购领域“四类”违法违规行为专项整治工作指引.doc';
+  // .doc 文件——验证「.doc 选不了」是否真正修复。运行时生成的假 DOC（仅测 UI 回显）。
+  const DOC_PATH = 'e2e/.test-data/E2E测试法规指引.doc';
   const DOC_BASENAME = DOC_PATH.split('/').pop();                 // ...指引.doc
   const DOC_TITLE = DOC_BASENAME.replace(/\.[^.]+$/, '');          // 去 .doc 后的标题兜底期望值
 
@@ -28,8 +28,8 @@ async page => {
   console.log('Step 3: 选择真实 .doc（' + DOC_BASENAME + '）');
   await fileInput.setInputFiles(DOC_PATH);
   await page.waitForTimeout(800);
-  if (!(await page.getByText('四类').first().isVisible())) {
-    throw new Error('选择真实 .doc 后文件名片段「四类」未回显');
+  if (!(await page.getByText('E2E测试法规指引').first().isVisible())) {
+    throw new Error('选择真实 .doc 后文件名片段「E2E测试法规指引」未回显');
   }
   const titleInput = page.locator('input[placeholder*="例如"]');
   let titleVal = await titleInput.inputValue();

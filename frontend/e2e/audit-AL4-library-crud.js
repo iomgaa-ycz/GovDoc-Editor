@@ -20,8 +20,9 @@ async page => {
   if (!(await createTitle.isVisible())) throw new Error('新建对话框标题"新建审核点库"不可见');
   console.log('PASS: 新建库对话框弹出');
 
-  // 填写名称和说明
+  // 填写名称和说明（等待 input 渲染完成，Radix Dialog 有进入动画）
   const nameInput = createDialog.locator('input[placeholder="库名称"]');
+  await nameInput.waitFor({ state: 'visible', timeout: 5000 });
   await nameInput.fill(libName);
   const descTextarea = createDialog.locator('textarea[placeholder*="说明"]');
   await descTextarea.fill('E2E 自动化测试创建的审核点库');
@@ -63,8 +64,8 @@ async page => {
   const editTitle = editDialog.getByText('编辑审核点库');
   if (!(await editTitle.isVisible())) throw new Error('编辑对话框标题"编辑审核点库"不可见');
 
-  // 验证名称已预填
-  const editNameInput = editDialog.locator('input[placeholder="库名称"]');
+  // 验证名称已预填（编辑对话框 Input 无 placeholder，label 也未用 htmlFor 关联，直接取第一个 input）
+  const editNameInput = editDialog.locator('input').first();
   const prefilledValue = await editNameInput.inputValue();
   if (prefilledValue !== libName) throw new Error('编辑对话框名称未预填: 期望"' + libName + '"，实际"' + prefilledValue + '"');
   console.log('PASS: 编辑对话框名称已预填');

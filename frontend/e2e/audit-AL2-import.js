@@ -1,7 +1,7 @@
 async page => {
   const u = page.url(); const BASE = u.split('/').slice(0, 3).join('/');
   const SS = 'e2e/screenshots/audit-AL2';
-  const XLS_PATH = '/home/iomgaa/Projects/GovDoc_Editor/real_data/附件9 处理处罚标准.xls';
+  const XLS_PATH = 'e2e/.test-data/E2E测试审核点.xlsx';
 
   // ── Step 1: 导航到审核点库页面 ──
   console.log('Step 1: 导航到 /audit-library');
@@ -44,8 +44,8 @@ async page => {
   await fileInput.setInputFiles(XLS_PATH);
   await page.waitForTimeout(1000);
 
-  const filenameVisible = page.getByText('处理处罚标准').first();
-  if (!(await filenameVisible.isVisible())) throw new Error('上传后文件名"处理处罚标准"不可见');
+  const filenameVisible = page.getByText('E2E测试审核点').first();
+  if (!(await filenameVisible.isVisible())) throw new Error('上传后文件名"E2E测试审核点"不可见');
   await page.screenshot({ path: SS + '-03-file-uploaded.png', fullPage: true });
   console.log('PASS: 文件上传成功，文件名可见');
 
@@ -59,11 +59,13 @@ async page => {
   await page.screenshot({ path: SS + '-04-preview-result.png', fullPage: true });
   console.log('PASS: 解析预览完成，"新增"指标可见');
 
-  // 验证 4 个指标都可见
+  // 验证 4 个指标都可见（等待指标网格渲染，再用 locator + hasText 逐个检查）
+  const previewGrid = page.locator('.grid-cols-4').first();
+  await previewGrid.waitFor({ state: 'visible', timeout: 5000 });
   const metrics = ['新增', '复用', '重复', '跳过'];
   for (const m of metrics) {
-    const el = page.getByText(m).first();
-    if (!(await el.isVisible())) throw new Error('预览指标缺失: ' + m);
+    const el = previewGrid.locator('p', { hasText: m }).first();
+    await el.waitFor({ state: 'visible', timeout: 5000 });
   }
   console.log('PASS: 4 个预览指标全部可见（' + metrics.join('/') + '）');
 

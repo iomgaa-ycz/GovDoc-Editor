@@ -38,13 +38,20 @@ async page => {
   const compareBtn = page.getByRole('button', { name: /开始对比/ });
   await compareBtn.click();
 
-  // 应显示 "提交中..." 或跳转到详情页
+  // 提交后页面停留在 /compare，不会自动跳转
   await page.waitForTimeout(2000);
-  await page.screenshot({ path: SS + '-02-submitting.png', fullPage: true });
+  await page.screenshot({ path: SS + '-02-submitted.png', fullPage: true });
+  console.log('PASS: 已提交对比请求');
 
-  // Step 3: 等待跳转到 detail 页 (/compare/:reviewId)
-  console.log('Step 3: 等待跳转到详情页');
-  await page.waitForURL(/\/compare\/[a-zA-Z0-9-]+/, { timeout: 30000 });
+  // Step 3: 在历史列表中找到最新条目并点击"查看"
+  console.log('Step 3: 等待历史列表出现新条目');
+  const viewBtn = page.getByRole('button', { name: /查看/ }).first();
+  // 等待"查看"按钮出现（可能需要等对比完成或先进入进度态）
+  await viewBtn.waitFor({ timeout: 30000 });
+  await viewBtn.click();
+
+  // 现在应该跳转到详情页
+  await page.waitForURL(/\/compare\/[a-zA-Z0-9-]+/, { timeout: 10000 });
   const detailUrl = page.url();
   console.log('PASS: 已跳转到详情页 ' + detailUrl);
 

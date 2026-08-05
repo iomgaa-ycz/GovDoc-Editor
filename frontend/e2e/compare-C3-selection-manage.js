@@ -22,7 +22,7 @@ async page => {
       await page.waitForTimeout(200);
     }
     await modal.getByRole('button', { name: '确认选择' }).click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(2000);
     return toSelect;
   }
 
@@ -32,8 +32,9 @@ async page => {
   if (picked < 2) throw new Error('文件库不足 2 个已转换文件');
   await page.screenshot({ path: SS + '-01-two-files.png', fullPage: true });
 
-  // 验证 badge
+  // 验证 badge（等待异步 state 更新）
   const badge = page.getByText(/已选 \d+ 个文件/);
+  await badge.waitFor({ timeout: 5000 }).catch(() => {});
   if (!(await badge.isVisible())) throw new Error('文件数 badge 不可见');
   const badgeText = await badge.textContent() || '';
   console.log('PASS: badge 显示 "' + badgeText.trim() + '"');

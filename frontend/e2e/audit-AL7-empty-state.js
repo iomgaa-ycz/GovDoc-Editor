@@ -57,7 +57,7 @@ async page => {
   await page.screenshot({ path: SS + '-03-empty-library.png', fullPage: true });
 
   // 验证空状态文案
-  const emptyText = await page.locator('table tbody, main').textContent() || '';
+  const emptyText = await page.locator('table tbody').first().textContent() || '';
   if (emptyText.includes('暂无审核点')) {
     console.log('PASS: 空库显示"暂无审核点"提示');
   } else {

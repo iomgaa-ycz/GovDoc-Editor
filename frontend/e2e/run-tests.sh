@@ -10,11 +10,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export NO_PROXY="100.70.102.30,100.82.33.121,110.42.53.85,localhost,127.0.0.1"
+export NO_PROXY="175.178.131.134,100.70.102.30,100.82.33.121,110.42.53.85,localhost,127.0.0.1,${NO_PROXY:-}"
 export no_proxy="$NO_PROXY"
 
-BASE_URL="${E2E_BASE_URL:-http://100.70.102.30:8080}"
-BACKEND_URL="${E2E_BACKEND_URL:-http://100.82.33.121:8001}"
+BASE_URL="${E2E_BASE_URL:-http://175.178.131.134:8080}"
+BACKEND_URL="${E2E_BACKEND_URL:-http://localhost:8000}"
 SCREENSHOT_DIR="e2e/screenshots"
 CLI="npx playwright-cli"
 SESSION="govdoc-e2e"
@@ -41,8 +41,11 @@ done
 FILES_TESTS=("files-F1-skeleton" "files-F2-upload" "files-F3-search-filter" "files-F4-tags" "files-F5-delete" "files-F6-reconvert" "files-F7-empty-state")
 COMPARE_TESTS=("compare-C1-skeleton" "compare-C2-file-picker" "compare-C3-selection-manage" "compare-C4-submit-progress" "compare-C5-history" "compare-C6-result-view" "compare-C7-result-interact" "compare-C8-empty-error")
 AUDIT_TESTS=("audit-AL1-skeleton" "audit-AL2-import" "audit-AL3-search-filter" "audit-AL4-library-crud" "audit-AL5-checkpoint-edit-delete" "audit-AL6-library-membership" "audit-AL7-empty-state" "audit-AL8-ai-extract" "audit-AL9-checkpoint-archive" "audit-AL10-upload-dragdrop")
+REVIEW_TESTS=("review-R1-skeleton" "review-R2-drawer" "review-R3-create-run" "review-R4-progress" "review-R5-workpaper" "review-R6-cancel-retry" "review-R7-finalize-export" "review-R8-form-validation")
+CROSS_TESTS=("cross-X1-file-to-review" "cross-X2-delete-cp-to-review" "cross-X3-edit-cp-to-review" "cross-X4-dashboard-sync")
+DASHBOARD_TESTS=("dashboard-D1-skeleton" "dashboard-D2-stats" "dashboard-D3-navigation" "dashboard-D4-sidebar-nav")
 
-ALL_TESTS=("${FILES_TESTS[@]}" "${COMPARE_TESTS[@]}" "${AUDIT_TESTS[@]}")
+ALL_TESTS=("${FILES_TESTS[@]}" "${COMPARE_TESTS[@]}" "${AUDIT_TESTS[@]}" "${REVIEW_TESTS[@]}" "${CROSS_TESTS[@]}" "${DASHBOARD_TESTS[@]}")
 
 if [ -n "$ONLY" ]; then
     TESTS=("$ONLY")
@@ -51,7 +54,8 @@ elif [ -n "$PAGE" ]; then
         files) TESTS=("${FILES_TESTS[@]}") ;;
         compare) TESTS=("${COMPARE_TESTS[@]}") ;;
         audit) TESTS=("${AUDIT_TESTS[@]}") ;;
-        *) echo "未知页面: $PAGE（可选: files, compare, audit）"; exit 1 ;;
+        dashboard) TESTS=("${DASHBOARD_TESTS[@]}") ;;
+        *) echo "未知页面: $PAGE（可选: files, compare, audit, dashboard）"; exit 1 ;;
     esac
 else
     TESTS=("${ALL_TESTS[@]}")
@@ -120,6 +124,13 @@ if ! curl -sf -o /dev/null --connect-timeout 5 "$BACKEND_URL/healthz"; then
     exit 1
 fi
 log "✓ 后端可达"
+
+# ── 生成 e2e fixture ──
+if [ ! -d "e2e/.test-data" ]; then
+    log "▶ 生成 e2e 测试 fixture..."
+    source activate govdoc-auditor-v3 && python3 e2e/generate-test-data.py
+    log "✓ fixture 生成完成"
+fi
 
 # ── 执行测试 ──
 for t in "${TESTS[@]}"; do
